@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 vadmyro
+
+name: CI
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Oldest Qt version we support. Developers usually build with a newer one.
+  QT_VERSION: '6.8.3'
+  CLANG_FORMAT_VERSION: '22.1.8'
+
+jobs:
+  format:
+    name: clang-format
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install clang-format
+        run: pipx install "clang-format==${CLANG_FORMAT_VERSION}"
+
+      - name: Check formatting
+        run: |
+          clang-format --version
+          git ls-files -z '*.cpp' '*.h' | xargs -0 --no-run-if-empty clang-format --dry-run --Werror
+
+  build:
+    name: ${{ matrix.os }} (${{ matrix.preset }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025, macos-15]
+        preset: [debug, release]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          cache: true
+
+      - name: Configure
+        # Warnings are errors on Linux and macOS. Windows reports them only, for now.
+        run: cmake --preset ${{ matrix.preset }} -DCMAKE_COMPILE_WARNING_AS_ERROR=${{ runner.os != 'Windows' && 'ON' || 'OFF' }}
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }} --parallel
+
+      - name: Test
+        run: ctest --preset ${{ matrix.preset }}
