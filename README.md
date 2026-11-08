@@ -10,7 +10,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="License: GPL-3.0-or-later"></a>
   <a href="https://discord.gg/XfXtZeUFYs"><img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
   <a href="docs/ROADMAP.md"><img src="https://img.shields.io/badge/status-in%20development-orange" alt="Status: in development"></a>
-  <img src="https://img.shields.io/github/last-commit/vadmyro/TacetOS" alt="Last commit">
+  <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fvadmyro%2FTacetOS%2Fcommits%2Fmain&query=%24.commit.committer.date&label=last%20commit" alt="Last commit">
 </p>
 
 <p align="center">
@@ -46,7 +46,7 @@
 | Version | Focus | Done |
 |---|---|---|
 | Setup | Repository, app skeleton, CI | ✅ 4/4 |
-| Foundations | Firmware base, model database, specs | 🚧 6/7 |
+| Foundations | Firmware base, model database, specs | ✅ 7/7 |
 | **v0.1** | Device detection and live state | ⏳ 0/7 |
 | Test devices | Disk image test devices, privileged helper | ⏳ 0/5 |
 | **v0.2** | Install and reset wizard | ⏳ 0/12 |
@@ -59,15 +59,15 @@
 | **beta** | Packages, public beta | ⏳ 0/6 |
 | **v1.0** | Fixes from the beta | ⏳ 0/1 |
 
-### Now: foundations
+### Now: device detection
 
-- [x] Firmware base: pinned source version, patch set, apply and build scripts
-- [x] Library sorting rules written down as a spec
-- [x] Model database and one page per model
-- [x] Fake music library (no real music) and a reference sync result for tests
-- [x] Spec: bootloader install on older iPods
-- [x] Spec: bootloader install on the iPod Classic
-- [ ] Specs: device detection and theme file format
+- [ ] Device module: from the USB id to the iPod family
+- [ ] Live plug and unplug
+- [ ] Linux disks: mount, unmount and eject without root
+- [ ] Exact model, and which firmware is installed (Apple or TacetOS, and its version)
+- [ ] State machine: unplugged, normal, disk mode, mounted, DFU, rebooting, busy, done, error
+- [ ] Home screen: drawing of the model, live state, free space, firmware version
+- [ ] Real-device test: normal mode, disk mode, DFU, unplug
 
 Every task is listed in the [roadmap](docs/ROADMAP.md). News is posted on the [Discord server](https://discord.gg/XfXtZeUFYs).
 

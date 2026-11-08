@@ -7,7 +7,7 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 | Version | What it brings | Done | Status |
 |---|---|---|---|
 | Setup | Repository, app skeleton, CI on Linux, Windows and macOS | 4/4 | ✅ done |
-| Foundations | Firmware base, model database, library rules, specs of the install formats and protocols | 6/7 | 🚧 in progress |
+| Foundations | Firmware base, model database, library rules, specs of the install formats and protocols | 7/7 | ✅ done |
 | **v0.1** | Device detection and live state (plug, unplug, disk mode, DFU) | 0/7 | ⏳ |
 | Test devices | Disk image test devices + privileged helper | 0/5 | ⏳ |
 | **v0.2** | Install and reset wizard: backup, format, firmware, bootloader, guided DFU, uninstall | 0/12 | ⏳ |
@@ -27,7 +27,7 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 - [x] CI: formatting check, build and tests on Linux, Windows and macOS
 - [x] Logo and icon
 
-## Foundations 🚧
+## Foundations ✅
 
 - [x] Firmware base: pinned source version, patch set, apply and build scripts
 - [x] Library sorting rules written down as a spec ([library-rules.md](specs/library-rules.md))
@@ -35,7 +35,7 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 - [x] Fake music library (no real music) and a reference sync result for tests
 - [x] Spec: bootloader install on older iPods ([bootloader-legacy.md](specs/bootloader-legacy.md))
 - [x] Spec: bootloader install on the iPod Classic ([bootloader-classic.md](specs/bootloader-classic.md))
-- [ ] Specs: device detection and theme file format
+- [x] Specs: device detection and theme file format
 
 ## v0.1 · Device detection
 
