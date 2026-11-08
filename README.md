@@ -35,7 +35,7 @@
 | Version | Focus | Done |
 |---|---|---|
 | Setup | Repository, app skeleton, CI | ✅ 4/4 |
-| Foundations | Firmware base, model database, specs | 🚧 4/7 |
+| Foundations | Firmware base, model database, specs | 🚧 6/7 |
 | **v0.1** | Device detection and live state | ⏳ 0/7 |
 | Test devices | Disk image test devices, privileged helper | ⏳ 0/5 |
 | **v0.2** | Install and reset wizard | ⏳ 0/12 |
@@ -54,8 +54,8 @@
 - [x] Library sorting rules written down as a spec
 - [x] Model database and one page per model
 - [x] Fake music library (no real music) and a reference sync result for tests
-- [ ] Spec: bootloader install on older iPods
-- [ ] Spec: bootloader install on the iPod Classic
+- [x] Spec: bootloader install on older iPods
+- [x] Spec: bootloader install on the iPod Classic
 - [ ] Specs: device detection and theme file format
 
 Every task is listed in the [roadmap](docs/ROADMAP.md). News is posted on the [Discord server](https://discord.gg/XfXtZeUFYs).

@@ -26,6 +26,7 @@ Needs python3 and ffmpeg. Exits with 77 (skipped) when ffmpeg is missing.
 import argparse
 import collections
 import difflib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -125,7 +126,7 @@ def main(argv):
                           read_lines(ref_dir / "reference-left-in-inbox.txt"),
                           read_lines(args.left_in_inbox))
     else:
-        if subprocess.run(["ffmpeg", "-version"], capture_output=True).returncode:
+        if shutil.which("ffmpeg") is None:
             print("check_reference.py: ffmpeg not found, skipped")
             return SKIP
         with tempfile.TemporaryDirectory(prefix="tacetos-fixtures-") as tmp:

@@ -435,5 +435,5 @@ void TestModels::toVerifyEntries()
     });
 }
 
-QTEST_APPLESS_MAIN(TestModels)
+QTEST_GUILESS_MAIN(TestModels)
 #include "tst_models.moc"

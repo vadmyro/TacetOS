@@ -120,12 +120,14 @@ LIBRARY = [
       album_artist="Nova Kell", album="Orbits", track="5", date="2023",
       genre="Electronic"),
 
-    # Two discs, plus a name that differs only by case from "Nova Kell".
-    t("nova kell/Orbits Remixed/1-01 Launch (Ida Rowe Remix)", "flac", "beep",
+    # Two discs, plus a name that differs only by case from "Nova Kell". The case
+    # difference is in the tags only: two folders that differ only by case would
+    # be one folder on Windows and macOS.
+    t("nova kell remixes/Orbits Remixed/1-01 Launch (Ida Rowe Remix)", "flac", "beep",
       title="Launch (Ida Rowe Remix)", artist="nova kell",
       album_artist="nova kell", album="Orbits Remixed", track="1", disc="1/2",
       date="2024", genre="Electronic"),
-    t("nova kell/Orbits Remixed/2-01 Drift (Night Version)", "flac", "silence",
+    t("nova kell remixes/Orbits Remixed/2-01 Drift (Night Version)", "flac", "silence",
       title="Drift (Night Version)", artist="nova kell",
       album_artist="nova kell", album="Orbits Remixed", track="1", disc="2/2",
       date="2024", genre="Electronic"),
