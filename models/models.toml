@@ -1,0 +1,493 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 vadmyro
+#
+# The list of supported iPods. Facts only, written in our own format.
+# Every field is described in models/README.md.
+#
+# Status of this file: all ten models are filled. Classic 6G (the example),
+# the six disk models before it (iPod 1G/2G, 3G, 4G, Color, Mini 1G, Mini 2G),
+# then iPod Video, Nano 1G and Nano 2G. The facts that are still weak are
+# listed in each model's to_verify.
+
+format_version = 1
+
+# ---------------------------------------------------------------------------
+# Sources. Every fact of a model points to one or more of these ids.
+# ---------------------------------------------------------------------------
+
+[sources.usb-ids]
+kind = "database"
+title = "Public USB id database (usb.ids)"
+location = "https://www.linux-usb.org/usb.ids (read in the copy shipped by the hwdata package of the build machine)"
+checked = 2026-11-08
+
+[sources.fw-config]
+kind = "firmware-sources"
+title = "Device configuration header of the firmware base, one per target"
+location = "firmware/export/config/<target>.h in the firmware base (see firmware/base.lock)"
+checked = 2026-11-08
+
+[sources.fw-manual]
+kind = "firmware-sources"
+title = "Manual pages of the firmware base: platform page per model and install chapter"
+location = "manual/platform/<target>.tex, manual/getting_started/ipod_install.tex and manual/getting_started/ipod6g_install.tex in the firmware base (see firmware/base.lock)"
+checked = 2026-11-08
+
+[sources.installer-devices]
+kind = "installer-sources"
+title = "Device list of the graphical installer shipped with the firmware base (name, USB id, install method, bootloader file)"
+location = "utils/ folder of the firmware base (see firmware/base.lock)"
+checked = 2026-11-08
+
+[sources.dfu-pid-table]
+kind = "installer-sources"
+title = "Table of known DFU product ids in the DFU tool shipped with the firmware base"
+location = "utils/ folder of the firmware base (see firmware/base.lock)"
+checked = 2026-11-08
+
+# ---------------------------------------------------------------------------
+# Models
+# ---------------------------------------------------------------------------
+
+[[model]]
+id = "classic-6g"
+family = "classic"
+name = "iPod Classic (6th generation)"
+bootloader_target = "ipod6g"
+
+# Facts with fewer than two checked sources, or that were assumed. They must
+# be confirmed (on a real iPod or in a second source) before the first
+# release. Fact names are the keys of [model.sources].
+to_verify = ["usb_disk_mode", "storage"]
+
+# USB ids as "vendor:product" in lowercase hexadecimal. An empty list means
+# the mode does not exist on this model. A missing key means not checked yet.
+[model.usb]
+normal = ["05ac:1261"]
+disk_mode = ["05ac:1261"]
+dfu = ["05ac:1223"]
+
+[model.screen]
+width = 320
+height = 240
+depth_bits = 16
+colour = true
+diagonal_inches = 2.5
+
+[model.storage]
+kind = "hdd"
+form_factor = "1.8in"
+interface = "ata"
+capacities_gb = [80, 120, 160]
+
+[model.install]
+method = "dfu"
+dual_boot_required = true
+
+# Source ids for each fact. A fact is confirmed when at least two ids are
+# listed and it is not in to_verify.
+[model.sources]
+family = ["fw-config", "installer-devices"]
+name = ["fw-config", "installer-devices"]
+usb_normal = ["usb-ids", "fw-config", "installer-devices"]
+usb_disk_mode = ["usb-ids"]
+usb_dfu = ["usb-ids", "dfu-pid-table"]
+screen = ["fw-config", "fw-manual"]
+storage = ["fw-config"]
+install_method = ["fw-manual", "installer-devices"]
+bootloader_target = ["fw-config", "installer-devices"]
+
+# ---------------------------------------------------------------------------
+# Disk models before the Classic. They all use the "partition" install method
+# (the bootloader goes into the firmware partition of the disk, no DFU), they
+# all keep the original firmware reachable, and none of them has a DFU mode.
+#
+# Capacities, drive sizes and diagonals are not in any source we could read
+# offline, so they come from general knowledge only: every model lists
+# "storage" in to_verify, and "diagonal_inches" is left out. They must be
+# checked against Apple's specification sheets before a release.
+# ---------------------------------------------------------------------------
+
+# The first two generations. USB did not exist on them (FireWire only), which
+# is what the installer's device list says ("no usb"). The USB id database
+# lists an id for the 2nd generation, so "usb_normal" and "usb_disk_mode" stay
+# in to_verify until someone plugs one in. The two generations cannot be told
+# apart by the bootloader tooling: they share one target.
+[[model]]
+id = "ipod-1g2g"
+family = "ipod"
+name = "iPod (1st and 2nd generation)"
+bootloader_target = "ipod1g2g"
+to_verify = ["usb_normal", "usb_disk_mode", "storage"]
+
+[model.usb]
+normal = []
+disk_mode = []
+dfu = []
+
+[model.screen]
+width = 160
+height = 128
+depth_bits = 2
+colour = false
+
+[model.storage]
+kind = "hdd"
+form_factor = "1.8in"
+interface = "ata"
+capacities_gb = [5, 10, 20]
+
+[model.install]
+method = "partition"
+dual_boot_required = false
+
+[model.sources]
+family = ["fw-config", "installer-devices"]
+name = ["fw-config", "installer-devices"]
+usb_normal = ["installer-devices", "fw-config"]
+usb_disk_mode = ["installer-devices", "fw-config"]
+usb_dfu = ["installer-devices", "fw-manual"]
+screen = ["fw-config", "fw-manual"]
+storage = ["fw-config", "fw-manual"]
+install_method = ["fw-manual", "installer-devices"]
+bootloader_target = ["fw-config", "installer-devices"]
+
+[[model]]
+id = "ipod-3g"
+family = "ipod"
+name = "iPod (3rd generation)"
+bootloader_target = "ipod3g"
+to_verify = ["usb_disk_mode", "storage"]
+
+[model.usb]
+normal = ["05ac:1201"]
+disk_mode = ["05ac:1201"]
+dfu = []
+
+[model.screen]
+width = 160
+height = 128
+depth_bits = 2
+colour = false
+
+[model.storage]
+kind = "hdd"
+form_factor = "1.8in"
+interface = "ata"
+capacities_gb = [10, 15, 20, 30, 40]
+
+[model.install]
+method = "partition"
+dual_boot_required = false
+
+[model.sources]
+family = ["fw-config", "installer-devices"]
+name = ["fw-config", "installer-devices"]
+usb_normal = ["usb-ids", "installer-devices"]
+usb_disk_mode = ["usb-ids", "installer-devices"]
+usb_dfu = ["installer-devices", "fw-manual"]
+screen = ["fw-config", "fw-manual"]
+storage = ["fw-config", "fw-manual"]
+install_method = ["fw-manual", "installer-devices"]
+bootloader_target = ["fw-config", "installer-devices"]
+
+# The grayscale 4th generation. One of the tools of the firmware base uses a
+# different internal name for this target; the build target and the bootloader
+# file are "ipod4g", which is what is used here.
+[[model]]
+id = "ipod-4g"
+family = "ipod"
+name = "iPod (4th generation, grayscale)"
+bootloader_target = "ipod4g"
+to_verify = ["usb_disk_mode", "storage"]
+
+[model.usb]
+normal = ["05ac:1203"]
+disk_mode = ["05ac:1203"]
+dfu = []
+
+[model.screen]
+width = 160
+height = 128
+depth_bits = 2
+colour = false
+
+[model.storage]
+kind = "hdd"
+form_factor = "1.8in"
+interface = "ata"
+capacities_gb = [20, 30, 40]
+
+[model.install]
+method = "partition"
+dual_boot_required = false
+
+[model.sources]
+family = ["fw-config", "installer-devices"]
+name = ["fw-config", "installer-devices"]
+usb_normal = ["usb-ids", "fw-config", "installer-devices"]
+usb_disk_mode = ["usb-ids", "installer-devices"]
+usb_dfu = ["installer-devices", "fw-manual"]
+screen = ["fw-config", "fw-manual"]
+storage = ["fw-config", "fw-manual"]
+install_method = ["fw-manual", "installer-devices"]
+bootloader_target = ["fw-config", "installer-devices"]
+
+# The colour-screen 4th generation (sold as Photo, then Color, and the U2
+# edition). One USB id for all of them.
+[[model]]
+id = "ipod-color"
+family = "ipod"
+name = "iPod Color / Photo (4th generation)"
+bootloader_target = "ipodcolor"
+to_verify = ["usb_disk_mode", "storage"]
+
+[model.usb]
+normal = ["05ac:1204"]
+disk_mode = ["05ac:1204"]
+dfu = []
+
+[model.screen]
+width = 220
+height = 176
+depth_bits = 16
+colour = true
+
+[model.storage]
+kind = "hdd"
+form_factor = "1.8in"
+interface = "ata"
+capacities_gb = [20, 30, 40, 60]
+
+[model.install]
+method = "partition"
+dual_boot_required = false
+
+[model.sources]
+family = ["fw-config", "installer-devices"]
+name = ["fw-config", "installer-devices"]
+usb_normal = ["usb-ids", "fw-config", "installer-devices"]
+usb_disk_mode = ["usb-ids", "installer-devices"]
+usb_dfu = ["installer-devices", "fw-manual"]
+screen = ["fw-config", "fw-manual"]
+storage = ["fw-config", "fw-manual"]
+install_method = ["fw-manual", "installer-devices"]
+bootloader_target = ["fw-config", "installer-devices"]
+
+# The two Mini generations show the same USB id, so the app cannot tell them
+# apart by USB. They have separate build targets and bootloader files, and
+# share one manual page, so the model has to be chosen from the disk contents
+# or by the user.
+[[model]]
+id = "mini-1g"
+family = "mini"
+name = "iPod Mini (1st generation)"
+bootloader_target = "ipodmini1g"
+to_verify = ["usb_disk_mode", "storage"]
+
+[model.usb]
+normal = ["05ac:1205"]
+disk_mode = ["05ac:1205"]
+dfu = []
+
+[model.screen]
+width = 138
+height = 110
+depth_bits = 2
+colour = false
+
+[model.storage]
+kind = "hdd"
+form_factor = "1in"
+interface = "ata"
+capacities_gb = [4]
+
+[model.install]
+method = "partition"
+dual_boot_required = false
+
+[model.sources]
+family = ["fw-config", "installer-devices"]
+name = ["fw-config", "installer-devices"]
+usb_normal = ["usb-ids", "fw-config", "installer-devices"]
+usb_disk_mode = ["usb-ids", "installer-devices"]
+usb_dfu = ["installer-devices", "fw-manual"]
+screen = ["fw-config", "fw-manual"]
+storage = ["fw-config", "fw-manual"]
+install_method = ["fw-manual", "installer-devices"]
+bootloader_target = ["fw-config", "installer-devices"]
+
+[[model]]
+id = "mini-2g"
+family = "mini"
+name = "iPod Mini (2nd generation)"
+bootloader_target = "ipodmini2g"
+to_verify = ["usb_disk_mode", "storage"]
+
+[model.usb]
+normal = ["05ac:1205"]
+disk_mode = ["05ac:1205"]
+dfu = []
+
+[model.screen]
+width = 138
+height = 110
+depth_bits = 2
+colour = false
+
+[model.storage]
+kind = "hdd"
+form_factor = "1in"
+interface = "ata"
+capacities_gb = [4, 6]
+
+[model.install]
+method = "partition"
+dual_boot_required = false
+
+[model.sources]
+family = ["fw-config", "installer-devices"]
+name = ["fw-config", "installer-devices"]
+usb_normal = ["usb-ids", "fw-config", "installer-devices"]
+usb_disk_mode = ["usb-ids", "installer-devices"]
+usb_dfu = ["installer-devices", "fw-manual"]
+screen = ["fw-config", "fw-manual"]
+storage = ["fw-config", "fw-manual"]
+install_method = ["fw-manual", "installer-devices"]
+bootloader_target = ["fw-config", "installer-devices"]
+
+# ---------------------------------------------------------------------------
+# Video and the two Nano generations. They also use the "partition" install
+# method and keep the original firmware reachable. Capacities are general
+# knowledge only (no offline source), so every model lists "storage" in
+# to_verify and leaves "diagonal_inches" out, like the models above.
+# ---------------------------------------------------------------------------
+
+# The 5th generation, sold as Video and later as Classic in 2007 (same
+# hardware family, same id). Colour screen, 1.8 inch disk.
+[[model]]
+id = "ipod-video"
+family = "ipod"
+name = "iPod Video (5th generation)"
+bootloader_target = "ipodvideo"
+to_verify = ["usb_disk_mode", "storage"]
+
+[model.usb]
+normal = ["05ac:1209"]
+disk_mode = ["05ac:1209"]
+dfu = []
+
+[model.screen]
+width = 320
+height = 240
+depth_bits = 16
+colour = true
+
+[model.storage]
+kind = "hdd"
+form_factor = "1.8in"
+interface = "ata"
+capacities_gb = [30, 60, 80]
+
+[model.install]
+method = "partition"
+dual_boot_required = false
+
+[model.sources]
+family = ["fw-config", "installer-devices"]
+name = ["fw-config", "installer-devices"]
+usb_normal = ["usb-ids", "fw-config", "installer-devices"]
+usb_disk_mode = ["usb-ids", "installer-devices"]
+usb_dfu = ["installer-devices", "fw-manual"]
+screen = ["fw-config", "fw-manual"]
+storage = ["fw-config", "fw-manual"]
+install_method = ["fw-manual", "installer-devices"]
+bootloader_target = ["fw-config", "installer-devices"]
+
+# The first Nano. The storage is flash, but the firmware sees it through the
+# same ATA interface as the disk models, so "interface" is "ata" here.
+[[model]]
+id = "nano-1g"
+family = "nano"
+name = "iPod Nano (1st generation)"
+bootloader_target = "ipodnano1g"
+to_verify = ["usb_disk_mode", "storage"]
+
+[model.usb]
+normal = ["05ac:120a"]
+disk_mode = ["05ac:120a"]
+dfu = []
+
+[model.screen]
+width = 176
+height = 132
+depth_bits = 16
+colour = true
+
+[model.storage]
+kind = "flash"
+form_factor = "chip"
+interface = "ata"
+capacities_gb = [1, 2, 4]
+
+[model.install]
+method = "partition"
+dual_boot_required = false
+
+[model.sources]
+family = ["fw-config", "installer-devices"]
+name = ["fw-config", "installer-devices"]
+usb_normal = ["usb-ids", "fw-config", "installer-devices"]
+usb_disk_mode = ["usb-ids", "installer-devices"]
+usb_dfu = ["installer-devices", "fw-manual"]
+screen = ["fw-config", "fw-manual"]
+storage = ["fw-config", "fw-manual"]
+install_method = ["fw-manual", "installer-devices"]
+bootloader_target = ["fw-config", "installer-devices"]
+
+# The second Nano. Raw NAND flash, and a different chip family from the Nano
+# 1G. The bootloader still goes in through the disk (the install tool renames
+# files in the firmware partition and uses a bootloader file with its own
+# extension), so the method is "partition" and no DFU is used for the install.
+# The model does have a low-level USB mode. The DFU id database and the DFU
+# tool disagree: the database calls 05ac:1240 "DFU mode" and the tool calls it
+# "WTF mode" and lists 05ac:1220 as the DFU one. Both are kept, and usb_dfu
+# stays in to_verify. It does not matter for the install.
+[[model]]
+id = "nano-2g"
+family = "nano"
+name = "iPod Nano (2nd generation)"
+bootloader_target = "ipodnano2g"
+to_verify = ["usb_disk_mode", "usb_dfu", "storage"]
+
+[model.usb]
+normal = ["05ac:1260"]
+disk_mode = ["05ac:1260"]
+dfu = ["05ac:1220", "05ac:1240"]
+
+[model.screen]
+width = 176
+height = 132
+depth_bits = 16
+colour = true
+
+[model.storage]
+kind = "flash"
+form_factor = "chip"
+interface = "nand"
+capacities_gb = [2, 4, 8]
+
+[model.install]
+method = "partition"
+dual_boot_required = false
+
+[model.sources]
+family = ["fw-config", "installer-devices"]
+name = ["fw-config", "installer-devices"]
+usb_normal = ["usb-ids", "fw-config", "installer-devices"]
+usb_disk_mode = ["usb-ids", "installer-devices"]
+usb_dfu = ["usb-ids", "dfu-pid-table"]
+screen = ["fw-config", "fw-manual"]
+storage = ["fw-config", "fw-manual"]
+install_method = ["fw-manual", "installer-devices"]
+bootloader_target = ["fw-config", "installer-devices"]

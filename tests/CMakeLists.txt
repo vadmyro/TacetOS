@@ -4,3 +4,5 @@
 find_package(Qt6 REQUIRED COMPONENTS Test)
 
 add_subdirectory(app)
+add_subdirectory(models)
+add_subdirectory(fixtures)

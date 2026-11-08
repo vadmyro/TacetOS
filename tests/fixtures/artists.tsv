@@ -1,0 +1,10 @@
+# Genre and language of the invented artists, as the reference script reads them.
+# One line per artist (the album artist when there is one): name, a tab, then Genre/Language.
+# Files with no artist tag, and ogg files (their tags are not read), stay in the inbox.
+Björn Åkesson	Other/Other
+Clara Vendôme	Other/FR
+Los Hermanos Ñandú	Latin/ES
+Mina Çelik	Pop/Other
+Nova Kell	Electro/UK
+Pilot/Copilot	Rock/US
+Various Artists	OST/Other
