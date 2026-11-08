@@ -30,6 +30,26 @@
 - **Its own firmware.** With its own name, boot logo and default theme, updated from the app.
 - **Translated.** English first, French next, then as many languages as possible.
 
+## Progress
+
+| Version | Focus | Done |
+|---|---|---|
+| Setup | Repository, app skeleton, CI | ✅ 4/4 |
+| Foundations | Firmware base, model database, specs | 🚧 2/7 |
+| **v0.1** | Device detection and live state | ⏳ 0/7 |
+| Test devices | Disk image test devices, privileged helper | ⏳ 0/5 |
+| **v0.2** | Install and reset wizard | ⏳ 0/12 |
+| **v0.3** | TacetOS firmware | ⏳ 0/9 |
+| **v0.4** | Music library and sync | ⏳ 0/10 |
+| **v0.5** | Settings, fonts, menus | ⏳ 0/6 |
+| **v0.6** | Themes | ⏳ 0/11 |
+| Translations | French, then many more | ⏳ 0/3 |
+| Windows and macOS | Detection, DFU, disk access | ⏳ 0/4 |
+| **beta** | Packages, public beta | ⏳ 0/6 |
+| **v1.0** | Fixes from the beta | ⏳ 0/1 |
+
+Every task is listed in the [roadmap](docs/ROADMAP.md). News is posted on the [Discord server](https://discord.gg/XfXtZeUFYs).
+
 ## Supported models
 
 The goal is the 6 classic iPod families, 14 models in all:
