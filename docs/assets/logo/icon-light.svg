@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<!-- Copyright (C) 2026 vadmyro. The TacetOS logo is not covered by the GPL: see README.md. -->
+<rect width="512" height="512" rx="112" fill="#F6F5F2"/>
+<g transform="translate(0 30)">
+<path fill="#1C1F24" d="M96 304 A160 156 0 0 1 416 304 L404 304 A148 116 0 0 0 108 304 Z"/>
+<circle cx="256" cy="282" r="36" fill="#FF5A4E"/>
+</g>
+</svg>
