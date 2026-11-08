@@ -5,9 +5,20 @@
   </picture>
 </h1>
 
-[![CI](https://github.com/vadmyro/TacetOS/actions/workflows/ci.yml/badge.svg)](https://github.com/vadmyro/TacetOS/actions/workflows/ci.yml)
-[![License: GPL-3.0](https://img.shields.io/github/license/vadmyro/TacetOS)](LICENSE)
-[![Discord](https://img.shields.io/discord/1568927538959614012?label=Discord&logo=discord&logoColor=white)](https://discord.gg/XfXtZeUFYs)
+<p align="center">
+  <a href="https://github.com/vadmyro/TacetOS/actions/workflows/ci.yml"><img src="https://github.com/vadmyro/TacetOS/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="License: GPL-3.0-or-later"></a>
+  <a href="https://discord.gg/XfXtZeUFYs"><img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
+  <a href="docs/ROADMAP.md"><img src="https://img.shields.io/badge/status-in%20development-orange" alt="Status: in development"></a>
+  <img src="https://img.shields.io/github/last-commit/vadmyro/TacetOS" alt="Last commit">
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/platforms-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey" alt="Platforms: Linux, Windows, macOS">
+  <img src="https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white" alt="C++17">
+  <img src="https://img.shields.io/badge/Qt-6-41CD52?logo=qt&logoColor=white" alt="Qt 6">
+  <img src="https://img.shields.io/badge/CMake-064F8C?logo=cmake&logoColor=white" alt="CMake">
+</p>
 
 > **SOUND is at the end of silence.**
 
