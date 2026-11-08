@@ -1,0 +1,23 @@
+Subject: Keep the screen black at boot on the iPod Classic
+
+Skip the boot logo on the iPod Classic (6th generation) and keep the screen
+black until the theme is loaded.
+
+diff --git a/apps/main.c b/apps/main.c
+index 454ff907b8..c803dae2e9 100644
+--- a/apps/main.c
++++ b/apps/main.c
+@@ -240,6 +240,13 @@ int main(void)
+ int show_logo_boot( void ) INIT_ATTR;
+ int show_logo_boot( void )
+ {
++#ifdef IPOD_6G
++    /* Custom build: no boot logo, keep the screen black until the theme loads */
++    lcd_set_background(LCD_BLACK);
++    lcd_clear_display();
++    lcd_update();
++    return 0;
++#endif
+     unsigned char version[32];
+     int font_h, ver_w;
+     snprintf(version, sizeof(version), "Ver. %s", rbversion);
