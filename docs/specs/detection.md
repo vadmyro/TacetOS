@@ -23,7 +23,7 @@ Section 8 merges the three into one result, section 9 says how it stays live whi
 - **Volume**: a filesystem of that disk that the OS has mounted, with a mount point (a folder, or a drive letter on Windows).
 - **Music volume**: the volume of the second partition of the disk (slot 2 of `bootloader-legacy.md` section 2.3).
 - **Marker file**: a file or folder whose presence, name or content tells what the iPod is or what it runs.
-- **Firmware folder** and **info file**: the hidden folder that the TacetOS firmware lives in, on the music volume, and the small text file that every firmware build puts in it. Their real names are in the constants file (`bootloader-classic.md` rule 2), never written anywhere else.
+- **Firmware folder** and **info file**: the hidden folder that the TacetOS firmware lives in, on the music volume, and the small text file that every firmware build puts in it. Their real names are in the one constants file of the app (the same file as in `bootloader-classic.md` section 9), never written anywhere else.
 - **Evidence**: one piece of information about the iPod, with its origin: a USB id, a disk reading, a marker file.
 - **Helper**: as in the other specs. Detection uses it only for the read-only disk reads.
 
@@ -34,7 +34,7 @@ One **detected iPod** per iPod found. The app keeps a list of them, and the list
 | Field | Meaning |
 |---|---|
 | `usb_id` | The id seen on USB, or none if the iPod is only known from a volume that was picked by hand (section 6.4) |
-| `mode` | `normal` (normal mode or Disk Mode, they share the id), `dfu`, `other` (an id of the same model family that is neither) or `none` |
+| `mode` | `normal` (normal mode or Disk Mode, they share the id), `dfu`, `other` (an id of the same model family that is neither) or `none` (no USB id, section 6.4) |
 | `port_path` | The place on the computer, used to follow the same iPod across a reset |
 | `serial` | The USB serial number string, when the OS gives it. Optional |
 | `candidates` | The models the USB id can be, from `models.toml`. One, several, or none |
@@ -74,7 +74,7 @@ Cases to know, all from `models.toml` and from `bootloader-classic.md` section 2
 | Id | What it is | What the code does |
 |---|---|---|
 | `05ac:1205` | 1st and 2nd generation mini | Two candidates. Neither the USB id nor anything cheap tells them apart. The disk reading of `bootloader-legacy.md` section 5 does (`0x40` or `0x70`). Without it, the info file target (section 7.3), then the user |
-| `05ac:1223` | DFU mode of the Classic, and also of the 3rd generation nano | The id says DFU and nothing more. The app asks "iPod Classic?" unless it has seen the same iPod in normal mode just before (section 9.4) |
+| `05ac:1223` | DFU mode of the Classic. The 3rd generation nano uses the same id in DFU mode, but it is not in `models.toml` | One candidate, the Classic, but the id cannot rule out the nano. Before anything is sent, the app asks "iPod Classic?" (`bootloader-classic.md` section 2), unless it has seen the same iPod in normal mode just before (section 9.4) |
 | `05ac:1261` | Classic, normal or Disk Mode | One candidate |
 | Disk Mode of every other model | The same id as the normal one | `mode` is `normal` for both. The app does not need to know the difference: what it needs is a disk (section 5) |
 
@@ -114,7 +114,7 @@ Disk reads of `bootloader-legacy.md` sections 3 to 5 (table, banner, model) happ
 
 ### 6.1 Finding the mounted volume
 
-Given the disk of section 5, the music volume is the mounted filesystem of its second partition. The number 2 comes from the partition reading, not from adding a suffix to the name of the disk, because the names differ from system to system (`sdb2`, `disk2s2`, a drive letter).
+Given the disk of section 5, the music volume is the mounted filesystem of its second partition. The number 2 is the partition number the system gives (section 5), not a suffix added to the name of the disk, because the names differ from system to system (`sdb2`, `disk2s2`, a drive letter).
 
 | System | How the volume is found |
 |---|---|
@@ -132,7 +132,7 @@ Given the disk of section 5, the music volume is the mounted filesystem of its s
 | `HFS` | Windows, only through a third party driver | A Mac iPod |
 | anything else | all | `unsupported-filesystem`: the volume is kept in the result, but nothing is read from it |
 
-A Mac iPod on Windows normally has **no** drive letter, because Windows cannot read HFS+. In this case the disk exists and the volume does not. Detection then reports `no-volume` and also `mac-format` when the disk reading (partition test of `bootloader-legacy.md` section 3) told it. The message must tell the user not to answer yes to a Windows prompt that offers to format the disk.
+A Mac iPod on Windows normally has **no** drive letter, because Windows cannot read HFS+. In this case the disk exists and the volume does not. The state is then `mac-format` when the disk reading (partition test of `bootloader-legacy.md` section 3) told it, and `no-volume` otherwise. On Linux and macOS the HFS+ volume is mounted and its marker files are read, but the state is `mac-format` as well (section 8.3): TacetOS needs FAT32 on every system (`bootloader-legacy.md` section 21). The message must tell the user not to answer yes to a Windows prompt that offers to format the disk.
 
 ### 6.3 Which attributes are read
 
@@ -140,7 +140,7 @@ From the music volume, the app reads only: mount point, filesystem type, label (
 
 ### 6.4 When the link cannot be made
 
-The device tree can be hidden or different: a virtual machine that passes only the disk, a Windows system without the needed rights, an unusual card reader. In this case the app shows a button "Choose the iPod folder", and the user picks a folder. Marker files are then read from it (section 7), the USB id is `none`, and `model_source` is `info-file` or `user`. This path allows to **look** (what is installed, what the firmware version is) and **never to install a bootloader**, because the install needs the disk, and the disk is found only by section 5.
+The device tree can be hidden or different: a virtual machine that passes only the disk, a Windows system without the needed rights, an unusual card reader. In this case the app shows a button "Choose the iPod folder", and the user picks a folder. Marker files are then read from it (section 7), the USB id is `none`, and `model_source` is `info-file` or `user`. This path lets the user **look** (what is installed, what the firmware version is) and **never install a bootloader**, because the install needs the disk, and the disk is found only by section 5.
 
 ### 6.5 Several iPods
 
@@ -187,7 +187,7 @@ Other keys (`Memory`, `Features`, `Voice format`...) are present in a real file 
 
 **A valid info file** has the `Target` key, and its value is the `bootloader_target` of a model of `models.toml`. A file without it, or with an unknown target, makes `firmware` say `unknown` but does not make the whole detection fail. The text of the file is never shown as is to the user.
 
-**A TacetOS line is needed.** The info file of a plain build of the firmware base has nothing that tells our firmware from another build of the same base, and `Version` is the version of the base. The firmware build of TacetOS must add one line that names the distribution and its own version, so that detection can say "TacetOS 0.3 installed" and not only "a firmware of version 4.0 is installed". The name of that key is decided with the firmware patches (P6) and goes in the constants file. Until it exists, `firmware` can only be `present` (a valid info file) or `absent`.
+**A TacetOS line is needed.** The info file of a plain build of the firmware base has nothing that tells our firmware from another build of the same base, and `Version` is the version of the base. The firmware build of TacetOS must add one line that names the distribution and its own version, so that detection can say "TacetOS 0.3 installed" and not only "a firmware of version 4.0 is installed". The name of that key is decided with the firmware patches (v0.3 in the roadmap) and goes in the constants file. Until it exists, `firmware` can only be `present` (a valid info file) or `absent`.
 
 ### 7.4 State of the firmware as seen from the volume
 
@@ -222,7 +222,7 @@ When two pieces of evidence name different models, the one closer to the hardwar
 2. If it gives several (the minis), the disk reading decides. If there is none, the info file target decides, if it is one of the candidates. If none, `model` stays empty and `state` is `ambiguous`; the user is asked, and the answer is `model_source = user`.
 3. If a disk reading exists and names a model that is **not** among the USB candidates, the state is `conflict`. Nothing is offered that writes. The log keeps both values. This case is a failure of the tables or a strange device, not something to guess.
 4. If an info file names a model that is different from the one decided by rules 1 to 3, `firmware` gets the extra flag `other-model`. The user is told that the firmware files on the volume are for another model. The decision of rules 1 to 3 is not changed.
-5. In DFU mode (`mode = dfu`) there is no disk, so no disk reading and no volume. If the same `port_path` was seen in normal mode in the last 60 seconds, the detected iPod keeps the fields it had (model, volume, firmware), and `state` is `dfu`. Otherwise only the USB candidates are known (section 3.2, `05ac:1223`).
+5. In DFU mode (`mode = dfu`) there is no disk, so no disk reading and no volume. If the same `port_path` was seen in normal mode in the last 60 seconds (constant, `MODE_MEMORY`), the detected iPod keeps the fields it had (model, volume, firmware), and `state` is `dfu`. Otherwise only the USB candidates are known (section 3.2, `05ac:1223`).
 
 ### 8.3 States
 
@@ -233,7 +233,7 @@ When two pieces of evidence name different models, the one closer to the hardwar
 | `dfu` | `mode` is `dfu` | The DFU actions of `bootloader-classic.md`, after the model question of section 3.2 |
 | `no-disk` | The USB id is known, the wait is over, there is no disk | How to get a disk (section 3.3) |
 | `no-volume` | A disk exists, no mounted music volume | Says why when it knows: Mac format, or not mounted. Does not mount it |
-| `mac-format` | The disk reading found an HFS+ iPod | The conversion of `bootloader-legacy.md` section 21, with its confirmations |
+| `mac-format` | The disk reading, or the filesystem of the volume (section 6.2), says HFS+ | The conversion of `bootloader-legacy.md` section 21, with its confirmations |
 | `unsupported-filesystem` | The volume exists with a filesystem of section 6.2 "anything else" | Nothing. The text explains |
 | `ambiguous` | Several models are possible (section 8.2 rule 2) | A question to the user |
 | `conflict` | Section 8.2 rule 3 | A message, no action |
@@ -244,7 +244,7 @@ The states are listed here so that every one has a test and a message (section 1
 
 ## 9. Staying live
 
-The aim of the app is that plugging, unplugging or entering DFU changes the screen in less than a second (step P3 of the plan). The USB layer must therefore answer by events, not by a button that the user presses.
+The aim of the app is that plugging, unplugging or entering DFU changes the screen in less than a second (the aim of v0.1 in the roadmap). The USB layer must therefore answer by events, not by a button that the user presses.
 
 ### 9.1 Sources of events
 
@@ -299,7 +299,7 @@ The text the user sees for every situation. Short, in the plain words of the app
 | `waiting` | Reading the iPod... |
 | `no-disk` | The iPod is connected but does not show its storage. Turn on disk use in the software of the iPod, or put the iPod in Disk Mode. |
 | `no-volume`, not mounted | The iPod storage is there but is not open on this computer. Open it from the file manager, then press Refresh. |
-| `no-volume` with `mac-format` | This iPod was formatted for a Mac. It can be converted for Windows (this erases the music on it). If the system offers to format the disk, answer No. |
+| `mac-format` | This iPod was formatted for a Mac. TacetOS needs the Windows format: the iPod can be converted (this erases the music on it). If the system offers to format the disk, answer No. |
 | `unsupported-filesystem` | The iPod uses a filesystem TacetOS cannot read. |
 | `ambiguous` | Several iPod models share this connection. Which one is yours? |
 | `conflict` | The iPod and its files do not agree on the model. TacetOS will not change anything. |
@@ -327,7 +327,7 @@ Kept in the one file of constants, with the same names. The times are starting v
 | Apple's database | `iPod_Control/iTunes/iTunesDB` | 7.2 |
 | Firmware folder, info file | in the constants file | 7.3 |
 | Info file keys read | `Target`, `Target id`, `Version`, `Binary` | 7.3 |
-| Distribution key of the info file | to be named in P6 | 7.3 |
+| Distribution key of the info file | to be named in v0.3 | 7.3 |
 
 ## 12. What the tests need
 
@@ -369,7 +369,7 @@ Driven by a fake clock and a scripted event stream, with no sleeping: plug (USB 
 - Whether the disks of hard disk iPods report themselves as removable on each system. The spec does not use that flag for this reason, only the USB ancestor.
 - Whether the music volume is always the second partition on the Classic, as on the older models (section 6.1). To be checked on a real Classic before the code relies on it.
 - Whether to let the app ask the OS to mount an iPod volume that is not mounted (section 8.3 `no-volume`). A mount is done by the OS service of the user, not by TacetOS, but on some systems it writes a flag to FAT32 volumes when mounted read-write. Not offered for now.
-- The name of the TacetOS line of the info file (section 7.3), and whether the build can write it. Belongs to P6.
+- The name of the TacetOS line of the info file (section 7.3), and whether the build can write it. Belongs to v0.3, our own firmware build.
 - The optional extra evidence of the device itself: older iPods answer a SCSI inquiry for a vendor page that lists further pages, which together hold a small property list with, among other things, the RAM size. It could give the model and the memory without the help of the volume. It needs raw disk access, so it would go through the helper, and it is not used by v0.1. If it is ever used, its key names must be checked on real iPods first.
-- On Windows, whether the walk up the device tree always meets the USB device for an iPod, with the storage driver in between (section 5). To be verified with a real iPod on a real Windows system, step P11.
-- Eject (asking the OS to release the volume before unplugging) is not detection and is described with each operating system's code, step P11.1.
+- On Windows, whether the walk up the device tree always meets the USB device for an iPod, with the storage driver in between (section 5). To be verified with a real iPod on a real Windows system, in the "Windows and macOS" step of the roadmap.
+- Eject (asking the OS to release the volume before unplugging) is not detection and is described with the code of each system, in the same step.
