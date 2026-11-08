@@ -1,7 +1,5 @@
 # TacetOS logo
 
-**Temporary logo.** The final logo, icon and style guide come before the 1.0 release.
-
 The mark is a fermata, the music sign that holds a note or a silence. The arc is the silence, the dot is the sound that comes at its end: *SOUND is at the end of silence*.
 
 The TacetOS name and logo are not covered by the GPL. Forks are welcome, but under another name and logo.

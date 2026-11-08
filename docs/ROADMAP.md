@@ -25,7 +25,7 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 - [x] Repository, license and public docs
 - [x] Qt 6 app skeleton with CMake presets and a first test
 - [x] CI: formatting check, build and tests on Linux, Windows and macOS
-- [x] Temporary logo and icon
+- [x] Logo and icon
 
 ## Foundations 🚧
 
@@ -133,7 +133,7 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 
 ## Beta
 
-- [ ] Final logo and app style (light and dark)
+- [ ] App style guide and stylesheet (light and dark)
 - [ ] Packages: AppImage, .deb, .rpm, Windows installer, .dmg, with a built-in update check
 - [ ] Signed packages
 - [ ] User docs, one page per model, FAQ, website

@@ -48,6 +48,16 @@
 | **beta** | Packages, public beta | ⏳ 0/6 |
 | **v1.0** | Fixes from the beta | ⏳ 0/1 |
 
+### Now: foundations
+
+- [x] Firmware base: pinned source version, patch set, apply and build scripts
+- [x] Library sorting rules written down as a spec
+- [ ] Model database and one page per model
+- [ ] Fake music library (no real music) and a reference sync result for tests
+- [ ] Spec: bootloader install on older iPods
+- [ ] Spec: bootloader install on the iPod Classic
+- [ ] Specs: device detection and theme file format
+
 Every task is listed in the [roadmap](docs/ROADMAP.md). News is posted on the [Discord server](https://discord.gg/XfXtZeUFYs).
 
 ## Supported models
