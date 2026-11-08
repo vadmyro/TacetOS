@@ -10,7 +10,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="License: GPL-3.0-or-later"></a>
   <a href="https://discord.gg/XfXtZeUFYs"><img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
   <a href="docs/ROADMAP.md"><img src="https://img.shields.io/badge/status-in%20development-orange" alt="Status: in development"></a>
-  <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fvadmyro%2FTacetOS%2Fcommits%2Fmain&query=%24.commit.committer.date&label=last%20commit" alt="Last commit">
+  <a href="https://github.com/vadmyro/TacetOS/commit/main"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fvadmyro%2FTacetOS%2Fcommits%2Fmain&query=%24.commit.committer.date&label=last%20commit" alt="Last commit"></a>
 </p>
 
 <p align="center">
