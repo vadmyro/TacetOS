@@ -8,6 +8,11 @@
 # the six disk models before it (iPod 1G/2G, 3G, 4G, Color, Mini 1G, Mini 2G),
 # then iPod Video, Nano 1G and Nano 2G. The facts that are still weak are
 # listed in each model's to_verify.
+#
+# Each model also lists its variants ([model.variant.<key>]): the capacities
+# Apple sold, with the release period and the Apple model numbers. See
+# models/README.md for the fields and docs/specs/detection.md section 8.4 for
+# how the app uses them.
 
 format_version = 1
 
@@ -45,6 +50,12 @@ title = "Table of known DFU product ids in the DFU tool shipped with the firmwar
 location = "utils/ folder of the firmware base (see firmware/base.lock)"
 checked = 2026-11-08
 
+[sources.libgpod-table]
+kind = "database"
+title = "Table of Apple model numbers of the libgpod library: capacity and generation of each model number (facts only, nothing copied)"
+location = "https://github.com/hyperair/libgpod/blob/master/src/itdb_device.c (the table of model numbers, read as of the check date)"
+checked = 2026-11-09
+
 # ---------------------------------------------------------------------------
 # Models
 # ---------------------------------------------------------------------------
@@ -58,7 +69,7 @@ bootloader_target = "ipod6g"
 # Facts with fewer than two checked sources, or that were assumed. They must
 # be confirmed (on a real iPod or in a second source) before the first
 # release. Fact names are the keys of [model.sources].
-to_verify = ["usb_disk_mode", "storage"]
+to_verify = ["usb_disk_mode", "storage", "variants"]
 
 # USB ids as "vendor:product" in lowercase hexadecimal. An empty list means
 # the mode does not exist on this model. A missing key means not checked yet.
@@ -95,7 +106,44 @@ usb_dfu = ["usb-ids", "dfu-pid-table"]
 screen = ["fw-config", "fw-manual"]
 storage = ["fw-config"]
 install_method = ["fw-manual", "installer-devices"]
+variants = ["libgpod-table", "fw-manual"]
 bootloader_target = ["fw-config", "installer-devices"]
+
+# Variants. Two of them share the name "iPod Classic 160 GB": the thick one of
+# 2007 and the slim one of 2009. The capacity alone cannot tell them apart,
+# only the Apple model number can (detection.md section 8.4). The manual of the
+# firmware base confirms the three capacities and the thick and slim bodies.
+[model.variant.80gb]
+name = "iPod Classic 80 GB"
+capacity_gb = 80
+released = "late 2007"
+apple_models = ["B029", "B147"]
+sources = ["libgpod-table", "fw-manual"]
+to_verify = ["released", "apple_models"]
+
+[model.variant.160gb-2007]
+name = "iPod Classic 160 GB"
+capacity_gb = 160
+released = "late 2007"
+apple_models = ["B145", "B150"]
+sources = ["libgpod-table", "fw-manual"]
+to_verify = ["released", "apple_models"]
+
+[model.variant.120gb]
+name = "iPod Classic 120 GB"
+capacity_gb = 120
+released = "late 2008"
+apple_models = ["B562", "B565"]
+sources = ["libgpod-table", "fw-manual"]
+to_verify = ["released", "apple_models"]
+
+[model.variant.160gb-2009]
+name = "iPod Classic 160 GB"
+capacity_gb = 160
+released = "late 2009"
+apple_models = ["C293", "C297"]
+sources = ["libgpod-table", "fw-manual"]
+to_verify = ["released", "apple_models"]
 
 # ---------------------------------------------------------------------------
 # Disk models before the Classic. They all use the "partition" install method
@@ -118,7 +166,7 @@ id = "ipod-1g2g"
 family = "ipod"
 name = "iPod (1st and 2nd generation)"
 bootloader_target = "ipod1g2g"
-to_verify = ["usb_normal", "usb_disk_mode", "storage"]
+to_verify = ["usb_normal", "usb_disk_mode", "storage", "variants"]
 
 [model.usb]
 normal = []
@@ -150,14 +198,47 @@ usb_dfu = ["installer-devices", "fw-manual"]
 screen = ["fw-config", "fw-manual"]
 storage = ["fw-config", "fw-manual"]
 install_method = ["fw-manual", "installer-devices"]
+variants = ["libgpod-table"]
 bootloader_target = ["fw-config", "installer-devices"]
+
+[model.variant.1g-5gb]
+name = "iPod (1st generation) 5 GB"
+capacity_gb = 5
+released = "2001"
+apple_models = ["8513", "8541", "8697"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
+
+[model.variant.1g-10gb]
+name = "iPod (1st generation) 10 GB"
+capacity_gb = 10
+released = "2002"
+apple_models = ["8709"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
+
+[model.variant.2g-10gb]
+name = "iPod (2nd generation) 10 GB"
+capacity_gb = 10
+released = "2002"
+apple_models = ["8737", "8740"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
+
+[model.variant.2g-20gb]
+name = "iPod (2nd generation) 20 GB"
+capacity_gb = 20
+released = "2002"
+apple_models = ["8738", "8741"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
 
 [[model]]
 id = "ipod-3g"
 family = "ipod"
 name = "iPod (3rd generation)"
 bootloader_target = "ipod3g"
-to_verify = ["usb_disk_mode", "storage"]
+to_verify = ["usb_disk_mode", "storage", "variants"]
 
 [model.usb]
 normal = ["05ac:1201"]
@@ -189,7 +270,48 @@ usb_dfu = ["installer-devices", "fw-manual"]
 screen = ["fw-config", "fw-manual"]
 storage = ["fw-config", "fw-manual"]
 install_method = ["fw-manual", "installer-devices"]
+variants = ["libgpod-table"]
 bootloader_target = ["fw-config", "installer-devices"]
+
+[model.variant.10gb]
+name = "iPod (3rd generation) 10 GB"
+capacity_gb = 10
+released = "2003"
+apple_models = ["8976"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
+
+[model.variant.15gb]
+name = "iPod (3rd generation) 15 GB"
+capacity_gb = 15
+released = "2003"
+apple_models = ["8946", "9460"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
+
+[model.variant.20gb]
+name = "iPod (3rd generation) 20 GB"
+capacity_gb = 20
+released = "2003"
+apple_models = ["9244"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
+
+[model.variant.30gb]
+name = "iPod (3rd generation) 30 GB"
+capacity_gb = 30
+released = "2003"
+apple_models = ["8948"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
+
+[model.variant.40gb]
+name = "iPod (3rd generation) 40 GB"
+capacity_gb = 40
+released = "2003"
+apple_models = ["9245"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
 
 # The grayscale 4th generation. One of the tools of the firmware base uses a
 # different internal name for this target; the build target and the bootloader
@@ -199,7 +321,7 @@ id = "ipod-4g"
 family = "ipod"
 name = "iPod (4th generation, grayscale)"
 bootloader_target = "ipod4g"
-to_verify = ["usb_disk_mode", "storage"]
+to_verify = ["usb_disk_mode", "storage", "variants"]
 
 [model.usb]
 normal = ["05ac:1203"]
@@ -231,7 +353,29 @@ usb_dfu = ["installer-devices", "fw-manual"]
 screen = ["fw-config", "fw-manual"]
 storage = ["fw-config", "fw-manual"]
 install_method = ["fw-manual", "installer-devices"]
+variants = ["libgpod-table"]
 bootloader_target = ["fw-config", "installer-devices"]
+
+# Special editions (U2) and the HP-branded models are the same hardware as
+# the regular ones, so their Apple model numbers are listed in the variant of
+# the same capacity. The table of model numbers gives 25 GB for the U2 number
+# 9787, which no 4th generation had: it is put in the 20 GB variant and the
+# capacity stays in to_verify (see "Contradicting facts" in models/README.md).
+[model.variant.20gb]
+name = "iPod (4th generation, grayscale) 20 GB"
+capacity_gb = 20
+released = "2004"
+apple_models = ["9282", "9787"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
+
+[model.variant.40gb]
+name = "iPod (4th generation, grayscale) 40 GB"
+capacity_gb = 40
+released = "2004"
+apple_models = ["9268", "E436"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
 
 # The colour-screen 4th generation (sold as Photo, then Color, and the U2
 # edition). One USB id for all of them.
@@ -240,7 +384,7 @@ id = "ipod-color"
 family = "ipod"
 name = "iPod Color / Photo (4th generation)"
 bootloader_target = "ipodcolor"
-to_verify = ["usb_disk_mode", "storage"]
+to_verify = ["usb_disk_mode", "storage", "variants"]
 
 [model.usb]
 normal = ["05ac:1204"]
@@ -272,7 +416,40 @@ usb_dfu = ["installer-devices", "fw-manual"]
 screen = ["fw-config", "fw-manual"]
 storage = ["fw-config", "fw-manual"]
 install_method = ["fw-manual", "installer-devices"]
+variants = ["libgpod-table"]
 bootloader_target = ["fw-config", "installer-devices"]
+
+[model.variant.20gb]
+name = "iPod Color / Photo 20 GB"
+capacity_gb = 20
+released = "2005"
+apple_models = ["A079", "A127"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
+
+[model.variant.30gb]
+name = "iPod Color / Photo 30 GB"
+capacity_gb = 30
+released = "2005"
+apple_models = ["9829", "S492"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
+
+[model.variant.40gb]
+name = "iPod Color / Photo 40 GB"
+capacity_gb = 40
+released = "2004"
+apple_models = ["9585"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
+
+[model.variant.60gb]
+name = "iPod Color / Photo 60 GB"
+capacity_gb = 60
+released = "2004"
+apple_models = ["9586", "9830"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
 
 # The two Mini generations show the same USB id, so the app cannot tell them
 # apart by USB. They have separate build targets and bootloader files, and
@@ -283,7 +460,7 @@ id = "mini-1g"
 family = "mini"
 name = "iPod Mini (1st generation)"
 bootloader_target = "ipodmini1g"
-to_verify = ["usb_disk_mode", "storage"]
+to_verify = ["usb_disk_mode", "storage", "variants"]
 
 [model.usb]
 normal = ["05ac:1205"]
@@ -315,14 +492,25 @@ usb_dfu = ["installer-devices", "fw-manual"]
 screen = ["fw-config", "fw-manual"]
 storage = ["fw-config", "fw-manual"]
 install_method = ["fw-manual", "installer-devices"]
+variants = ["libgpod-table"]
 bootloader_target = ["fw-config", "installer-devices"]
+
+# The same capacity exists in both mini models: the model is decided first
+# (detection.md section 8.2), the capacity never decides a model.
+[model.variant.4gb]
+name = "iPod Mini (1st generation) 4 GB"
+capacity_gb = 4
+released = "2004"
+apple_models = ["9160", "9434", "9435", "9436", "9437"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
 
 [[model]]
 id = "mini-2g"
 family = "mini"
 name = "iPod Mini (2nd generation)"
 bootloader_target = "ipodmini2g"
-to_verify = ["usb_disk_mode", "storage"]
+to_verify = ["usb_disk_mode", "storage", "variants"]
 
 [model.usb]
 normal = ["05ac:1205"]
@@ -354,7 +542,24 @@ usb_dfu = ["installer-devices", "fw-manual"]
 screen = ["fw-config", "fw-manual"]
 storage = ["fw-config", "fw-manual"]
 install_method = ["fw-manual", "installer-devices"]
+variants = ["libgpod-table"]
 bootloader_target = ["fw-config", "installer-devices"]
+
+[model.variant.4gb]
+name = "iPod Mini (2nd generation) 4 GB"
+capacity_gb = 4
+released = "2005"
+apple_models = ["9800", "9802", "9804", "9806"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
+
+[model.variant.6gb]
+name = "iPod Mini (2nd generation) 6 GB"
+capacity_gb = 6
+released = "2005"
+apple_models = ["9801", "9803", "9805", "9807"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
 
 # ---------------------------------------------------------------------------
 # Video and the two Nano generations. They also use the "partition" install
@@ -370,7 +575,7 @@ id = "ipod-video"
 family = "ipod"
 name = "iPod Video (5th generation)"
 bootloader_target = "ipodvideo"
-to_verify = ["usb_disk_mode", "storage"]
+to_verify = ["usb_disk_mode", "storage", "variants"]
 
 [model.usb]
 normal = ["05ac:1209"]
@@ -402,7 +607,40 @@ usb_dfu = ["installer-devices", "fw-manual"]
 screen = ["fw-config", "fw-manual"]
 storage = ["fw-config", "fw-manual"]
 install_method = ["fw-manual", "installer-devices"]
+variants = ["libgpod-table"]
 bootloader_target = ["fw-config", "installer-devices"]
+
+[model.variant.5g-30gb]
+name = "iPod Video (5th generation) 30 GB"
+capacity_gb = 30
+released = "2005"
+apple_models = ["A002", "A146", "A452"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
+
+[model.variant.5g-60gb]
+name = "iPod Video (5th generation) 60 GB"
+capacity_gb = 60
+released = "2005"
+apple_models = ["A003", "A147"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
+
+[model.variant.55g-30gb]
+name = "iPod Video (5.5th generation) 30 GB"
+capacity_gb = 30
+released = "2006"
+apple_models = ["A444", "A446", "A664"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
+
+[model.variant.55g-80gb]
+name = "iPod Video (5.5th generation) 80 GB"
+capacity_gb = 80
+released = "2006"
+apple_models = ["A448", "A450"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
 
 # The first Nano. The storage is flash, but the firmware sees it through the
 # same ATA interface as the disk models, so "interface" is "ata" here.
@@ -411,7 +649,7 @@ id = "nano-1g"
 family = "nano"
 name = "iPod Nano (1st generation)"
 bootloader_target = "ipodnano1g"
-to_verify = ["usb_disk_mode", "storage"]
+to_verify = ["usb_disk_mode", "storage", "variants"]
 
 [model.usb]
 normal = ["05ac:120a"]
@@ -443,7 +681,32 @@ usb_dfu = ["installer-devices", "fw-manual"]
 screen = ["fw-config", "fw-manual"]
 storage = ["fw-config", "fw-manual"]
 install_method = ["fw-manual", "installer-devices"]
+variants = ["libgpod-table"]
 bootloader_target = ["fw-config", "installer-devices"]
+
+[model.variant.1gb]
+name = "iPod Nano (1st generation) 1 GB"
+capacity_gb = 1
+released = "2006"
+apple_models = ["A350", "A352"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
+
+[model.variant.2gb]
+name = "iPod Nano (1st generation) 2 GB"
+capacity_gb = 2
+released = "2005"
+apple_models = ["A004", "A099"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
+
+[model.variant.4gb]
+name = "iPod Nano (1st generation) 4 GB"
+capacity_gb = 4
+released = "2005"
+apple_models = ["A005", "A107"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
 
 # The second Nano. Raw NAND flash, and a different chip family from the Nano
 # 1G. The bootloader still goes in through the disk (the install tool renames
@@ -458,7 +721,7 @@ id = "nano-2g"
 family = "nano"
 name = "iPod Nano (2nd generation)"
 bootloader_target = "ipodnano2g"
-to_verify = ["usb_disk_mode", "usb_dfu", "storage"]
+to_verify = ["usb_disk_mode", "usb_dfu", "storage", "variants"]
 
 [model.usb]
 normal = ["05ac:1260"]
@@ -490,4 +753,29 @@ usb_dfu = ["usb-ids", "dfu-pid-table"]
 screen = ["fw-config", "fw-manual"]
 storage = ["fw-config", "fw-manual"]
 install_method = ["fw-manual", "installer-devices"]
+variants = ["libgpod-table"]
 bootloader_target = ["fw-config", "installer-devices"]
+
+[model.variant.2gb]
+name = "iPod Nano (2nd generation) 2 GB"
+capacity_gb = 2
+released = "2006"
+apple_models = ["A477"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
+
+[model.variant.4gb]
+name = "iPod Nano (2nd generation) 4 GB"
+capacity_gb = 4
+released = "2006"
+apple_models = ["A426", "A428", "A487", "A489", "A725"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]
+
+[model.variant.8gb]
+name = "iPod Nano (2nd generation) 8 GB"
+capacity_gb = 8
+released = "2006"
+apple_models = ["A497", "A726"]
+sources = ["libgpod-table"]
+to_verify = ["capacity_gb", "released", "apple_models"]

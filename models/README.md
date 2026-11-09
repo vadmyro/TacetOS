@@ -4,7 +4,7 @@
 
 Only **facts** go in this file, in our own format, each with the sources it was checked against. Nothing is copied from another project's files.
 
-Status: the format is defined and all ten models are filled: the iPod 1G/2G, 3G, 4G, Color and Video, the Mini 1G and 2G, the Nano 1G and 2G, and the Classic 6G (the example). The facts still weak are listed in each model's `to_verify`, and the facts on which sources disagree are in "Contradicting facts" below. `tests/models/tst_models.cpp` reads `models.toml` and checks that the ten models and all their fields are there.
+Status: the format is defined and all ten models are filled: the iPod 1G/2G, 3G, 4G, Color and Video, the Mini 1G and 2G, the Nano 1G and 2G, and the Classic 6G (the example). Each model also lists its variants (capacity, release period, Apple model numbers), which the app uses to name the exact iPod. The facts still weak are listed in each model's `to_verify`, and the facts on which sources disagree are in "Contradicting facts" below. `tests/models/tst_models.cpp` reads `models.toml` and checks that the ten models and all their fields are there.
 
 ## File layout
 
@@ -75,6 +75,21 @@ Themes are filtered by `width` and `height`.
 | `method` | string | `partition` (older models: the bootloader is written into the firmware partition of the disk) or `dfu` (the Classic and the later Nano: the bootloader is sent over USB in DFU mode) |
 | `dual_boot_required` | boolean | `true` when only a dual-boot install is allowed on this model. The installer refuses a single boot install when this is `true`. Always `true` for the Classic |
 
+### `[model.variant.<key>]`
+
+One table per variant of a model: a capacity that Apple sold, in one release period. The app uses them to show the exact iPod ("iPod Classic 120 GB (late 2008)") and never to decide what is written to it (detection.md section 8.4). The key is lowercase letters, digits and dashes, no dot, and is never changed once published.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `name` | string | The name shown to the user, with the capacity. Two variants of one model may share it when only the release period tells them apart (the two Classic 160 GB) |
+| `capacity_gb` | integer | The capacity Apple printed on the box, in GB. It must be one of the `capacities_gb` of the model |
+| `released` | string | When it was first sold, as shown to the user: a year, or "late 2008". A hint, never evidence |
+| `apple_models` | array of strings | The Apple model numbers of this variant (all colours and special editions), four characters, upper case, without the letter that starts the string in the iPod's own file (the region letter) |
+| `sources` | array of strings | Source ids, as for the facts of the model |
+| `to_verify` | array of strings | The keys among `capacity_gb`, `released` and `apple_models` that still lack a second source or a check on a real iPod |
+
+A model number appears in one variant only, in the whole file. A variant is **confirmed** when it has two sources and its `to_verify` is empty. No source we could read gives release dates, so `released` is in `to_verify` for every variant until someone reads Apple's own pages.
+
 ### `[model.sources]`
 
 One key per fact, each a list of source ids declared in the `[sources.*]` tables. The fact names are:
@@ -85,6 +100,7 @@ One key per fact, each a list of source ids declared in the `[sources.*]` tables
 | `usb_normal`, `usb_disk_mode`, `usb_dfu` | The three keys of `[model.usb]` |
 | `screen` | The whole `[model.screen]` table |
 | `storage` | The whole `[model.storage]` table |
+| `variants` | All the `[model.variant.*]` tables of the model |
 | `install_method` | `[model.install]` |
 | `bootloader_target` | The build target name |
 
@@ -117,6 +133,8 @@ Result of the cross review of `models.toml` (2026-11-08). Each entry is a place 
 | `ipod-4g` | `bootloader_target` | One tool of the firmware base uses another internal name for this target | `ipod4g`, the build target and bootloader file name |
 | `ipod-video` | `name` | The same hardware was sold as Video, then as Classic in 2007. The id is the same | One model, named Video. It must not be confused with `classic-6g`, which has another id and another install method |
 | all except `ipod-1g2g` | `usb_disk_mode` | The id database lists one id per model without saying which mode it is. Disk Mode is assumed to share the normal id | Same id as `normal`, and the fact is in `to_verify` |
+| `ipod-4g` | `variants` | The table of model numbers gives 25 GB for the U2 special edition (`9787`). No 4th generation was sold with that capacity, and the `capacities_gb` of the model has a 30 GB entry that no variant has | `9787` is in the 20 GB variant, and the capacity is in the `to_verify` of the variant. `capacities_gb` is left as it was until Apple's pages are read |
+| all | `variants` | Only one source (the table of model numbers) gives the model numbers and the capacities, and none gives release dates. Only the Classic has a second source for its capacities (the manual of the firmware base) | `variants` is in `to_verify` of every model |
 | all | `storage` | No source we could read offline gives capacities. They come from general knowledge, and `diagonal_inches` is left out | `storage` is in `to_verify` for every model |
 
 The test checks the rule behind this table: a fact that has fewer than two sources must be listed in `to_verify`. It does not compare `models.toml` with the model pages in `docs/models/`. Those pages exist for four models only (Classic 6G, Video, Nano 1G, Nano 2G), and their values were compared with this file by hand during the review: they agree.
