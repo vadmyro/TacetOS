@@ -33,6 +33,7 @@ const QStringList kFactNames = {
     QStringLiteral("storage"),
     QStringLiteral("install_method"),
     QStringLiteral("bootloader_target"),
+    QStringLiteral("variants"),
 };
 
 QString modelId(const Table &model)
@@ -56,6 +57,7 @@ private slots:
     void screen();
     void storage();
     void install();
+    void variants();
     void factSources();
     void toVerifyEntries();
 
@@ -245,6 +247,80 @@ void TestModels::install()
         model(QStringLiteral("classic-6g")).children.value(QStringLiteral("install"));
     QCOMPARE(classic.values.value(QStringLiteral("method")).toString(), QStringLiteral("dfu"));
     QVERIFY(classic.values.value(QStringLiteral("dual_boot_required")).toBool());
+}
+
+void TestModels::variants()
+{
+    const Table &sources = m_doc.root.children.value(QStringLiteral("sources"));
+    static const QRegularExpression keyRe(QStringLiteral("^[a-z0-9]+(-[a-z0-9]+)*$"));
+    static const QRegularExpression numberRe(QStringLiteral("^[0-9A-Z]{4}$"));
+    const QStringList variantFacts = {QStringLiteral("capacity_gb"), QStringLiteral("released"),
+                                      QStringLiteral("apple_models")};
+    QSet<QString> seenNumbers;
+
+    forEachModel([&](const Table &m, const QString &id) {
+        const Table &all = m.children.value(QStringLiteral("variant"));
+        QVERIFY2(!all.children.isEmpty(), qPrintable(id + ": no variant"));
+
+        QSet<int> capacities;
+        for (const QVariant &v : m.children.value(QStringLiteral("storage"))
+                                     .values.value(QStringLiteral("capacities_gb"))
+                                     .toList())
+            capacities.insert(v.toInt());
+
+        for (auto it = all.children.cbegin(); it != all.children.cend(); ++it) {
+            const Table &var = it.value();
+            const QByteArray tag = (id + "/" + it.key()).toUtf8();
+            QVERIFY2(keyRe.match(it.key()).hasMatch(), tag.constData());
+            QVERIFY2(!var.values.value(QStringLiteral("name")).toString().isEmpty(),
+                     tag.constData());
+            QVERIFY2(!var.values.value(QStringLiteral("released")).toString().isEmpty(),
+                     tag.constData());
+            const int cap = var.values.value(QStringLiteral("capacity_gb")).toInt();
+            QVERIFY2(capacities.contains(cap),
+                     qPrintable(QString::fromUtf8(tag) + ": capacity not in capacities_gb"));
+
+            const QVariantList numbers = var.values.value(QStringLiteral("apple_models")).toList();
+            QVERIFY2(!numbers.isEmpty(), tag.constData());
+            for (const QVariant &n : numbers) {
+                QVERIFY2(numberRe.match(n.toString()).hasMatch(),
+                         qPrintable(QString::fromUtf8(tag) + ": bad model number " + n.toString()));
+                QVERIFY2(
+                    !seenNumbers.contains(n.toString()),
+                    qPrintable(QString::fromUtf8(tag) + ": model number twice: " + n.toString()));
+                seenNumbers.insert(n.toString());
+            }
+
+            const QVariantList srcs = var.values.value(QStringLiteral("sources")).toList();
+            QVERIFY2(!srcs.isEmpty(), tag.constData());
+            for (const QVariant &s : srcs)
+                QVERIFY2(sources.children.contains(s.toString()), tag.constData());
+
+            QStringList toVerify;
+            for (const QVariant &t : var.values.value(QStringLiteral("to_verify")).toList()) {
+                QVERIFY2(variantFacts.contains(t.toString()), tag.constData());
+                toVerify << t.toString();
+            }
+            // Same rule as for the facts of a model: one source is not confirmed.
+            if (srcs.size() < 2)
+                QVERIFY2(toVerify.contains(QStringLiteral("capacity_gb")), tag.constData());
+        }
+    });
+
+    // Cases the code of the exact model relies on (detection.md section 8.4).
+    const Table &classic =
+        model(QStringLiteral("classic-6g")).children.value(QStringLiteral("variant"));
+    QCOMPARE(classic.children.size(), 4);
+    QCOMPARE(classic.children.value(QStringLiteral("120gb"))
+                 .values.value(QStringLiteral("released"))
+                 .toString(),
+             QStringLiteral("late 2008"));
+    QCOMPARE(classic.children.value(QStringLiteral("160gb-2007"))
+                 .values.value(QStringLiteral("name"))
+                 .toString(),
+             classic.children.value(QStringLiteral("160gb-2009"))
+                 .values.value(QStringLiteral("name"))
+                 .toString());
 }
 
 void TestModels::factSources()
