@@ -93,6 +93,7 @@ private slots:
     void pollingSeesAPlug();
     void eventSourceStopsPolling();
     void eventsAreHintsToReadNow();
+    void backupReadingSeesASilentPlug();
     void noTimerWhenNothingWaits();
     void diskWaitEndsOnTheTimer();
     void heldIpodLeavesAfterTheWindow();
@@ -170,7 +171,8 @@ void TstDeviceLiveDriver::eventSourceStopsPolling()
     QVERIFY(!r.driver.polling());
     r.driver.start();
 
-    // The start reads everything once, and then nothing runs on its own.
+    // The start reads everything once, and then only the backup reading runs.
+    QVERIFY(r.driver.backupRunning());
     const int reads = r.world.usbReads;
     QVERIFY(reads >= 1);
     QVERIFY(!r.driver.scheduledDelayMs().has_value());
@@ -202,6 +204,28 @@ void TstDeviceLiveDriver::eventsAreHintsToReadNow()
     QVERIFY(r.world.portReads > portReads);
     QCOMPARE(added.size(), 1);
     QCOMPARE(r.tracker.ipods().size(), 1);
+}
+
+void TstDeviceLiveDriver::backupReadingSeesASilentPlug()
+{
+    // A source that opens and never speaks, as udev in a sandbox: the backup
+    // reading still sees the iPod come and go.
+    Rig r;
+    FakeEvents events;
+    r.driver.addEventSource(&events);
+    QVERIFY(!r.driver.backupRunning());
+    QSignalSpy added(&r.tracker, &LiveTracker::ipodAdded);
+    r.driver.start();
+    QVERIFY(r.driver.backupRunning());
+
+    r.clock.now = 1000;
+    r.world.plug(kClassic, kPort);
+    QCOMPARE(added.size(), 0);
+    r.driver.backupTick();
+    QCOMPARE(added.size(), 1);
+
+    r.driver.stop();
+    QVERIFY(!r.driver.backupRunning());
 }
 
 void TstDeviceLiveDriver::noTimerWhenNothingWaits()
@@ -303,8 +327,10 @@ void TstDeviceLiveDriver::lostSourceGoesBackToPolling()
     r.driver.start();
     QVERIFY(!r.driver.polling());
 
+    QVERIFY(r.driver.backupRunning());
     delete events;
     QVERIFY(r.driver.polling());
+    QVERIFY(!r.driver.backupRunning());
     QVERIFY(r.driver.scheduledDelayMs().has_value());
 
     r.world.plug(kClassic, kPort);

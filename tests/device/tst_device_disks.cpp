@@ -120,6 +120,9 @@ private slots:
     void volumeUnsupportedIsKept();
     void volumeNotMounted();
     void volumeSlotIsThePartitionNumber();
+    void volumeOfAClassicIsAtSlotOne();
+    void volumeKnownFilesystemBeatsSlotTwo();
+    void volumeUnsupportedAloneIsKept();
     void notMountedDiskStillThere();
     void readMountinfoFiles();
 
@@ -380,8 +383,8 @@ void TestDeviceDisks::volumeNotMounted()
 
 void TestDeviceDisks::volumeSlotIsThePartitionNumber()
 {
-    // The names say nothing: the partition numbered 2 is the one that counts,
-    // even when the first of the list is mounted and has a "2" in its name.
+    // The names say nothing: when two FAT32 volumes are mounted, the partition
+    // numbered 2 wins, even when the other one has a "2" in its name.
     LinuxDisk disk;
     disk.name = QStringLiteral("mmcblk0");
     disk.node = QStringLiteral("/dev/mmcblk0");
@@ -393,6 +396,48 @@ void TestDeviceDisks::volumeSlotIsThePartitionNumber()
         device(QStringLiteral("05ac:1261"), QStringLiteral("1-8")), {disk}, m_mounts);
     QVERIFY(link.volume);
     QCOMPARE(link.volume->mountPoint, QStringLiteral("/run/media/user/IPOD"));
+}
+
+namespace {
+
+// A disk of the Classic on 1-8 with the given partitions.
+LinuxLink linkWithPartitions(const QList<LinuxPartition> &partitions,
+                             const QList<MountEntry> &mounts)
+{
+    LinuxDisk disk;
+    disk.name = QStringLiteral("sdg");
+    disk.node = QStringLiteral("/dev/sdg");
+    disk.usbId = QStringLiteral("05ac:1261");
+    disk.portPath = QStringLiteral("1-8");
+    disk.partitions = partitions;
+    return linkLinuxDevice(device(QStringLiteral("05ac:1261"), QStringLiteral("1-8")), {disk},
+                           mounts);
+}
+
+} // namespace
+
+void TestDeviceDisks::volumeOfAClassicIsAtSlotOne()
+{
+    // Seen on a real Classic: one FAT32 partition, at slot 1.
+    const LinuxLink link = linkWithPartitions({{QStringLiteral("sdg1"), 1, 8, 17}}, m_mounts);
+    QVERIFY(link.volume);
+    QCOMPARE(link.volume->mountPoint, QStringLiteral("/run/media/user/BOOT"));
+}
+
+void TestDeviceDisks::volumeKnownFilesystemBeatsSlotTwo()
+{
+    const LinuxLink link = linkWithPartitions(
+        {{QStringLiteral("sdg1"), 1, 8, 17}, {QStringLiteral("sdg2"), 2, 8, 66}}, m_mounts);
+    QVERIFY(link.volume);
+    QCOMPARE(link.volume->filesystem, QStringLiteral("vfat"));
+}
+
+void TestDeviceDisks::volumeUnsupportedAloneIsKept()
+{
+    // Kept so that the state can say unsupported-filesystem, not no-volume.
+    const LinuxLink link = linkWithPartitions({{QStringLiteral("sdg3"), 3, 8, 66}}, m_mounts);
+    QVERIFY(link.volume);
+    QCOMPARE(link.volume->filesystem, QStringLiteral("exfat"));
 }
 
 void TestDeviceDisks::notMountedDiskStillThere()

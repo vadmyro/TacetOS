@@ -290,19 +290,20 @@ void TstDeviceLive::plugInWithEverythingAlreadyThere()
     QCOMPARE(h.seen.first().state, IpodState::Ready);
 }
 
-// Section 9.2 step 4: no-disk at 5 s, and a disk after it replaces the state.
+// Section 9.2 step 4: no-disk after the wait, and a disk after it replaces the state.
 void TstDeviceLive::noDiskThenALaterDisk()
 {
     Harness h;
-    h.run({plugStep(1000, kClassic, kPort)}, 5999);
+    const qint64 noDiskAt = 1000 + kDiskWaitMs;
+    h.run({plugStep(1000, kClassic, kPort)}, noDiskAt - 1);
     QCOMPARE(h.only().state, IpodState::Waiting);
 
-    h.run({}, 10000);
-    QCOMPARE(h.timeOf(Seen::Changed, kPort, IpodState::NoDisk), 1000 + kDiskWaitMs);
+    h.run({}, noDiskAt + 4000);
+    QCOMPARE(h.timeOf(Seen::Changed, kPort, IpodState::NoDisk), noDiskAt);
     QCOMPARE(h.only().state, IpodState::NoDisk);
 
-    h.run({diskStep(12000, kPort), volumeStep(14000, kPort)}, 20000);
-    QCOMPARE(h.timeOf(Seen::Changed, kPort, IpodState::Ready), 14000);
+    h.run({diskStep(noDiskAt + 6000, kPort), volumeStep(noDiskAt + 8000, kPort)}, noDiskAt + 14000);
+    QCOMPARE(h.timeOf(Seen::Changed, kPort, IpodState::Ready), noDiskAt + 8000);
     QCOMPARE(h.only().state, IpodState::Ready);
     // Never removed, never added twice: the late disk only replaces the state.
     QCOMPARE(h.count(Seen::Removed, kPort), 0);
