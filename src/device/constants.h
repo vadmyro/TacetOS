@@ -19,6 +19,22 @@ inline constexpr QLatin1String kAppleRootFolder("iPod_Control");
 inline constexpr QLatin1String kAppleModelFile("iPod_Control/Device/SysInfo");
 inline constexpr QLatin1String kAppleDatabase("iPod_Control/iTunes/iTunesDB");
 
+// Section 8.4: the key of the model number string in the Apple model file.
+inline constexpr QLatin1String kSysInfoModelKey("ModelNumStr");
+
+// Section 8.4: a variant matches a disk when its size in GB (bytes / 10^9) is
+// between these two factors times the capacity on the box.
+inline constexpr double kCapacityLow = 0.90;
+inline constexpr double kCapacityHigh = 1.05;
+
+// Section 7.6: the key of the Apple model file that holds the build of Apple's
+// firmware, as `0x01168000 (1.1.6)`: the version is the part in brackets.
+inline constexpr QLatin1String kSysInfoFirmwareKey("visibleBuildID");
+
+// Section 7.6: a value of the distribution line may start with this name, which
+// is then dropped so that the line does not read "TacetOS TacetOS 0.3".
+inline constexpr QLatin1String kDistributionName("TacetOS");
+
 // Section 8.2 rule 5: how long a normal mode reading is remembered for the
 // same port, to carry its fields over to the DFU mode that follows.
 inline constexpr qint64 kModeMemoryMs = 60 * 1000;

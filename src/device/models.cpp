@@ -58,6 +58,19 @@ ModelList modelsFromDocument(const TomlDocument &doc)
             !readUsbList(usb, QStringLiteral("disk_mode"), m.id, &m.usbDiskMode, &list.error) ||
             !readUsbList(usb, QStringLiteral("dfu"), m.id, &m.usbDfu, &list.error))
             return list;
+
+        const TomlTable variants = table.children.value(QStringLiteral("variant"));
+        for (auto it = variants.children.cbegin(); it != variants.children.cend(); ++it) {
+            Variant v;
+            v.key = it.key();
+            v.name = it.value().values.value(QStringLiteral("name")).toString();
+            v.capacityGb = it.value().values.value(QStringLiteral("capacity_gb")).toInt();
+            v.released = it.value().values.value(QStringLiteral("released")).toString();
+            for (const QVariant &number :
+                 it.value().values.value(QStringLiteral("apple_models")).toList())
+                v.appleModels.append(number.toString().trimmed().toUpper());
+            m.variants.append(v);
+        }
         list.models.append(m);
     }
     return list;

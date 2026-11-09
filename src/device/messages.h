@@ -27,4 +27,9 @@ QString permissionHint(HostSystem system);
 QString stateMessage(const DetectedIpod &ipod, const QList<Model> &models,
                      HostSystem system = currentHostSystem());
 
+// Section 7.6 and 10: the firmware line ("Apple firmware 1.1.6", "Custom
+// firmware 4.0", "TacetOS 0.3", or "Firmware unknown"). It only tells what the
+// files on the volume say, never that a bootloader is installed.
+QString firmwareMessage(const DetectedIpod &ipod);
+
 } // namespace tacetos::device

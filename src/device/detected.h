@@ -4,6 +4,7 @@
 #pragma once
 
 #include "models.h"
+#include "variant.h"
 
 #include <QString>
 #include <QStringList>
@@ -35,6 +36,17 @@ enum class IpodState {
 // Section 7.4: the state of the firmware files on the music volume.
 enum class FirmwareFiles { Absent, Present, Tacetos, Unknown };
 
+// Section 7.6: which firmware the iPod seems to run, from the files on the
+// music volume only. Never a statement about the bootloader.
+enum class FirmwareKind { Unknown, Apple, Custom, Tacetos };
+
+struct FirmwareLine
+{
+    FirmwareKind kind = FirmwareKind::Unknown;
+    // Empty when the evidence has no version.
+    QString version;
+};
+
 struct DiskInfo
 {
     QString node;
@@ -57,6 +69,9 @@ struct FirmwareInfo
     FirmwareFiles files = FirmwareFiles::Absent;
     // Only set when files is Tacetos.
     QString version;
+    // The `Version` of a valid info file (the version of the firmware base for
+    // a build that is not ours). Set when files is Present or Tacetos.
+    QString infoVersion;
     // Section 8.2 rule 4: the info file names another model than the one
     // decided. The files on the volume are for another iPod.
     bool otherModel = false;
@@ -74,10 +89,18 @@ struct DetectedIpod
     // Empty until the merging step has decided.
     QString model;
     ModelSource modelSource = ModelSource::None;
+    // Section 8.4: the exact iPod inside the model. Only a name to show, it
+    // never changes what is offered.
+    VariantMatch variant;
+    // A model that the capacity of the disk suggests among the candidates while
+    // `model` is still empty. A hint for the question, never a decision.
+    QString hintModel;
     std::optional<DiskInfo> disk;
     std::optional<VolumeInfo> volume;
     IpodState state = IpodState::Waiting;
     FirmwareInfo firmware;
+    // Section 7.6: the line to show for the firmware.
+    FirmwareLine firmwareLine;
 };
 
 } // namespace tacetos::device

@@ -4,6 +4,7 @@
 #include "merge.h"
 
 #include "constants.h"
+#include "firmware.h"
 #include "volume.h"
 
 namespace tacetos::device {
@@ -55,8 +56,11 @@ MergeResult mergeEvidence(const IpodEvidence &ev, const QList<Model> &models)
             const DetectedIpod &prev = ev.previous->ipod;
             out.model = prev.model;
             out.modelSource = prev.modelSource;
+            out.variant = prev.variant;
+            out.hintModel = prev.hintModel;
             out.volume = prev.volume;
             out.firmware = prev.firmware;
+            out.firmwareLine = prev.firmwareLine;
             log << QStringLiteral("dfu: fields of the normal mode kept (model %1)").arg(prev.model);
         } else {
             log << QStringLiteral("dfu: no normal mode seen on this port, candidates only");
@@ -131,6 +135,34 @@ MergeResult mergeEvidence(const IpodEvidence &ev, const QList<Model> &models)
         out.firmware.otherModel = true;
         log << QStringLiteral("other-model: the info file is for %1, the iPod is %2")
                    .arg(markers.modelsFromInfo.join(QLatin1Char(',')), out.model);
+    }
+
+    // Section 7.6: the line for the firmware.
+    out.firmwareLine = identifyFirmware(out.firmware, markers.appleModelFields, &log);
+
+    // Section 8.4: the exact iPod, from the variants of the decided model only.
+    const qint64 diskBytes = ev.disk ? ev.disk->sizeBytes : 0;
+    if (!out.model.isEmpty()) {
+        const QString number = markers.appleModelFields.value(QString(kSysInfoModelKey));
+        for (const Model &m : models) {
+            if (m.id == out.model) {
+                out.variant = identifyVariant(m, number, diskBytes);
+                log << out.variant.log;
+            } else if (!number.isEmpty()) {
+                // A clue that points to another model is logged and ignored.
+                for (const Variant &v : m.variants) {
+                    if (v.appleModels.contains(appleModelNumber(number)))
+                        log << QStringLiteral("variant: model number %1 is of %2, the iPod is %3")
+                                   .arg(appleModelNumber(number), m.id, out.model);
+                }
+            }
+        }
+    } else {
+        out.hintModel = modelHintFromCapacity(models, out.candidates, diskBytes);
+        if (!out.hintModel.isEmpty())
+            log << QStringLiteral("hint: a disk of %1 bytes is usually %2")
+                       .arg(diskBytes)
+                       .arg(out.hintModel);
     }
 
     // Section 8.3, first matching row. See the notes under the table of the

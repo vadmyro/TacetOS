@@ -5,6 +5,8 @@
 qt_add_library(tacet_device STATIC
     constants.h
     detected.h
+    firmware.cpp
+    firmware.h
     linuxdisks.cpp
     linuxdisks.h
     live.cpp
@@ -27,6 +29,8 @@ qt_add_library(tacet_device STATIC
     usblist.h
     udisks.cpp
     udisks.h
+    variant.cpp
+    variant.h
 )
 target_include_directories(tacet_device PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(tacet_device PUBLIC Qt6::Core)

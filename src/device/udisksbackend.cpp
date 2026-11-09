@@ -7,6 +7,7 @@
 #include <QDBusError>
 #include <QDBusMessage>
 #include <QDBusObjectPath>
+#include <limits>
 
 namespace tacetos::device {
 
@@ -97,7 +98,8 @@ UdisksReply UdisksDBusBackend::call(const QString &path, const QString &interfac
     message << options;
 
     // The user may be asked for a permission: wait for as long as it takes.
-    const QDBusMessage answer = bus_.call(message, QDBus::Block, -1);
+    // For Qt, -1 is the default limit of 25 s; the largest value means none.
+    const QDBusMessage answer = bus_.call(message, QDBus::Block, std::numeric_limits<int>::max());
     if (answer.type() != QDBusMessage::ReplyMessage)
         return errorOf(answer);
     UdisksReply reply;

@@ -14,6 +14,20 @@
 
 namespace tacetos::device {
 
+// One capacity of a model that Apple sold, in one release period (models/
+// README.md, `[model.variant.<key>]`; docs/specs/detection.md section 8.4).
+struct Variant
+{
+    QString key;
+    // The name shown, with the capacity.
+    QString name;
+    int capacityGb = 0;
+    // As shown to the user: a year, or "late 2008". A hint, never evidence.
+    QString released;
+    // Apple model numbers, upper case, without the region letter.
+    QStringList appleModels;
+};
+
 struct Model
 {
     QString id;
@@ -25,6 +39,8 @@ struct Model
     QStringList usbNormal;
     QStringList usbDiskMode;
     QStringList usbDfu;
+    // Sorted by key.
+    QList<Variant> variants;
 };
 
 struct ModelList

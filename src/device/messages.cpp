@@ -17,20 +17,40 @@ QString tr(const char *text)
     return QCoreApplication::translate("device", text);
 }
 
+QString modelName(const QString &id, const QList<Model> &models)
+{
+    for (const Model &model : models) {
+        if (model.id == id)
+            return model.name;
+    }
+    return id;
+}
+
+QString sizeText(qint64 bytes)
+{
+    return tr("%1 GB").arg(std::llround(static_cast<double>(bytes) / 1e9));
+}
+
+// Section 8.4, "What is shown": the variant with its release period, or the
+// one name left by the capacity, else the model and the real size.
 QString readyMessage(const DetectedIpod &ipod, const QList<Model> &models)
 {
-    QString name = ipod.model;
-    for (const Model &model : models) {
-        if (model.id == ipod.model)
-            name = model.name;
-    }
-
-    QStringList parts{name};
     const qint64 bytes =
         ipod.disk ? ipod.disk->sizeBytes : (ipod.volume ? ipod.volume->totalBytes : 0);
-    if (bytes > 0) {
-        const qint64 gigabytes = std::llround(static_cast<double>(bytes) / 1e9);
-        parts << tr("%1 GB").arg(gigabytes);
+    const VariantMatch &variant = ipod.variant;
+
+    QStringList parts;
+    if (variant.source != VariantSource::None && !variant.name.isEmpty()) {
+        parts << (variant.released.isEmpty() ? variant.name
+                                             : tr("%1 (%2)").arg(variant.name, variant.released));
+        // The name carries the capacity of the box: show the real size only if
+        // the storage is not the original one.
+        if (variant.storageChanged && bytes > 0)
+            parts << sizeText(bytes);
+    } else {
+        parts << modelName(ipod.model, models);
+        if (bytes > 0)
+            parts << sizeText(bytes);
     }
     if (ipod.volume) {
         switch (classifyFilesystem(ipod.volume->filesystem)) {
@@ -45,6 +65,19 @@ QString readyMessage(const DetectedIpod &ipod, const QList<Model> &models)
         }
     }
     return parts.join(QStringLiteral(", "));
+}
+
+// Section 8.4 rule 3: the question, with the hint of the disk size when one
+// candidate fits it.
+QString ambiguousMessage(const DetectedIpod &ipod, const QList<Model> &models)
+{
+    QString text = tr("Several iPod models share this connection. Which one is yours?");
+    if (!ipod.hintModel.isEmpty() && ipod.disk && ipod.disk->sizeBytes > 0) {
+        text += QLatin1Char(' ') +
+                tr("A disk of %1 is usually the %2.")
+                    .arg(sizeText(ipod.disk->sizeBytes), modelName(ipod.hintModel, models));
+    }
+    return text;
 }
 
 } // namespace
@@ -94,7 +127,7 @@ QString stateMessage(const DetectedIpod &ipod, const QList<Model> &models, HostS
     case IpodState::UnsupportedFilesystem:
         return tr("The iPod uses a filesystem TacetOS cannot read.");
     case IpodState::Ambiguous:
-        return tr("Several iPod models share this connection. Which one is yours?");
+        return ambiguousMessage(ipod, models);
     case IpodState::Conflict:
         return tr(
             "The iPod and its files do not agree on the model. TacetOS will not change anything.");
@@ -109,6 +142,24 @@ QString stateMessage(const DetectedIpod &ipod, const QList<Model> &models, HostS
         return readyMessage(ipod, models);
     }
     return QString();
+}
+
+QString firmwareMessage(const DetectedIpod &ipod)
+{
+    const FirmwareLine &line = ipod.firmwareLine;
+    switch (line.kind) {
+    case FirmwareKind::Apple:
+        return line.version.isEmpty() ? tr("Apple firmware")
+                                      : tr("Apple firmware %1").arg(line.version);
+    case FirmwareKind::Custom:
+        return line.version.isEmpty() ? tr("Custom firmware")
+                                      : tr("Custom firmware %1").arg(line.version);
+    case FirmwareKind::Tacetos:
+        return line.version.isEmpty() ? tr("TacetOS") : tr("TacetOS %1").arg(line.version);
+    case FirmwareKind::Unknown:
+        break;
+    }
+    return tr("Firmware unknown");
 }
 
 } // namespace tacetos::device

@@ -189,6 +189,7 @@ MarkerReading readMarkers(const QString &mountPoint, const QList<Model> &models,
             reading.info = parseInfoFile(infoRead.text, distributionKey);
             reading.modelsFromInfo = modelsForTarget(models, reading.info.target);
             if (!reading.modelsFromInfo.isEmpty()) {
+                reading.firmware.infoVersion = reading.info.version;
                 if (!reading.info.distribution.isEmpty()) {
                     reading.firmware.files = FirmwareFiles::Tacetos;
                     reading.firmware.version = reading.info.distribution;
