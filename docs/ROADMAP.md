@@ -8,7 +8,7 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 |---|---|---|---|
 | Setup | Repository, app skeleton, CI on Linux, Windows and macOS | 4/4 | ✅ done |
 | Foundations | Firmware base, model database, library rules, specs of the install formats and protocols | 7/7 | ✅ done |
-| **v0.1** | Device detection and live state (plug, unplug, disk mode, DFU) | 0/7 | ⏳ |
+| **v0.1** | Device detection and live state (plug, unplug, disk mode, DFU) | 1/7 | 🚧 in progress |
 | Test devices | Disk image test devices + privileged helper | 0/5 | ⏳ |
 | **v0.2** | Install and reset wizard: backup, format, firmware, bootloader, guided DFU, uninstall | 0/12 | ⏳ |
 | **v0.3** | Our own firmware build: name, custom boot logo, update channel | 0/9 | ⏳ |
@@ -35,11 +35,11 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 - [x] Fake music library (no real music) and a reference sync result for tests
 - [x] Spec: bootloader install on older iPods ([bootloader-legacy.md](specs/bootloader-legacy.md))
 - [x] Spec: bootloader install on the iPod Classic ([bootloader-classic.md](specs/bootloader-classic.md))
-- [x] Specs: device detection and theme file format
+- [x] Specs: device detection and theme file format ([detection.md](specs/detection.md), [theme-format.md](specs/theme-format.md))
 
-## v0.1 · Device detection
+## v0.1 · Device detection 🚧
 
-- [ ] Device module: from the USB id to the iPod family
+- [x] Device module: from the USB id to the iPod family
 - [ ] Live plug and unplug
 - [ ] Linux disks: mount, unmount and eject without root
 - [ ] Exact model, and which firmware is installed (Apple or TacetOS, and its version)

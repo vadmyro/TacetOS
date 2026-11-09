@@ -24,6 +24,7 @@ endif()
 
 include(CTest)
 
+add_subdirectory(src/device)
 add_subdirectory(app)
 
 if(BUILD_TESTING)

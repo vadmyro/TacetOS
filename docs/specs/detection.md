@@ -242,6 +242,14 @@ When two pieces of evidence name different models, the one closer to the hardwar
 
 The states are listed here so that every one has a test and a message (section 10). The first row that matches in this order is the state: `conflict`, `unsupported-model`, `permission`, `ambiguous`, `dfu`, `waiting`, `no-disk`, `mac-format`, `no-volume`, `unsupported-filesystem`, `ready`.
 
+Where "when" needed a precise meaning, the code reads it like this:
+
+- `waiting` lasts while the wait of section 9.2 is not over **and there is no mounted volume yet**. A volume that shows up early ends it at once. While it lasts, a model that is not decided yet is not asked about (`ambiguous` is skipped), because the disk reading may still decide it.
+- `permission` is a disk read that was refused. It comes before `ambiguous` because the read is what would decide the model of the minis.
+- `unsupported-model` is also the case where the disk reading names a generation that has no model in `models.toml`.
+- A folder picked by hand (section 6.4) has no USB id and no disk. Its model comes from the info file or the user, and with neither the state is `ambiguous`. A volume with no filesystem name is not `unsupported-filesystem`.
+- A volume that vanished during the read counts as no volume.
+
 ## 9. Staying live
 
 The aim of the app is that plugging, unplugging or entering DFU changes the screen in less than a second (the aim of v0.1 in the roadmap). The USB layer must therefore answer by events, not by a button that the user presses.
