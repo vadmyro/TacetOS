@@ -603,10 +603,11 @@ void TstDeviceMerge::readyMessage()
 {
     DetectedIpod ipod = mergeEvidence(plugged(QStringLiteral("05ac:1261")), g_models).ipod;
     QCOMPARE(stateMessage(ipod, g_models),
-             QStringLiteral("iPod Classic (6th generation), 120 GB, Windows format"));
+             QStringLiteral("iPod Classic 120 GB (late 2008), Windows format"));
 
     // Without a disk size the volume size is used, and an unknown name of
-    // filesystem adds nothing.
+    // filesystem adds nothing. The variant is dropped to test the plain form.
+    ipod.variant = VariantMatch();
     ipod.disk.reset();
     ipod.volume->filesystem = QStringLiteral("hfsplus");
     QCOMPARE(stateMessage(ipod, g_models),

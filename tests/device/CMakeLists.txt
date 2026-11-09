@@ -89,3 +89,19 @@ if(TACETOS_HAVE_DBUS)
 
     add_test(NAME tst_device_udisksdbus COMMAND tst_device_udisksdbus)
 endif()
+
+qt_add_executable(tst_device_variant tst_device_variant.cpp)
+target_link_libraries(tst_device_variant PRIVATE tacet_device Qt6::Test)
+target_compile_definitions(tst_device_variant PRIVATE
+    TACETOS_MODELS_TOML="${PROJECT_SOURCE_DIR}/models/models.toml"
+    TACETOS_DEVICE_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+
+add_test(NAME tst_device_variant COMMAND tst_device_variant)
+
+qt_add_executable(tst_device_firmware tst_device_firmware.cpp)
+target_link_libraries(tst_device_firmware PRIVATE tacet_device Qt6::Test)
+target_compile_definitions(tst_device_firmware PRIVATE
+    TACETOS_MODELS_TOML="${PROJECT_SOURCE_DIR}/models/models.toml"
+    TACETOS_DEVICE_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+
+add_test(NAME tst_device_firmware COMMAND tst_device_firmware)
