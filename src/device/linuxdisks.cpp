@@ -228,10 +228,15 @@ LinuxLink linkLinuxDevice(const UsbDevice &device, const QList<LinuxDisk> &disks
     info.sizeBytes = disk->sizeBytes;
     info.sectorSize = disk->sectorSize;
     link.disk = info;
+    int bestRank = 0;
     for (const LinuxPartition &partition : disk->partitions) {
-        if (partition.number == kMusicVolumeSlot) {
-            link.volume = findMountedVolume(mounts, partition);
-            break;
+        const std::optional<VolumeInfo> volume = findMountedVolume(mounts, partition);
+        if (!volume)
+            continue;
+        const int rank = musicVolumeRank(partition.number, classifyFilesystem(volume->filesystem));
+        if (!link.volume || rank < bestRank) {
+            link.volume = volume;
+            bestRank = rank;
         }
     }
     return link;

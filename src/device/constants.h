@@ -25,7 +25,7 @@ inline constexpr qint64 kModeMemoryMs = 60 * 1000;
 
 // Section 9.2: how long a new USB device may show no disk before the state
 // becomes no-disk.
-inline constexpr qint64 kDiskWaitMs = 5 * 1000;
+inline constexpr qint64 kDiskWaitMs = 10 * 1000;
 
 // Section 9.4: a device with the same port path that appears within this
 // time is the same iPod in another mode.
@@ -34,6 +34,11 @@ inline constexpr qint64 kSamePortWindowMs = 3 * 1000;
 // Section 9.1: the polling rates used where no event source exists.
 inline constexpr qint64 kPollUsbMs = 500;
 inline constexpr qint64 kPollDisksMs = 1000;
+
+// Section 9.1: the slow reading kept next to the event sources. A source can
+// open and still hear nothing (udev in a sandbox), so events are never the
+// only way to see a change.
+inline constexpr qint64 kPollBackupMs = 2 * 1000;
 
 // Section 7.3: the hidden folder of the firmware and the info file inside it.
 inline constexpr QLatin1String kFirmwareFolder(".rockbox");

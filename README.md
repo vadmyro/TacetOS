@@ -47,7 +47,7 @@
 |---|---|---|
 | Setup | Repository, app skeleton, CI | ✅ 4/4 |
 | Foundations | Firmware base, model database, specs | ✅ 7/7 |
-| **v0.1** | Device detection and live state | 🚧 1/7 |
+| **v0.1** | Device detection and live state | 🚧 2/7 |
 | Test devices | Disk image test devices, privileged helper | ⏳ 0/5 |
 | **v0.2** | Install and reset wizard | ⏳ 0/12 |
 | **v0.3** | TacetOS firmware | ⏳ 0/9 |
@@ -62,7 +62,7 @@
 ### Now: device detection
 
 - [x] Device module: from the USB id to the iPod family
-- [ ] Live plug and unplug
+- [x] Live plug and unplug
 - [ ] Linux disks: mount, unmount and eject without root
 - [ ] Exact model, and which firmware is installed (Apple or TacetOS, and its version)
 - [ ] State machine: unplugged, normal, disk mode, mounted, DFU, rebooting, busy, done, error

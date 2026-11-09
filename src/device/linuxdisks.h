@@ -94,8 +94,9 @@ struct LinuxLink
     std::optional<VolumeInfo> volume;
 };
 
-// The disk, then the volume of its partition 2. The space and the label of the
-// volume are not read here (see readVolumeSpace).
+// The disk, then its music volume: the best mounted partition by
+// musicVolumeRank. The space and the label of the volume are not read here
+// (see readVolumeSpace).
 LinuxLink linkLinuxDevice(const UsbDevice &device, const QList<LinuxDisk> &disks,
                           const QList<MountEntry> &mounts);
 

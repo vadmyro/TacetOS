@@ -21,7 +21,7 @@ Section 8 merges the three into one result, section 9 says how it stays live whi
 - **Port path**: where the device is plugged, as the OS names it. It stays the same when the device resets and comes back on the same port.
 - **Disk**: the whole storage the OS shows for a device, as in `bootloader-legacy.md`.
 - **Volume**: a filesystem of that disk that the OS has mounted, with a mount point (a folder, or a drive letter on Windows).
-- **Music volume**: the volume of the second partition of the disk (slot 2 of `bootloader-legacy.md` section 2.3).
+- **Music volume**: the mounted volume of the disk that holds the music. On the older models it is the second partition (slot 2 of `bootloader-legacy.md` section 2.3), on the Classic the first one (section 6.1).
 - **Marker file**: a file or folder whose presence, name or content tells what the iPod is or what it runs.
 - **Firmware folder** and **info file**: the hidden folder that the TacetOS firmware lives in, on the music volume, and the small text file that every firmware build puts in it. Their real names are in the one constants file of the app (the same file as in `bootloader-classic.md` section 9), never written anywhere else.
 - **Evidence**: one piece of information about the iPod, with its origin: a USB id, a disk reading, a marker file.
@@ -114,13 +114,13 @@ Disk reads of `bootloader-legacy.md` sections 3 to 5 (table, banner, model) happ
 
 ### 6.1 Finding the mounted volume
 
-Given the disk of section 5, the music volume is the mounted filesystem of its second partition. The number 2 is the partition number the system gives (section 5), not a suffix added to the name of the disk, because the names differ from system to system (`sdb2`, `disk2s2`, a drive letter).
+Given the disk of section 5, the music volume is one of the mounted filesystems of its partitions. The slot is not fixed: the older models keep their firmware in slot 1 and the music in slot 2, but a real Classic has a single FAT32 partition, in slot 1, on a disk of 4096 byte sectors. When several partitions of the disk are mounted, the first one in this order wins: a FAT32 or HFS+ filesystem before any other (section 6.2), then slot 2, then the lowest slot. A volume of another filesystem is still kept when it is the only one, so that the state can be `unsupported-filesystem`. The firmware partition of the older models has no filesystem, so it is never mounted and never chosen. A slot is the partition number the system gives (section 5), not a suffix added to the name of the disk, because the names differ from system to system (`sdb2`, `disk2s2`, a drive letter).
 
 | System | How the volume is found |
 |---|---|
 | Linux | Read `/proc/self/mountinfo`. Each line has the mount point (5th field) and, after a lone `-`, the filesystem type and the source device. Match the source with the node of the partition (`/dev/sdb2`), by the device number (`major:minor`, 3rd field) rather than by name, so that a link such as `/dev/disk/by-label/...` still matches. Mount points escape the space, tab, newline and backslash as `\040`, `\011`, `\012`, `\134`: decode them |
 | macOS | The volume path given by DiskArbitration for the partition `disk2s2`. If it has none, the partition is not mounted |
-| Windows | For each drive letter, open the volume and ask which disk extents it covers. A volume that covers exactly one extent, on the disk number found in section 5, and at the partition offset of slot 2, is the music volume. A volume that spans several disks is ignored |
+| Windows | For each drive letter, open the volume and ask which disk extents it covers. A volume that covers exactly one extent, on the disk number found in section 5, and at the offset of one of its partitions, is a candidate, and the order above picks the music volume. A volume that spans several disks is ignored |
 
 ### 6.2 Filesystems
 
@@ -264,7 +264,7 @@ The aim of the app is that plugging, unplugging or entering DFU changes the scre
 
 Where an event source is not available (a sandbox, a system without it), the app falls back on **polling**: the full reading of sections 3 and 5 every 500 ms for the USB layer, every 1000 ms for disks and volumes. The reading of the USB list is cheap (it opens nothing), so polling at that rate is acceptable. Both ways share the same code: an event only asks for the next reading to be done now.
 
-An event is never trusted as data. It is a hint to read the list again; the list is what counts. This also makes a lost event harmless.
+An event is never trusted as data. It is a hint to read the list again; the list is what counts. Next to the event sources, a slow **backup reading** runs every 2 seconds (constant, `POLL_BACKUP`): a source can open and still hear nothing (the udev monitor in a sandbox with its own network, seen on a real system), and with the backup a lost event only delays the change. It sends the same hints as an event.
 
 ### 9.2 Plug in
 
@@ -273,7 +273,7 @@ The steps, as they are expected to happen on a real iPod (times are indicative, 
 1. The USB device appears. **At once** (within the second), the app adds a detected iPod with `state = waiting` and the USB fields. The screen changes here.
 2. The disk appears one to a few seconds later. The model reading starts.
 3. The volume is mounted a bit later still. The marker files are read. The state becomes `ready` or one of the others.
-4. If nothing more appears for 5 seconds after step 1 (constant, `DISK_WAIT`), the state becomes `no-disk`. A hard disk iPod can need more time to spin up: a disk or volume that appears after `no-disk` simply replaces the state, with no message of failure.
+4. If nothing more appears for 10 seconds after step 1 (constant, `DISK_WAIT`), the state becomes `no-disk`. A hard disk iPod can need more time to spin up: a disk or volume that appears after `no-disk` simply replaces the state, with no message of failure.
 
 Each step updates the same detected iPod, found by its port path. The screen shows what it knows so far; it does not wait for the end to show that something is there.
 
@@ -323,13 +323,14 @@ Kept in the one file of constants, with the same names. The times are starting v
 | Name | Value | Section |
 |---|---|---|
 | `USB_VENDOR_APPLE` | `05ac` | 3.1 |
-| `DISK_WAIT` | 5 s | 9.2 |
+| `DISK_WAIT` | 10 s | 9.2 |
 | `SAME_PORT_WINDOW` | 3 s | 9.4 |
 | `MODE_MEMORY` | 60 s | 8.2 |
 | `POLL_USB` | 500 ms | 9.1 |
 | `POLL_DISKS` | 1000 ms | 9.1 |
+| `POLL_BACKUP` | 2000 ms | 9.1 |
 | `MARKER_MAX_BYTES` | 64 KiB | 7.1 |
-| Music volume | slot 2 | 6.1 |
+| Music volume | slot 2 first, when several are mounted | 6.1 |
 | Apple's root folder | `iPod_Control` | 7.2 |
 | Apple's model file | `iPod_Control/Device/SysInfo` | 7.2 |
 | Apple's database | `iPod_Control/iTunes/iTunesDB` | 7.2 |
@@ -366,7 +367,7 @@ A table of cases: a list of evidence in, the detected iPod out. At least: each s
 
 ### 12.5 Live behaviour (section 9)
 
-Driven by a fake clock and a scripted event stream, with no sleeping: plug (USB first, disk 1 s later, volume 2 s later), plug with no disk (the state turns `no-disk` at 5 s and a later disk replaces it), unplug at each step, DFU reset on the same port within and after 3 seconds, a lost event recovered by the next poll. The check is on **when** the list changes, which must be within one second of the USB event.
+Driven by a fake clock and a scripted event stream, with no sleeping: plug (USB first, disk 1 s later, volume 2 s later), plug with no disk (the state turns `no-disk` at 10 s and a later disk replaces it), unplug at each step, DFU reset on the same port within and after 3 seconds, a lost event recovered by the next poll. The check is on **when** the list changes, which must be within one second of the USB event.
 
 ## 13. Not decided yet
 
@@ -375,7 +376,7 @@ Driven by a fake clock and a scripted event stream, with no sleeping: plug (USB 
 - Whether the USB serial string of an iPod is the same in normal mode, in Disk Mode and in DFU mode (section 9.4). The app uses the port path only until it is known.
 - The content of `iPod_Control/Device/SysInfo` and the table from its model number string to the models of `models.toml`. It is widely documented outside this project, but not yet checked here against two sources or a real iPod.
 - Whether the disks of hard disk iPods report themselves as removable on each system. The spec does not use that flag for this reason, only the USB ancestor.
-- Whether the music volume is always the second partition on the Classic, as on the older models (section 6.1). To be checked on a real Classic before the code relies on it.
+- Answered on a real Classic (120 GB, on Linux): the music volume is at slot 1 and the sectors are 4096 bytes (section 6.1). The disk showed 6 seconds after the USB device, so `DISK_WAIT` is 10 seconds. Its `SysInfo` file was empty.
 - Whether to let the app ask the OS to mount an iPod volume that is not mounted (section 8.3 `no-volume`). A mount is done by the OS service of the user, not by TacetOS, but on some systems it writes a flag to FAT32 volumes when mounted read-write. Not offered for now.
 - The name of the TacetOS line of the info file (section 7.3), and whether the build can write it. Belongs to v0.3, our own firmware build.
 - The optional extra evidence of the device itself: older iPods answer a SCSI inquiry for a vendor page that lists further pages, which together hold a small property list with, among other things, the RAM size. It could give the model and the memory without the help of the volume. It needs raw disk access, so it would go through the helper, and it is not used by v0.1. If it is ever used, its key names must be checked on real iPods first.

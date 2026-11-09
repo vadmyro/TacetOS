@@ -26,6 +26,7 @@ include(CTest)
 
 add_subdirectory(src/device)
 add_subdirectory(app)
+add_subdirectory(tools/watch)
 
 if(BUILD_TESTING)
     add_subdirectory(tests)

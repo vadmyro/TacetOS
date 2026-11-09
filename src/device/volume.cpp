@@ -18,6 +18,14 @@ FilesystemKind classifyFilesystem(const QString &osName)
     return FilesystemKind::Unsupported;
 }
 
+int musicVolumeRank(int partitionNumber, FilesystemKind kind)
+{
+    // Slot numbers are small, so the filesystem always weighs more than the slot.
+    const int known = kind == FilesystemKind::Unsupported ? 1 : 0;
+    const int slot = partitionNumber == kMusicVolumeSlot ? 0 : partitionNumber;
+    return known * 1000 + slot;
+}
+
 void readVolumeSpace(VolumeInfo &volume)
 {
     const QStorageInfo info(volume.mountPoint);

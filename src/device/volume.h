@@ -12,9 +12,6 @@
 
 namespace tacetos::device {
 
-// The partition number of the music volume, as the system numbers it (section 6.1).
-inline constexpr int kMusicVolumeSlot = 2;
-
 enum class FilesystemKind {
     // A Windows iPod.
     Fat32,
@@ -27,6 +24,15 @@ enum class FilesystemKind {
 // Section 6.2: what the name of a filesystem, as one OS writes it (`vfat`,
 // `msdos`, `hfsplus`, `hfs`, `FAT32`, `HFS`), means. Case does not matter.
 FilesystemKind classifyFilesystem(const QString &osName);
+
+// Section 6.1: the partition number that wins when a disk has several mounted
+// volumes. The Classic has its only one at slot 1, the older models at slot 2
+// (slot 1 is their firmware, never mounted).
+inline constexpr int kMusicVolumeSlot = 2;
+
+// Section 6.1: how good a mounted partition is as the music volume, lower is
+// better. A known filesystem first, then slot 2, then the lowest number.
+int musicVolumeRank(int partitionNumber, FilesystemKind kind);
 
 // Section 6.3: fills the total and free bytes and the label (display only) of
 // a volume from its mount point. Leaves the fields alone when the system

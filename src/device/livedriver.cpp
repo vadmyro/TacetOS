@@ -15,6 +15,8 @@ LiveDriver::LiveDriver(LiveTracker *tracker, const Clock *clock, QObject *parent
     timer_.setSingleShot(true);
     timer_.setTimerType(Qt::PreciseTimer);
     connect(&timer_, &QTimer::timeout, this, &LiveDriver::wake);
+    backup_.setInterval(static_cast<int>(kPollBackupMs));
+    connect(&backup_, &QTimer::timeout, this, &LiveDriver::backupTick);
     tracker_->setPolling(true);
 }
 
@@ -28,9 +30,11 @@ void LiveDriver::addEventSource(EventSource *source)
     connect(source, &QObject::destroyed, this, [this, source] {
         sources_.removeAll(source);
         tracker_->setPolling(polling());
+        updateBackup();
         reschedule();
     });
     tracker_->setPolling(false);
+    updateBackup();
     reschedule();
 }
 
@@ -38,6 +42,7 @@ void LiveDriver::start()
 {
     running_ = true;
     tracker_->refresh();
+    updateBackup();
     reschedule();
 }
 
@@ -45,6 +50,7 @@ void LiveDriver::stop()
 {
     running_ = false;
     timer_.stop();
+    backup_.stop();
 }
 
 std::optional<int> LiveDriver::scheduledDelayMs() const
@@ -60,6 +66,23 @@ void LiveDriver::wake()
         return;
     tracker_->tick();
     reschedule();
+}
+
+void LiveDriver::backupTick()
+{
+    if (!running_)
+        return;
+    tracker_->usbEvent();
+    tracker_->diskEvent();
+    reschedule();
+}
+
+void LiveDriver::updateBackup()
+{
+    if (running_ && !polling())
+        backup_.start();
+    else
+        backup_.stop();
 }
 
 void LiveDriver::onUsbChanged()
