@@ -40,6 +40,8 @@ One **detected iPod** per iPod found. The app keeps a list of them, and the list
 | `candidates` | The models the USB id can be, from `models.toml`. One, several, or none |
 | `model` | The model decided by section 8, or none |
 | `model_source` | Which evidence decided: `usb`, `disk`, `info-file`, `user` |
+| `variant` | The exact iPod inside the model (capacity and release period, section 8.4), or none. The model decides what can be written, the variant is only for display |
+| `variant_source` | Which clue decided the variant: `device-sheet`, `sysinfo`, `capacity`, or none |
 | `disk` | The node of the disk, its size in bytes and its sector size. Optional |
 | `volume` | Mount point, filesystem type, label, free bytes. Optional |
 | `state` | One of the states of section 8.3 |
@@ -165,7 +167,7 @@ Marker files are read only from a **music volume** found by sections 5 and 6, or
 | Name | What it tells | How it is used |
 |---|---|---|
 | Root folder `iPod_Control` | The volume was set up by Apple's software, and is an iPod's music volume | Confirms. Absence is **not** an error: a freshly formatted iPod does not have it until the first sync. It is used to give a score when several volumes are candidates in a manual pick (section 6.4), and never alone to decide that something is an iPod |
-| `iPod_Control/Device/SysInfo` | A small text file written by Apple's firmware with the model number string and the serial number | Optional evidence of the model. The key names and the table from the model number to the model are to be checked on real iPods before the code relies on them (section 13). Without it, nothing is lost |
+| `iPod_Control/Device/SysInfo` | A small text file written by Apple's firmware with the model number string and the serial number | Optional evidence of the exact variant (section 8.4). The key name and the layout of the model number are to be checked on a real iPod with Apple's firmware before the code relies on them (section 13). Without it, nothing is lost. It is empty on an iPod that runs another firmware |
 | `iPod_Control/iTunes/iTunesDB` | Apple's music database | Detection only checks that it exists, to say "this iPod has music managed by Apple's software". The library module reads it, not this one |
 
 The existing installer used to look for the root folder too, then turned that check off in its sources. The reason is not written there. TacetOS keeps it as a weak confirmation, never as a decision.
@@ -204,6 +206,26 @@ This is the state of the **files**. Whether the **bootloader** is installed is a
 
 Nothing for the sake of detection. The record of an install stays on the computer (`bootloader-legacy.md` section 18). The only files TacetOS puts on the music volume are the ones of the firmware itself, and they carry their own info file (section 7.3). A marker file written only so that the app can find the iPod again would be one more thing to clean up, would have to be written through the helper, and could be wrong after the iPod is formatted by someone else.
 
+### 7.6 The firmware line
+
+The line shown for the firmware of an iPod that has a readable volume. It says what the **files** say, like section 7.4, and never that a bootloader is installed (section 7.4, last paragraph: for a Classic nothing the computer reads proves it).
+
+The first row that matches is the line:
+
+| Kind | When | Shown |
+|---|---|---|
+| `tacetos` | `firmware` is `tacetos` and the info file is for the decided model | `TacetOS <version>`. The value of the distribution line is the version; a `TacetOS` in front of it is dropped |
+| `custom` | `firmware` is `present` (a valid info file with no TacetOS line) and it is for the decided model | `Custom firmware <version>`, the `Version` key of the info file |
+| `apple` | The Apple model file has at least one line | `Apple firmware <version>`. The version is the part in brackets of the build key (constants file, `0x01168000 (1.1.6)` gives `1.1.6`). Without it: `Apple firmware` |
+| `unknown` | Anything else: no volume, an empty Apple model file, an info file with an unknown target, a filesystem that is not read | `Firmware unknown` |
+
+Notes:
+
+- Files for another model (section 8.2 rule 4) are not used for the line: they are not the firmware of this iPod.
+- The files come before the Apple model file because the Apple model file is empty on an iPod that runs another firmware, and may stay on the volume when Apple's software was there first. An iPod that boots both (dual boot) gets one line, the one of the files. The app does not know which firmware is running.
+- In DFU mode the line of the normal mode is kept with the other fields (section 8.2 rule 5), else it is `unknown`.
+- The key of the build in the Apple model file comes from one source only (the model table of libgpod) and is not checked on an iPod yet (section 13).
+
 ## 8. Merging the evidence
 
 ### 8.1 Order of trust
@@ -214,7 +236,7 @@ When two pieces of evidence name different models, the one closer to the hardwar
 2. **Disk reading** (`bootloader-legacy.md` section 5): it comes from the firmware that runs on this very iPod.
 3. **USB id**, when it has exactly one candidate.
 4. **Info file target**: it describes the firmware that was copied to the volume, which might have been copied from another iPod by the user.
-5. **`SysInfo`**, once the table is checked (section 13).
+5. **`SysInfo`**, once the table is checked (section 13). It can only name a variant of the decided model, never decide the model itself (section 8.4).
 
 ### 8.2 The rules
 
@@ -249,6 +271,37 @@ Where "when" needed a precise meaning, the code reads it like this:
 - `unsupported-model` is also the case where the disk reading names a generation that has no model in `models.toml`.
 - A folder picked by hand (section 6.4) has no USB id and no disk. Its model comes from the info file or the user, and with neither the state is `ambiguous`. A volume with no filesystem name is not `unsupported-filesystem`.
 - A volume that vanished during the read counts as no volume.
+
+### 8.4 The exact model
+
+Sections 8.1 to 8.3 decide the **model**: one entry of `models.toml`, which is what the bootloader, the screen size and the install path depend on. Many models cover several iPods that Apple sold: the Classic has three capacities in four versions, the Video two generations. The **variant** is the entry of `[model.variant.*]` (see `models/README.md`) that says which one it is, to show "iPod Classic 120 GB (late 2008)" instead of "iPod Classic". **A variant never changes the model and never enables or blocks an action that writes.** If every clue is missing or wrong, the only loss is a less precise name.
+
+**Order of the clues**, from the closest to the hardware to the weakest. Each clue only looks at the variants of the model decided by 8.2; a clue that points to another model is logged and ignored.
+
+1. **The device's own property sheet** (the SCSI inquiry page of section 13). Not read by the first versions. If it is ever read, it comes first because it is written by the iPod itself, and its key names must be checked on real iPods before use.
+2. **`SysInfo`**. Read the model number string (the key name is in section 11, checked as in section 13). It is one letter, the region, then the four characters of the Apple model number, for example a letter and `B562`. The first character is dropped when it is a letter, the rest is compared in upper case with the `apple_models` of the variants. One match gives the exact variant. An empty file, a missing key, or a number that no variant has: go on to the next clue.
+3. **The capacity of the disk.** The size of the whole disk (not of the music volume) in bytes, as the OS reports it, divided by 10^9. A variant matches when the result is between `CAPACITY_LOW` and `CAPACITY_HIGH` times its `capacity_gb`: the drive is a little bigger than the box says, a flash chip a little smaller. The size is never computed as sectors times 512: the disk of a 120 GB Classic has sectors of 4096 bytes (measured, section 13), and a count in 512-byte sectors would be eight times too small. The sector size is logged and not used to decide, because one measurement is not enough.
+4. **The USB id.** It gives candidate models (section 3.2) and nothing about the variant. It is last because it has already done its work in 8.2.
+
+**Reading the result of the capacity clue.**
+
+- One variant matches: it is the variant, `variant_source` is `capacity`.
+- Several variants match, with the same `name`: the variant stays empty and the name is shown without a release period. This is the case of the Classic 160 GB (2007 thick, 2009 slim) and only that one so far. Showing "iPod Classic 160 GB" is right whatever the year is.
+- Several variants match with different names: no variant, the model name and the capacity are shown. This is the case of a 10 GB disk in the model of the first two generations, and of a 30 GB disk in the Video (5th or 5.5th generation).
+- None matches (a storage that was swapped, which is common on these iPods): no variant. The model name and the real size are shown.
+
+**Rules when clues disagree.**
+
+1. A clue higher in the list wins. Lower clues are still computed and logged.
+2. If `SysInfo` gives a variant and the capacity clue matches none of its window, the variant is kept (it is the iPod as Apple sold it) and the detected iPod gets the flag `storage-changed`. The message shows the real size.
+3. The capacity never decides a **model**. A 6 GB mini can only be a 2nd generation if the disk is the original one, but a user may have put a bigger storage in a 1st generation. The question of section 8.2 rule 2 stays, and the app may add "a 6 GB disk is usually the 2nd generation" as a hint in the question.
+4. A variant is shown only if `variant_source` is not none. The words `variant` and `variant_source` are for the logs, like `model_source`.
+
+**What is shown.** If the variant is known: its `name`, then its `released` in brackets. If only a set of variants with one common name is left: that name alone. Else: the model name and the size, for example "iPod Classic (6th generation), 256 GB". The size shown is the real one of the disk, in GB.
+
+**Where the facts come from.** `models.toml` only. The app has no other table of model numbers. Every variant says in `to_verify` what is still weak (release periods have no source yet), and the code must not treat a weak fact as better than a missing one: it shows it, because it is only a name.
+
+**Order in which the code can use it.** The capacity clue needs nothing but the disk size of section 5, so it works in the first version. The `SysInfo` clue needs the volume (section 7). The device sheet needs the helper and comes later.
 
 ## 9. Staying live
 
@@ -316,6 +369,15 @@ The text the user sees for every situation. Short, in the plain words of the app
 | `dfu` | The iPod is in DFU mode. (The next step from `bootloader-classic.md`.) |
 | `ready` | The model name, the size, and "Windows" or "Mac" format |
 
+The firmware line (section 7.6) is a separate line, whatever the state:
+
+| Situation | Message |
+|---|---|
+| `tacetos` | TacetOS 0.3 |
+| `custom` | Custom firmware 4.0 |
+| `apple` | Apple firmware 1.1.6, or Apple firmware when the version is not known |
+| `unknown` | Firmware unknown |
+
 ## 11. Constants at a glance
 
 Kept in the one file of constants, with the same names. The times are starting values, to be tuned on a real iPod.
@@ -337,6 +399,9 @@ Kept in the one file of constants, with the same names. The times are starting v
 | Firmware folder, info file | in the constants file | 7.3 |
 | Info file keys read | `Target`, `Target id`, `Version`, `Binary` | 7.3 |
 | Distribution key of the info file | to be named in v0.3 | 7.3 |
+| `CAPACITY_LOW` | 0.90 | 8.4 |
+| `CAPACITY_HIGH` | 1.05 | 8.4 |
+| Key of the model number in `SysInfo` | `ModelNumStr` (one source so far, section 13) | 8.4 |
 
 ## 12. What the tests need
 
@@ -365,6 +430,8 @@ Everything in sections 4, 6.1, 6.2, 7 and 8 is tested with recorded data and no 
 
 A table of cases: a list of evidence in, the detected iPod out. At least: each state of section 8.3; the minis with and without a disk reading; a disk reading outside the candidates (`conflict`); an info file of another model (`other-model`); DFU after normal on the same port, and DFU alone; two iPods at once.
 
+A second table for section 8.4, on the real `models.toml`: a model number with and without the region letter, in upper and lower case, gives the right variant; a number of another model is ignored; an empty `SysInfo`; a disk of each marketed size of each model, including a disk with sectors of 4096 bytes; the Classic 160 GB gives the common name and no year; a swapped storage; `SysInfo` and capacity that disagree (`storage-changed`); the 6 GB mini never changes the model; a disk of 0 bytes or no size.
+
 ### 12.5 Live behaviour (section 9)
 
 Driven by a fake clock and a scripted event stream, with no sleeping: plug (USB first, disk 1 s later, volume 2 s later), plug with no disk (the state turns `no-disk` at 10 s and a later disk replaces it), unplug at each step, DFU reset on the same port within and after 3 seconds, a lost event recovered by the next poll. The check is on **when** the list changes, which must be within one second of the USB event.
@@ -374,10 +441,13 @@ Driven by a fake clock and a scripted event stream, with no sleeping: plug (USB 
 - Whether the iPods in normal mode really show no disk when "disk use" is off, on each model, and what the OS then does (section 3.3). A real Classic is available for this test.
 - How long a hard disk iPod really takes between the USB event and the mounted volume, on each system. `DISK_WAIT` and the polling rates are guesses until measured.
 - Whether the USB serial string of an iPod is the same in normal mode, in Disk Mode and in DFU mode (section 9.4). The app uses the port path only until it is known.
-- The content of `iPod_Control/Device/SysInfo` and the table from its model number string to the models of `models.toml`. It is widely documented outside this project, but not yet checked here against two sources or a real iPod.
+- The content of `iPod_Control/Device/SysInfo`. The key `ModelNumStr` and the leading region letter come from one source only (the model table of libgpod, which skips a first letter of the value), and the file of the real Classic is empty, so nothing was seen on an iPod yet. To be read on one that still runs Apple's firmware, and on the models without USB for the first two generations. The table from the model number to the variants is in `models.toml`, with one source for the numbers and the capacities and none for the release periods.
+- The serial number as a clue: the same table of libgpod maps the last three characters of the serial number to a model number. It could work from the USB serial string without any volume. Not used: nobody checked that the USB serial of an iPod is the serial of its label, nor that the list is complete.
+- Whether the capacity windows of section 8.4 hold on real iPods of each model, and what a swapped storage looks like. Measured so far: a Classic of 120 GB, sectors of 4096 bytes.
 - Whether the disks of hard disk iPods report themselves as removable on each system. The spec does not use that flag for this reason, only the USB ancestor.
 - Answered on a real Classic (120 GB, on Linux): the music volume is at slot 1 and the sectors are 4096 bytes (section 6.1). The disk showed 6 seconds after the USB device, so `DISK_WAIT` is 10 seconds. Its `SysInfo` file was empty.
 - Whether to let the app ask the OS to mount an iPod volume that is not mounted (section 8.3 `no-volume`). A mount is done by the OS service of the user, not by TacetOS, but on some systems it writes a flag to FAT32 volumes when mounted read-write. Not offered for now.
+- The key of the firmware build in the Apple model file (`visibleBuildID`, with a value like `0x01168000 (1.1.6)`, section 7.6) comes from one source (libgpod) and the file of the real Classic is empty. To be read on an iPod that still runs Apple's firmware, with the plain build key next to it.
 - The name of the TacetOS line of the info file (section 7.3), and whether the build can write it. Belongs to v0.3, our own firmware build.
 - The optional extra evidence of the device itself: older iPods answer a SCSI inquiry for a vendor page that lists further pages, which together hold a small property list with, among other things, the RAM size. It could give the model and the memory without the help of the volume. It needs raw disk access, so it would go through the helper, and it is not used by v0.1. If it is ever used, its key names must be checked on real iPods first.
 - On Windows, whether the walk up the device tree always meets the USB device for an iPod, with the storage driver in between (section 5). To be verified with a real iPod on a real Windows system, in the "Windows and macOS" step of the roadmap.
