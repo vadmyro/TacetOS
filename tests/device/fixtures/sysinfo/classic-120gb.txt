@@ -1,0 +1,3 @@
+pszSerialNumber: 8L8123XXYZ
+ModelNumStr: xB562
+FirewireGuid: 0x000A27001234ABCD

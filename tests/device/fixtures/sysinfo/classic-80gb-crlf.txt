@@ -1,0 +1,2 @@
+ModelNumStr: xB029
+pszSerialNumber: 9ABCDE12XYZ

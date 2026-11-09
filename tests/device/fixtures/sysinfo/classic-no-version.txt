@@ -1,0 +1,2 @@
+ModelNumStr: xB562
+visibleBuildID: 0x01168000
