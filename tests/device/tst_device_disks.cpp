@@ -3,10 +3,12 @@
 
 // From the USB device to the disk, and from the disk to the volume, on Linux
 // (docs/specs/detection.md sections 5, 6 and 12.2). The sysfs tree is built in
-// a temporary folder, with real links, so that no iPod is needed.
+// a temporary folder, with real links, so that no iPod is needed (not on
+// Windows, see symlinks.h).
 
 #include "detected.h"
 #include "linuxdisks.h"
+#include "symlinks.h"
 #include "usblist.h"
 #include "volume.h"
 
@@ -137,6 +139,7 @@ void TestDeviceDisks::initTestCase()
     QVERIFY(m_dir.isValid());
     m_sys = m_dir.path();
 
+#ifndef Q_OS_WIN
     // An iPod in normal mode on 1-2: sdb, 32 GB, two partitions.
     const QString ipod1 =
         usbFolder(m_sys, QStringLiteral("1-2"), QStringLiteral("05ac"), QStringLiteral("1261"));
@@ -171,6 +174,7 @@ void TestDeviceDisks::initTestCase()
     const LinuxDiskList list = readLinuxDisks(m_sys + QStringLiteral("/class/block"));
     QVERIFY(list.error.isEmpty());
     m_disks = list.disks;
+#endif
 
     m_mounts = readMountinfo(QStringLiteral(TACETOS_DEVICE_FIXTURES "/mountinfo-linux.txt"));
     QVERIFY(!m_mounts.isEmpty());
@@ -178,12 +182,14 @@ void TestDeviceDisks::initTestCase()
 
 void TestDeviceDisks::sysfsKeepsOnlyDisksUnderApple()
 {
+    TACETOS_NEEDS_SYMLINKS();
     // The stick (other vendor) and the internal disk are never listed.
     QCOMPARE(names(m_disks), (QStringList{QStringLiteral("sdb"), QStringLiteral("sdc")}));
 }
 
 void TestDeviceDisks::sysfsDiskFields()
 {
+    TACETOS_NEEDS_SYMLINKS();
     const LinuxDisk &d = m_disks[0];
     QCOMPARE(d.node, QStringLiteral("/dev/sdb"));
     QCOMPARE(d.usbId, QStringLiteral("05ac:1261"));
@@ -197,6 +203,7 @@ void TestDeviceDisks::sysfsDiskFields()
 
 void TestDeviceDisks::sysfsPartitionsAreNumbered()
 {
+    TACETOS_NEEDS_SYMLINKS();
     const LinuxDisk &d = m_disks[0];
     QCOMPARE(d.partitions.size(), 2);
     QCOMPARE(d.partitions[0].name, QStringLiteral("sdb1"));
@@ -209,6 +216,7 @@ void TestDeviceDisks::sysfsPartitionsAreNumbered()
 
 void TestDeviceDisks::sysfsInternalDiskIsIgnored()
 {
+    TACETOS_NEEDS_SYMLINKS();
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
     makeDisk(dir.path(),
@@ -229,6 +237,7 @@ void TestDeviceDisks::sysfsMissingRoot()
 
 void TestDeviceDisks::twoIpodsOfOneModelGetTheirOwnDisk()
 {
+    TACETOS_NEEDS_SYMLINKS();
     const LinuxLink a = linkLinuxDevice(device(QStringLiteral("05ac:1261"), QStringLiteral("1-2")),
                                         m_disks, m_mounts);
     const LinuxLink b = linkLinuxDevice(device(QStringLiteral("05ac:1261"), QStringLiteral("1-4")),
@@ -245,6 +254,7 @@ void TestDeviceDisks::twoIpodsOfOneModelGetTheirOwnDisk()
 
 void TestDeviceDisks::matchNeedsPortAndId()
 {
+    TACETOS_NEEDS_SYMLINKS();
     // Same port, another id: the device changed under us, no disk.
     QVERIFY(!findDiskForUsb(m_disks, device(QStringLiteral("05ac:1209"), QStringLiteral("1-2"))));
     // Same id, no port path: never match on the id alone.
@@ -254,6 +264,7 @@ void TestDeviceDisks::matchNeedsPortAndId()
 
 void TestDeviceDisks::noDiskYet()
 {
+    TACETOS_NEEDS_SYMLINKS();
     const LinuxLink link = linkLinuxDevice(
         device(QStringLiteral("05ac:1225"), QStringLiteral("1-5")), m_disks, m_mounts);
     QVERIFY(!link.disk);
@@ -300,6 +311,7 @@ void TestDeviceDisks::mountinfoSkipsBadLines()
 
 void TestDeviceDisks::volumeFat32()
 {
+    TACETOS_NEEDS_SYMLINKS();
     const LinuxLink link = linkLinuxDevice(
         device(QStringLiteral("05ac:1261"), QStringLiteral("1-2")), m_disks, m_mounts);
     QVERIFY(link.volume);
@@ -309,6 +321,7 @@ void TestDeviceDisks::volumeFat32()
 
 void TestDeviceDisks::volumeHfsPlus()
 {
+    TACETOS_NEEDS_SYMLINKS();
     const LinuxLink link = linkLinuxDevice(
         device(QStringLiteral("05ac:1261"), QStringLiteral("1-4")), m_disks, m_mounts);
     QVERIFY(link.volume);
@@ -332,6 +345,7 @@ void TestDeviceDisks::volumeBySourceLink()
 
 void TestDeviceDisks::volumeBindMountLoses()
 {
+    TACETOS_NEEDS_SYMLINKS();
     // sdb2 is mounted on /srv/bind (a folder of it) before its real mount.
     const LinuxLink link = linkLinuxDevice(
         device(QStringLiteral("05ac:1261"), QStringLiteral("1-2")), m_disks, m_mounts);

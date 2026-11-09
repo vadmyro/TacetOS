@@ -629,5 +629,5 @@ void TstDeviceMerge::permissionMessagePerSystem()
     QVERIFY(linux != mac);
 }
 
-QTEST_APPLESS_MAIN(TstDeviceMerge)
+QTEST_GUILESS_MAIN(TstDeviceMerge)
 #include "tst_device_merge.moc"

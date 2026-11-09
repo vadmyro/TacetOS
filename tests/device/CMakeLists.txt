@@ -36,3 +36,28 @@ target_compile_definitions(tst_device_merge PRIVATE
     TACETOS_MODELS_TOML="${PROJECT_SOURCE_DIR}/models/models.toml")
 
 add_test(NAME tst_device_merge COMMAND tst_device_merge)
+
+qt_add_executable(tst_device_live tst_device_live.cpp)
+target_link_libraries(tst_device_live PRIVATE tacet_device Qt6::Test)
+target_compile_definitions(tst_device_live PRIVATE
+    TACETOS_MODELS_TOML="${PROJECT_SOURCE_DIR}/models/models.toml")
+
+add_test(NAME tst_device_live COMMAND tst_device_live)
+
+qt_add_executable(tst_device_livedriver tst_device_livedriver.cpp)
+target_link_libraries(tst_device_livedriver PRIVATE tacet_device Qt6::Test)
+target_compile_definitions(tst_device_livedriver PRIVATE
+    TACETOS_MODELS_TOML="${PROJECT_SOURCE_DIR}/models/models.toml")
+
+add_test(NAME tst_device_livedriver COMMAND tst_device_livedriver)
+
+# The Linux source only exists on Linux.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    qt_add_executable(tst_device_linuxsource tst_device_linuxsource.cpp)
+    target_link_libraries(tst_device_linuxsource PRIVATE tacet_device Qt6::Test)
+    target_compile_definitions(tst_device_linuxsource PRIVATE
+        TACETOS_MODELS_TOML="${PROJECT_SOURCE_DIR}/models/models.toml"
+        TACETOS_DEVICE_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+
+    add_test(NAME tst_device_linuxsource COMMAND tst_device_linuxsource)
+endif()

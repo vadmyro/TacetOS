@@ -8,6 +8,7 @@
 #include "constants.h"
 #include "markers.h"
 #include "models.h"
+#include "symlinks.h"
 
 #include <QDir>
 #include <QDirIterator>
@@ -269,6 +270,7 @@ void TstDeviceMarkers::volumeVanishes()
 
 void TstDeviceMarkers::linksAreNotFollowed()
 {
+    TACETOS_NEEDS_SYMLINKS();
     QTemporaryDir outside;
     writeBytes(outside.filePath("secret.txt"), "Target: ipod6g\n");
 
@@ -326,5 +328,5 @@ void TstDeviceMarkers::constantsAreNotEmpty()
     QCOMPARE(kMarkerMaxBytes, qint64(64 * 1024));
 }
 
-QTEST_APPLESS_MAIN(TstDeviceMarkers)
+QTEST_GUILESS_MAIN(TstDeviceMarkers)
 #include "tst_device_markers.moc"
