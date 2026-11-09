@@ -51,6 +51,11 @@ jobs:
           version: ${{ env.QT_VERSION }}
           cache: true
 
+      - name: Install libudev
+        # The udev monitor of the device detection. Without it the build still works and polls.
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev
+
       - name: Configure
         # Warnings are errors on Linux and macOS. Windows reports them only, for now.
         run: cmake --preset ${{ matrix.preset }} -DCMAKE_COMPILE_WARNING_AS_ERROR=${{ runner.os != 'Windows' && 'ON' || 'OFF' }}
