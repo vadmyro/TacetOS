@@ -8,4 +8,4 @@ A console tool for development. It watches the iPods plugged into this computer 
 
 **What it uses**: the same live detection as the app (`src/device`): the Linux readers, the live tracker and its driver, with the udev monitor and the mount table watch when they are available. Without udev it polls, and says so at start.
 
-**Output**: one line per event, `HH:mm:ss`, the event (`added`, `changed`, `removed`), the USB port, then what is known about the iPod: model, USB id, mode, state message, disk and mount point.
+**Output**: one line per event, `HH:mm:ss`, the event (`added`, `changed`, `removed`), the USB port, then what is known about the iPod: model, USB id, mode, state message, firmware line (once a volume is mounted), disk and mount point.

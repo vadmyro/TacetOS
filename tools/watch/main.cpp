@@ -75,6 +75,8 @@ QString describe(const DetectedIpod &ipod, const QList<Model> &models)
     if (!ipod.serial.isEmpty())
         parts << QStringLiteral("serial %1").arg(ipod.serial);
     parts << QStringLiteral("\"%1\"").arg(stateMessage(ipod, models));
+    if (ipod.volume)
+        parts << QStringLiteral("\"%1\"").arg(firmwareMessage(ipod));
     if (ipod.disk)
         parts << ipod.disk->node;
     if (ipod.volume)
