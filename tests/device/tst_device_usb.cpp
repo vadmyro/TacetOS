@@ -146,7 +146,10 @@ void TestDeviceUsb::linuxMini()
 void TestDeviceUsb::linuxSkipsInterfaceFolders()
 {
     // Interface folders have a colon in their name, which some disks refuse in a
-    // fixture, so this one is built here.
+    // fixture, so this one is built here. Windows refuses it in any file name.
+#ifdef Q_OS_WIN
+    QSKIP("':' is not allowed in Windows file names");
+#endif
     QTemporaryDir tmp;
     QVERIFY(tmp.isValid());
     QDir root(tmp.path());
