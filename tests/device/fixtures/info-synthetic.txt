@@ -1,0 +1,10 @@
+Version: 4.0
+Target: ipod6g
+Target id: 71
+Binary: tacetos.ipod
+Memory: 64
+Features: synthetic-test-file
+Voice format: 1
+Not a key line
+lowercase: skipped
+Compiler: gcc-synthetic 1.0

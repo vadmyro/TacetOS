@@ -1,0 +1,9 @@
+22 28 0:21 / /sys rw,nosuid,nodev,noexec,relatime shared:7 - sysfs sysfs rw
+36 29 8:1 / / rw,relatime shared:1 - ext4 /dev/sda1 rw,errors=remount-ro
+70 29 8:18 /Music /srv/bind rw,nosuid,nodev,relatime shared:61 - vfat /dev/sdb2 rw,fmask=0022
+120 29 8:18 / /run/media/user/IPOD rw,nosuid,nodev,relatime shared:60 - vfat /dev/sdb2 rw,fmask=0022,codepage=437
+121 29 8:17 / /run/media/user/BOOT rw,nosuid,nodev,relatime shared:62 - vfat /dev/sdb1 rw
+130 29 8:34 / /run/media/user/My\040iPod\134x\011y rw,nosuid,nodev,relatime - hfsplus /dev/sdc2 rw,uid=1000
+this line is not a mountinfo line
+140 29 8:50 / /run/media/user/CLASSIC rw,nosuid,nodev,relatime shared:70 - vfat /dev/disk/by-label/CLASSIC rw
+150 29 8:66 / /run/media/user/EXFAT rw,nosuid,nodev,relatime - exfat /dev/sde2 rw
