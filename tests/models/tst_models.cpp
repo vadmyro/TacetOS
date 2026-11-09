@@ -2,160 +2,19 @@
 // Copyright (C) 2026 vadmyro
 
 // Reads models/models.toml and checks that the ten models are there with every
-// field of the format described in models/README.md. Qt has no TOML reader, so
-// this file has a small one that understands only what models.toml uses:
-// comments, [table] and [[array of tables]] headers, and single-line values
-// (string, integer, float, boolean, date, array).
+// field of the format described in models/README.md. The reader is the one of
+// the device library (src/device/toml.h).
 
-#include <QFile>
+#include "toml.h"
+
 #include <QRegularExpression>
 #include <QSet>
 #include <QTest>
 
+using Document = tacetos::device::TomlDocument;
+using Table = tacetos::device::TomlTable;
+
 namespace {
-
-struct Table
-{
-    QMap<QString, QVariant> values;
-    QMap<QString, Table> children;
-};
-
-struct Document
-{
-    Table root;
-    QList<Table> models;
-    QString error;
-};
-
-QString stripComment(const QString &line)
-{
-    bool inString = false;
-    for (int i = 0; i < line.size(); ++i) {
-        if (line[i] == QLatin1Char('"'))
-            inString = !inString;
-        else if (line[i] == QLatin1Char('#') && !inString)
-            return line.left(i);
-    }
-    return line;
-}
-
-// Splits "a", "b" or 1, 2 on the commas that are outside strings.
-QStringList splitArray(const QString &inner)
-{
-    QStringList parts;
-    QString current;
-    bool inString = false;
-    for (const QChar c : inner) {
-        if (c == QLatin1Char('"'))
-            inString = !inString;
-        if (c == QLatin1Char(',') && !inString) {
-            parts << current.trimmed();
-            current.clear();
-        } else {
-            current += c;
-        }
-    }
-    if (!current.trimmed().isEmpty())
-        parts << current.trimmed();
-    return parts;
-}
-
-QVariant parseValue(const QString &text, QString *error)
-{
-    static const QRegularExpression dateRe(QStringLiteral("^\\d{4}-\\d{2}-\\d{2}$"));
-    static const QRegularExpression intRe(QStringLiteral("^-?\\d+$"));
-    static const QRegularExpression floatRe(QStringLiteral("^-?\\d+\\.\\d+$"));
-
-    if (text.startsWith(QLatin1Char('"'))) {
-        if (text.size() < 2 || !text.endsWith(QLatin1Char('"')))
-            return *error = QStringLiteral("unterminated string: ") + text, QVariant();
-        return text.mid(1, text.size() - 2);
-    }
-    if (text.startsWith(QLatin1Char('['))) {
-        if (!text.endsWith(QLatin1Char(']')))
-            return *error = QStringLiteral("unterminated array: ") + text, QVariant();
-        QVariantList list;
-        for (const QString &part : splitArray(text.mid(1, text.size() - 2)))
-            list << parseValue(part, error);
-        return list;
-    }
-    if (text == QLatin1String("true"))
-        return true;
-    if (text == QLatin1String("false"))
-        return false;
-    if (dateRe.match(text).hasMatch())
-        return QDate::fromString(text, Qt::ISODate);
-    if (intRe.match(text).hasMatch())
-        return text.toLongLong();
-    if (floatRe.match(text).hasMatch())
-        return text.toDouble();
-    *error = QStringLiteral("cannot read value: ") + text;
-    return QVariant();
-}
-
-Document parseFile(const QString &path)
-{
-    Document doc;
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        doc.error = QStringLiteral("cannot open ") + path;
-        return doc;
-    }
-
-    Table *current = &doc.root;
-    int lineNo = 0;
-    while (!file.atEnd()) {
-        ++lineNo;
-        const QString line = stripComment(QString::fromUtf8(file.readLine())).trimmed();
-        if (line.isEmpty())
-            continue;
-
-        QString err;
-        if (line.startsWith(QLatin1String("[["))) {
-            if (line != QLatin1String("[[model]]")) {
-                doc.error = QStringLiteral("line %1: unexpected %2").arg(lineNo).arg(line);
-                return doc;
-            }
-            doc.models.append(Table());
-            current = &doc.models.last();
-        } else if (line.startsWith(QLatin1Char('['))) {
-            const QStringList path = line.mid(1, line.size() - 2).split(QLatin1Char('.'));
-            Table *base = nullptr;
-            int first = 0;
-            if (path.first() == QLatin1String("model")) {
-                if (doc.models.isEmpty()) {
-                    doc.error = QStringLiteral("line %1: [model.*] before [[model]]").arg(lineNo);
-                    return doc;
-                }
-                base = &doc.models.last();
-                first = 1;
-            } else {
-                base = &doc.root;
-            }
-            for (int i = first; i < path.size(); ++i)
-                base = &base->children[path[i]];
-            current = base;
-        } else {
-            const int eq = line.indexOf(QLatin1Char('='));
-            if (eq < 0) {
-                doc.error = QStringLiteral("line %1: no '='").arg(lineNo);
-                return doc;
-            }
-            const QString key = line.left(eq).trimmed();
-            const QVariant value = parseValue(line.mid(eq + 1).trimmed(), &err);
-            if (!err.isEmpty()) {
-                doc.error = QStringLiteral("line %1: %2").arg(lineNo).arg(err);
-                return doc;
-            }
-            if (current->values.contains(key)) {
-                doc.error = QStringLiteral("line %1: duplicate key %2").arg(lineNo).arg(key);
-                return doc;
-            }
-            current->values.insert(key, value);
-        }
-    }
-    return doc;
-}
 
 const QStringList kExpectedIds = {
     QStringLiteral("ipod-1g2g"),  QStringLiteral("ipod-3g"), QStringLiteral("ipod-4g"),
@@ -209,7 +68,7 @@ private:
 
 void TestModels::initTestCase()
 {
-    m_doc = parseFile(QStringLiteral(TACETOS_MODELS_TOML));
+    m_doc = tacetos::device::parseTomlFile(QStringLiteral(TACETOS_MODELS_TOML));
     QVERIFY2(m_doc.error.isEmpty(), qPrintable(m_doc.error));
 }
 
