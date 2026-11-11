@@ -34,7 +34,7 @@ One **detected iPod** per iPod found. The app keeps a list of them, and the list
 | Field | Meaning |
 |---|---|
 | `usb_id` | The id seen on USB, or none if the iPod is only known from a volume that was picked by hand (section 6.4) |
-| `mode` | `normal` (normal mode or Disk Mode, they share the id), `dfu`, `other` (an id of the same model family that is neither) or `none` (no USB id, section 6.4) |
+| `mode` | `normal` (normal mode or Disk Mode, they share the id and nothing else tells them apart, section 3.2), `dfu`, `other` (an id of the same model family that is neither) or `none` (no USB id, section 6.4) |
 | `port_path` | The place on the computer, used to follow the same iPod across a reset |
 | `serial` | The USB serial number string, when the OS gives it. Optional |
 | `candidates` | The models the USB id can be, from `models.toml`. One, several, or none |
@@ -46,6 +46,7 @@ One **detected iPod** per iPod found. The app keeps a list of them, and the list
 | `volume` | Mount point, filesystem type, label, free bytes. Optional |
 | `state` | One of the states of section 8.3 |
 | `firmware` | What the marker files say is installed (section 7.4) |
+| `running` | Which firmware runs now, from the USB name strings (section 7.6): `apple`, `other` or `unknown` |
 
 The user never sees the words `candidates` or `model_source`. They exist so that the logs, and the support on the Discord, can show why a decision was taken.
 
@@ -53,13 +54,13 @@ The user never sees the words `candidates` or `model_source`. They exist so that
 
 ### 3.1 What is read
 
-The list of USB devices the computer sees now, with for each: vendor id, product id, port path, and the serial number string if the OS has it in its own database. **The app does not open the devices** to read their name strings: opening needs rights on some systems, and it can disturb a device in the middle of a transfer. Names for the logs come from the OS database when it is free to read, or from a copy of the public id list, and are never used to decide anything.
+The list of USB devices the computer sees now, with for each: vendor id, product id, port path, and the serial number string and the two name strings (manufacturer and product) if the OS has them in its own database. **The app does not open the devices** to read their name strings: opening needs rights on some systems, and it can disturb a device in the middle of a transfer. The name strings are only read where the OS keeps them, free to read. They are used for one decision, which firmware runs (section 7.6), and for the logs.
 
 | System | Where the list comes from | Notes |
 |---|---|---|
-| Linux | The folders of `/sys/bus/usb/devices`. Each device folder holds the files `idVendor` and `idProduct` (4 hexadecimal digits, no prefix), `busnum`, `devpath`, `serial` | The port path is the folder name, for example `1-2.3`. No special rights are needed |
-| macOS | The IOKit registry, class of USB devices. Properties `idVendor`, `idProduct`, `USB Serial Number`, `locationID` | The port path is the `locationID`. No special rights |
-| Windows | The device information set of all present devices (SetupAPI). The hardware id of a USB device is a list of strings, for example `USB\VID_05AC&PID_1261&REV_0001` and `USB\VID_05AC&PID_1261` | Compare in upper case: the case of the keys differs between Windows versions, and old ones write `Vid_` and `Pid_`. Accept both forms of the string, with or without the `&REV_` part. The port path is the location path property of the device |
+| Linux | The folders of `/sys/bus/usb/devices`. Each device folder holds the files `idVendor` and `idProduct` (4 hexadecimal digits, no prefix), `busnum`, `devpath`, `serial`, `manufacturer`, `product` | The port path is the folder name, for example `1-2.3`. No special rights are needed |
+| macOS | The IOKit registry, class of USB devices. Properties `idVendor`, `idProduct`, `USB Serial Number`, `USB Vendor Name`, `USB Product Name`, `locationID` | The port path is the `locationID`. No special rights |
+| Windows | The device information set of all present devices (SetupAPI). The hardware id of a USB device is a list of strings, for example `USB\VID_05AC&PID_1261&REV_0001` and `USB\VID_05AC&PID_1261` | Compare in upper case: the case of the keys differs between Windows versions, and old ones write `Vid_` and `Pid_`. Accept both forms of the string, with or without the `&REV_` part. The port path is the location path property of the device. The product string is the bus reported description of the device; whether the manufacturer string is kept is to be checked (section 13) |
 
 Only devices with the vendor `05ac` (Apple) are kept; all the others are dropped at once and never logged beyond a count. Apple's other products (phones, tablets, keyboards) share this vendor id. An Apple id that is in no model of `models.toml` is not an iPod we know: it is not shown to the user, and the log keeps one line for it.
 
@@ -79,6 +80,8 @@ Cases to know, all from `models.toml` and from `bootloader-classic.md` section 2
 | `05ac:1223` | DFU mode of the Classic. The 3rd generation nano uses the same id in DFU mode, but it is not in `models.toml` | One candidate, the Classic, but the id cannot rule out the nano. Before anything is sent, the app asks "iPod Classic?" (`bootloader-classic.md` section 2), unless it has seen the same iPod in normal mode just before (section 9.4) |
 | `05ac:1261` | Classic, normal or Disk Mode | One candidate |
 | Disk Mode of every other model | The same id as the normal one | `mode` is `normal` for both. The app does not need to know the difference: what it needs is a disk (section 5) |
+
+Measured on a real Classic: Disk Mode and Apple's firmware show the same USB id, the same name strings, the same disk vendor and model and the same serial. The one difference seen, the time the disk takes to show, is not reliable. So detection has no Disk Mode: both are `normal`, and the firmware line says Apple's firmware (section 7.6).
 
 The older first and second generation iPods have no USB, only FireWire, per `models.toml`. They cannot be detected by this spec; their `usb` lists are empty and stay so until a real one is tested (see `to_verify` there).
 
@@ -208,21 +211,34 @@ Nothing for the sake of detection. The record of an install stays on the compute
 
 ### 7.6 The firmware line
 
-The line shown for the firmware of an iPod that has a readable volume. It says what the **files** say, like section 7.4, and never that a bootloader is installed (section 7.4, last paragraph: for a Classic nothing the computer reads proves it).
+The line shown for the firmware of an iPod. It says which firmware **runs** when the USB name strings tell it (section 3.1), and takes the version from the files. It never says that a bootloader is installed (section 7.4, last paragraph: for a Classic nothing the computer reads proves it).
+
+Which firmware runs, the field `running`, read in normal mode only:
+
+| `running` | When |
+|---|---|
+| `apple` | The manufacturer string is `Apple Inc.` and the product string is `iPod`. Apple's firmware and Disk Mode show these same strings (section 3.2) |
+| `other` | The OS gave the strings, and they are not the two above |
+| `unknown` | The OS gave no strings |
+
+The rule only compares to Apple's strings: the strings of any other firmware are never tested, so that a change of name in that firmware changes nothing here.
 
 The first row that matches is the line:
 
 | Kind | When | Shown |
 |---|---|---|
-| `tacetos` | `firmware` is `tacetos` and the info file is for the decided model | `TacetOS <version>`. The value of the distribution line is the version; a `TacetOS` in front of it is dropped |
-| `custom` | `firmware` is `present` (a valid info file with no TacetOS line) and it is for the decided model | `Custom firmware <version>`, the `Version` key of the info file |
-| `apple` | The Apple model file has at least one line | `Apple firmware <version>`. The version is the part in brackets of the build key (constants file, `0x01168000 (1.1.6)` gives `1.1.6`). Without it: `Apple firmware` |
-| `unknown` | Anything else: no volume, an empty Apple model file, an info file with an unknown target, a filesystem that is not read | `Firmware unknown` |
+| `apple` | `running` is `apple` | `Apple firmware <version>`. The version is the part in brackets of the build key of the Apple model file (constants file, `0x01168000 (1.1.6)` gives `1.1.6`). Without it: `Apple firmware` |
+| `tacetos` | `running` is not `apple`, `firmware` is `tacetos` and the info file is for the decided model | `TacetOS <version>`. The value of the distribution line is the version; a `TacetOS` in front of it is dropped |
+| `custom` | `running` is not `apple`, `firmware` is `present` (a valid info file with no TacetOS line) and it is for the decided model | `Custom firmware <version>`, the `Version` key of the info file |
+| `custom` | `running` is `other`, and the files say nothing (no volume yet, for example) | `Custom firmware` |
+| `apple` | `running` is `unknown` and the Apple model file has at least one line | `Apple firmware <version>`, as above |
+| `unknown` | Anything else | Nothing: the line is not shown |
 
 Notes:
 
 - Files for another model (section 8.2 rule 4) are not used for the line: they are not the firmware of this iPod.
-- The files come before the Apple model file because the Apple model file is empty on an iPod that runs another firmware, and may stay on the volume when Apple's software was there first. An iPod that boots both (dual boot) gets one line, the one of the files. The app does not know which firmware is running.
+- An iPod that boots both firmwares (dual boot) gets the line of the one that runs now. Its files are still read, for the version and for the state of section 7.4.
+- Where the OS gives no name strings, the line falls back to the files, and then says what is **installed**, not what runs. The files come before the Apple model file because the Apple model file is empty on an iPod that runs another firmware, and may stay on the volume when Apple's software was there first. Measured on a real Classic running Apple's firmware with the files of another firmware on its volume: the files alone gave a wrong line, hence the strings first.
 - In DFU mode the line of the normal mode is kept with the other fields (section 8.2 rule 5), else it is `unknown`.
 - The key of the build in the Apple model file comes from one source only (the model table of libgpod) and is not checked on an iPod yet (section 13).
 
@@ -334,7 +350,9 @@ Each step updates the same detected iPod, found by its port path. The screen sho
 
 ### 9.3 Unplug
 
-When the USB device disappears, its detected iPod is removed from the list **at once**. Everything tied to it is dropped: the disk, the volume, the reads in progress. A read in progress ends with an error from the OS (the volume is gone); this is handled as the end of the iPod and shown as nothing. The user does not see an error for unplugging.
+When the USB device disappears, its detected iPod is removed from the list **at once**. Everything tied to it is dropped: the disk, the volume, the reads in progress.
+
+The pieces do not leave together. Measured on a real Classic, unplugged with its volume mounted: the volume goes, then the disk, then the USB device, in 120 to 230 ms in the first test, and the volume 1.16 s before the USB device in a later one. Shown as they come, that would be `ready`, then `no-volume`, then `no-disk` (a message that asks the user to act), then nothing. So a state that goes **down** because the volume or the disk went away waits `DROP_SETTLE` (1.5 s) before it is shown and logged. If the USB device leaves during that time, the only change is the removal. If the piece comes back during that time, nothing is shown. A state that goes up (a disk or a volume that appears) is shown at once. An operation that unmounts or ejects shows `busy` meanwhile (`device-state.md` section 1.2), so this delay is only seen when something outside the app takes the volume away. That case is rare and harmless, so it may take 1.5 s instead of the one second of section 9.2. A read in progress ends with an error from the OS (the volume is gone); this is handled as the end of the iPod and shown as nothing. The user does not see an error for unplugging.
 
 If an operation that writes was running (a helper job), what happens is described in the specs of that operation (`bootloader-legacy.md` section 19, `bootloader-classic.md` section 16). Detection only tells the app that the iPod left.
 
@@ -342,12 +360,12 @@ If an operation that writes was running (a helper job), what happens is describe
 
 Entering DFU, and the restart after an install, make the iPod disappear and appear again with another id or the same one. To avoid showing a "disconnected" screen in the middle of a flow that the user is following:
 
-1. When a USB device disappears, the app does not drop its detected iPod from the screen immediately **if an operation of the app is running on it** or if its state was `dfu` or the app asked the user to hold buttons. For a plain unplug with nothing running, it does drop at once (section 9.3).
-2. If a device with the same `port_path` appears within 3 seconds (constant, `SAME_PORT_WINDOW`), it is the same iPod in another mode: the mode and `usb_id` are updated, nothing else is lost.
+1. When a USB device disappears, the app does not drop its detected iPod from the screen immediately **if an operation of the app is running on it** or if its state was `dfu` or the app asked the user to hold buttons. For a plain unplug with nothing running, it does drop at once (section 9.3). A restart that the user starts with the buttons of the iPod, with nothing running in the app, looks the same as an unplug and is shown as one.
+2. If a device with the same `port_path` appears within 15 seconds (constant, `SAME_PORT_WINDOW`), it is the same iPod in another mode: the mode and `usb_id` are updated, nothing else is lost.
 3. If it does not, the iPod is dropped.
-4. For the identity across modes, `port_path` is the key and `serial` is only a second check, because the serial string may differ in DFU mode (section 13). The 60 seconds memory of section 8.2 rule 5 uses the same key.
+4. For the identity across modes, `port_path` is the key and `serial` is only a second check, because the serial string changes with the mode. Measured on a real Classic: Apple's firmware and Disk Mode give one string, the other firmware another one (with spaces inside), and DFU mode a third one that belongs to the chip, not to the iPod. The 60 seconds memory of section 8.2 rule 5 uses the same key.
 
-The three seconds fit a reset of the USB device. A clean restart of the iPod takes longer, so an operation that ends in a restart gives its own window with the hold (`device-state.md` section 2.6).
+Measured on a real Classic, from the removal to the new device on the same port: 8.1 s into DFU mode, 9.6 s out of DFU mode, 10.25 s for a restart of the firmware, and 22.4 s from Disk Mode to Apple's firmware with the buttons held by hand. The 15 seconds cover the restarts that need no hands. An operation that ends in a restart gives its own, longer window with the hold (`device-state.md` section 2.6).
 
 The flow "the user holds the buttons until DFU shows up" depends on the app seeing `05ac:1223` with no delay: this id must reach the screen through the same one second path as a plain plug in.
 
@@ -382,20 +400,21 @@ The firmware line (section 7.6) is a separate line, whatever the state:
 | Situation | Message |
 |---|---|
 | `tacetos` | TacetOS 0.3 |
-| `custom` | Custom firmware 4.0 |
+| `custom` | Custom firmware 4.0, or Custom firmware when the files say nothing |
 | `apple` | Apple firmware 1.1.6, or Apple firmware when the version is not known |
-| `unknown` | Firmware unknown |
+| `unknown` | No line |
 
 ## 11. Constants at a glance
 
-Kept in the one file of constants, with the same names. The times are starting values, to be tuned on a real iPod.
+Kept in the one file of constants, with the same names. The times were measured on a real Classic on Linux (section 13), and are still to be checked on the other models and systems.
 
 | Name | Value | Section |
 |---|---|---|
 | `USB_VENDOR_APPLE` | `05ac` | 3.1 |
 | `DISK_WAIT` | 10 s | 9.2 |
 | `MOUNT_GRACE` | 2 s | 9.2 |
-| `SAME_PORT_WINDOW` | 3 s | 9.4 |
+| `SAME_PORT_WINDOW` | 15 s | 9.4 |
+| `DROP_SETTLE` | 1.5 s | 9.3 |
 | `MODE_MEMORY` | 60 s | 8.2 |
 | `POLL_USB` | 500 ms | 9.1 |
 | `POLL_DISKS` | 1000 ms | 9.1 |
@@ -448,13 +467,14 @@ Driven by a fake clock and a scripted event stream, with no sleeping: plug (USB 
 ## 13. Not decided yet
 
 - Whether the iPods in normal mode really show no disk when "disk use" is off, on each model, and what the OS then does (section 3.3). A real Classic is available for this test.
-- How long a hard disk iPod really takes between the USB event and the mounted volume, on each system. `DISK_WAIT`, `MOUNT_GRACE` and the polling rates are guesses until measured.
-- Whether the USB serial string of an iPod is the same in normal mode, in Disk Mode and in DFU mode (section 9.4). The app uses the port path only until it is known.
+- How long the other hard disk iPods take between the USB event and the disk, and the times on Windows and macOS.
+- Whether Windows keeps the manufacturer string of a USB device where it is free to read (section 3.1), and the name strings of the other iPods in each mode. Until then, a system without them falls back to the files for the firmware line (section 7.6).
+- A device with the Apple id of the Classic, a serial string of its own and no disk was seen once for 23 seconds while the user changed mode by hand, then left. What it is (a USB mode of a boot program, probably) is not known; detection shows it as `no-disk`.
 - The content of `iPod_Control/Device/SysInfo`. The key `ModelNumStr` and the leading region letter come from one source only (the model table of libgpod, which skips a first letter of the value), and the file of the real Classic is empty, so nothing was seen on an iPod yet. To be read on one that still runs Apple's firmware, and on the models without USB for the first two generations. The table from the model number to the variants is in `models.toml`, with one source for the numbers and the capacities and none for the release periods.
 - The serial number as a clue: the same table of libgpod maps the last three characters of the serial number to a model number. It could work from the USB serial string without any volume. Not used: nobody checked that the USB serial of an iPod is the serial of its label, nor that the list is complete.
 - Whether the capacity windows of section 8.4 hold on real iPods of each model, and what a swapped storage looks like. Measured so far: a Classic of 120 GB, sectors of 4096 bytes.
 - Whether the disks of hard disk iPods report themselves as removable on each system. The spec does not use that flag for this reason, only the USB ancestor.
-- Answered on a real Classic (120 GB, on Linux): the music volume is at slot 1 and the sectors are 4096 bytes (section 6.1). The disk showed 6 seconds after the USB device, so `DISK_WAIT` is 10 seconds. Its `SysInfo` file was empty.
+- Answered on a real Classic (120 GB, on Linux): the music volume is at slot 1 and the sectors are 4096 bytes (section 6.1). The disk shows 1.5 s after the USB device under the other firmware, 1.6 s in Disk Mode, 3.3 to 5.7 s under Apple's firmware: `DISK_WAIT` stays 10 seconds. With nothing mounted, `MOUNT_GRACE` (2 s) ended the wait as expected every time. Mounting from the app took 1.6 to 2.2 s, an eject 0.6 s, and the iPod left the bus at once after it. The serial string changes with the mode (section 9.4), restarts take 8 to 10 s (section 9.4), Disk Mode cannot be told from Apple's firmware (section 3.2), the name strings tell which firmware runs (section 7.6). Its `SysInfo` file was empty, with no `SysInfoExtended`.
 - Whether to let the app ask the OS to mount an iPod volume that is not mounted (section 8.3 `no-volume`). A mount is done by the OS service of the user, not by TacetOS, but on some systems it writes a flag to FAT32 volumes when mounted read-write. Not offered by detection itself. The operations of `device-state.md` section 2 offer it, on the request of the user only.
 - The key of the firmware build in the Apple model file (`visibleBuildID`, with a value like `0x01168000 (1.1.6)`, section 7.6) comes from one source (libgpod) and the file of the real Classic is empty. To be read on an iPod that still runs Apple's firmware, with the plain build key next to it.
 - The name of the TacetOS line of the info file (section 7.3), and whether the build can write it. Belongs to v0.3, our own firmware build.

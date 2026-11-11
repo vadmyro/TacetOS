@@ -27,7 +27,6 @@ One **displayed state** per iPod, found by its port path. The words below are th
 | `failed` | The operation finished badly | An operation, until the next action |
 | `released` | The iPod was ejected: it can be unplugged | An `eject` that finished well, for `RELEASED_KEEP` |
 | `attention` | Something the user has to read and maybe act on. Carries a **reason**, which is the detection state | Detection `no-disk`, `mac-format`, `conflict`, `ambiguous`, `permission`, `unsupported-filesystem`, `unsupported-model`, and `no-volume` when the reason is Mac format |
-| `disk-mode` | Reserved. The iPod is in Disk Mode, as opposed to the normal mode of the firmware | Not produced yet (section 1.5) |
 
 `attention` is one state with a reason, and not one state per reason, because the screen treats them the same way (a message, maybe one action) and the message comes from `detection.md` section 10 by the reason.
 
@@ -116,7 +115,7 @@ The text of a failed disk operation is chosen by the error of the service, not b
 
 ### 1.5 Disk Mode
 
-A `disk-mode` state is reserved. The firmware's normal USB mode and Apple's Disk Mode show the same USB id, so detection reports `normal` for both (`detection.md` section 2). Until a real iPod has shown how to tell them apart from information readable without rights, the app never produces `disk-mode`, and treats the two as the same state. The state exists in the list so that the screens and the tests can already plan a place for it, and no other state changes the day it is turned on. What it will offer (probably the same as `ready` or `not-mounted`, with a line about Disk Mode) is decided then.
+There is no Disk Mode state. Measured on a real Classic, Disk Mode and Apple's firmware show the same USB id, the same name strings, the same disk and the same serial (`detection.md` section 3.2): nothing readable without rights tells them apart. Detection reports `normal` for both, and the firmware line says Apple's firmware. A flow that needs Disk Mode (the install on the older iPods) asks the user to enter it, with the buttons of the model page, and trusts the answer: what it needs is a disk, and that it can see.
 
 ## 2. Operations
 
@@ -188,7 +187,7 @@ An operation holds its iPod for as long as it is active (`detection.md` section 
 
 1. The runner holds the iPod when the request is **accepted**, before it is queued, and releases it when the operation **ends**, in every case: done, failed, an exception, a refusal by the worker. A hold that is never released would keep an iPod on the screen forever. It is a test (section 5.2). The one change is a kind that expects a restart (rule 3): its hold goes on after the end, for the return window, and is released when the iPod is back or the window has passed.
 2. An unplug while the operation is active does not show an iPod-gone screen: the entry stays (as `busy`) until the operation ends. When it ends, with no restart expected (the four kinds of section 2.1), the hold is released, the iPod is dropped by the tracker, the record is dropped with it and nothing is shown (row 12). The log gets a warning (section 3.1), not the screen. The one exception is a good `eject`, which leaves a `released` record (section 2.7), since the disappearance of the drive is the aim.
-3. The **return window** is how long the app waits for an iPod to come back after a clean restart, per kind. The three seconds of `SAME_PORT_WINDOW` in `detection.md` section 9.4 fit a USB reset, and are **too short for a restart**: the iPod has to shut down, start the new firmware and enumerate again. Each kind that expects a restart declares its window (`RESTART_WINDOW` is the starting value). The four kinds of section 2.1 declare none and use `SAME_PORT_WINDOW`. A flow that asks the user to hold buttons (`bootloader-classic.md` section 16.1) holds the same way, with the window of its own step. While the window runs and the iPod is missing, the state is `rebooting`.
+3. The **return window** is how long the app waits for an iPod to come back after a clean restart, per kind. The 15 seconds of `SAME_PORT_WINDOW` in `detection.md` section 9.4 cover a restart with nothing written before (8 to 10 s measured on a Classic), but not every restart: after a write the iPod may have more to do before it starts the new firmware and enumerates again. Each kind that expects a restart declares its window (`RESTART_WINDOW` is the starting value). The four kinds of section 2.1 declare none and use `SAME_PORT_WINDOW`. A flow that asks the user to hold buttons (`bootloader-classic.md` section 16.1) holds the same way, with the window of its own step. While the window runs and the iPod is missing, the state is `rebooting`.
 4. When the window passes with no device back, the tracker drops the iPod. For a kind that expected a restart, the operation ends as `failed` with the reason "did not return" and the entry stays as `failed` (row 23), because the spec of that flow has a message and a way out for it. For any other case there is no entry.
 
 The tracker takes the window as a parameter of the hold (without it, `SAME_PORT_WINDOW`). The hold is what makes `rebooting` possible: the state model asks the tracker whether the iPod is missing, and shows `rebooting` when it is (section 1.2 rule 2).
@@ -270,7 +269,7 @@ Kept in the one file of constants of the device module (the ones of the journal 
 | `DONE_SHOWN` | 5 s | 1.1, 2.5 |
 | `RELEASED_KEEP` | 30 s | 2.7 |
 | `RESTART_WINDOW` | 60 s, to be measured on a real iPod, per kind | 2.6 |
-| Window of the kinds of section 2.1 | `SAME_PORT_WINDOW` (3 s, `detection.md` section 11) | 2.6 |
+| Window of the kinds of section 2.1 | `SAME_PORT_WINDOW` (15 s, `detection.md` section 11) | 2.6 |
 | `JOURNAL_MAX_ENTRIES` | 1000 | 3.3 |
 | `JOURNAL_LINE_MAX` | 1000 characters | 3.2 |
 | `JOURNAL_FILE` | `logs/tacetos.log`, in the data folder of the app | 3.4 |
@@ -315,8 +314,7 @@ The pure functions are tested with tables, the runner and the model with a fake 
 
 ## 6. Not decided yet
 
-- How to tell Disk Mode from the normal mode of the firmware (section 1.5). To be tried on a real iPod: the USB text strings and the vendor and model of the disk are readable without rights, and may differ.
-- How long a clean restart really takes, per model, from the end of the write to the new enumeration. `RESTART_WINDOW` is a guess until then.
+- How long a clean restart really takes, per model, from the end of the write to the new enumeration. Measured on a real Classic with no write before: 8 to 10 s (`detection.md` section 9.4). `RESTART_WINDOW` stays a guess until an install is measured.
 - Whether an iPod whose drive was powered off comes back by itself, and after how long, on each system (section 2.7). If it does, the new device on the port ends `released` early, and a longer rule may be needed.
 - Whether the USB serial changes with the mode (`detection.md` section 13). The model uses the port path only until it is known.
 - The label of the volume (a name the user chose) goes in the journal as it is. If that turns out to hold names of people, it may need the same care as the file names.

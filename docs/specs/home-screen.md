@@ -60,7 +60,7 @@ On a system where the app does not detect iPods yet (everything but Linux in v0.
 |  |        |   [##########..........] 84.2 GB used of     |
 |  +--------+   119.2 GB, 35.0 GB free                     |
 |                                                          |
-|                                   [ Eject ]  [ Open ]    |
+|                             [ Eject ]  [ Show files ]    |
 +----------------------------------------------------------+
 ```
 
@@ -69,7 +69,7 @@ On a system where the app does not detect iPods yet (everything but Linux in v0.
 - **Text** (right, top aligned with the drawing), one line each, in this order:
   1. **Name**: the name of detection (`ipodName`, `detection.md` section 8.4: the variant with its release period, "iPod Classic 120 GB (late 2008)", the same name as the `added` line of `tacet-watch`), or the name of the model when there is no variant, or "iPod" when the model is not known. Title style.
   2. **State**: a dot of 8 px, 8 px of space, then the message of the state. Body style. The colour of the dot is in section 5. A long message wraps on several lines; it is never cut. For `ready` the message is only "Ready.": the name is already above, and the format of the disk tells the user nothing. The same line is kept under the banner of `done` and `failed`.
-  3. **Firmware**: the firmware line (`detection.md` section 10, `firmwareMessage`). Secondary style. Hidden when empty, and hidden while the state is `released`.
+  3. **Firmware**: the firmware line (`detection.md` section 10, `firmwareMessage`). Secondary style. Hidden when there is no line (`unknown`, `detection.md` section 7.6), and hidden while the state is `released`.
   4. **Space**: only when the music volume is mounted and its size is known. A bar 6 px high, as wide as the text column, radius 3 px, the track in `border` and the used part in `accent`; under it, 6 px lower, "84.2 GB used of 119.2 GB, 35.0 GB free" in the secondary style. Sizes in decimal gigabytes (1 GB = 1 000 000 000 bytes, as on the box of the iPod), one digit after the point, written with the separators of the locale. Hidden while the state is `released`.
 - **Released**: after an Eject the volume and the disk are gone, so what detection still reads is poorer than before (the exact variant and the firmware line come from files of the volume). The card keeps the name it showed before the eject, and shows no firmware line and no space. The state model keeps for that the last complete (`ready`) iPod of the port while `released` lasts (`device-state.md` section 2.7).
 - **Busy**: while the state is `busy`, the space bar is replaced by a thin indeterminate progress bar (same size, `accent`), and every button of the card is disabled.
@@ -91,7 +91,7 @@ A strip at the very top of the card, inside its box, for `done` and `failed` onl
 | Displayed state | Dot |
 |---|---|
 | `ready`, `done` | `accent` |
-| `reading`, `not-mounted`, `dfu`, `rebooting`, `busy`, `released`, `disk-mode` | `text-secondary` |
+| `reading`, `not-mounted`, `dfu`, `rebooting`, `busy`, `released` | `text-secondary` |
 | `attention`, `failed` | `danger` |
 
 ## 6. Buttons
@@ -100,14 +100,14 @@ What a state offers comes from `device-state.md` section 2.3. On the card, it be
 
 | Displayed state | Buttons, from left to right (the last one is the main one) |
 |---|---|
-| `ready` | Eject (secondary), Open (main) |
+| `ready` | Eject (secondary), Show files (main) |
 | `not-mounted`, on Linux | Eject (secondary), Open (main) |
 | `attention` with `mac-format` | Eject (secondary), Open read only (main) |
 | `failed` | The buttons of the state underneath, as if there were no failure |
 | any other | none |
 
-- **Open** on `ready` opens the mount point in the file manager of the system. It is not an operation: nothing changes on the card.
-- **Open** on `not-mounted` starts the `mount` operation. When it ends in `done`, the app opens the mount point, as if the user had pressed Open on `ready`. When it fails, nothing is opened.
+- **Show files** on `ready` opens the mount point in the file manager of the system. It is not an operation: nothing changes on the card.
+- **Open** on `not-mounted` starts the `mount` operation. When it ends in `done`, the app opens the mount point, as if the user had pressed Show files on `ready`. When it fails, nothing is opened.
 - **Open read only** starts `mount-ro`, then opens the mount point the same way.
 - **Eject** starts the `eject` operation.
 - **Refresh** (header) asks the state model to read everything again (`detection.md` section 9.5). It is always enabled.
@@ -178,7 +178,7 @@ Every text of this screen goes through the translation of the app, in the contex
 |---|---|
 | Empty state, second line | TacetOS finds it by itself. Nothing on it changes until you ask. |
 | Empty state, other systems | Detection on this system is coming. |
-| Buttons | Refresh, Open, Open read only, Eject |
+| Buttons | Refresh, Show files, Open, Open read only, Eject |
 | Space label | %1 GB used of %2 GB, %3 GB free |
 | Unknown model | iPod |
 | State line of `ready` | Ready. |
@@ -207,7 +207,6 @@ All without a real iPod, with the offscreen platform, and with states written by
 ## 12. Later
 
 - Choosing the model when several share a connection (`ambiguous`): v0.1 shows the message and the generic drawing, no choice.
-- The line of `disk-mode` (`device-state.md` section 1.5), after the real test.
 - Progress of the write operations (backup, install), with their own steps.
 - A setting to force light or dark.
 - Screenshots of both looks for the README.
