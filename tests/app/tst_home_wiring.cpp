@@ -175,6 +175,15 @@ private:
             clock.now += kDiskWaitMs;
             window.driver()->wake();
         }
+        // The open button of an iPod that is not open exists on Linux only (the other systems
+        // open it themselves), so elsewhere the request comes from the screen's signal.
+        void requestMount()
+        {
+            if (currentHostSystem() == HostSystem::Linux)
+                card()->openButton()->click();
+            else
+                emit window.homeScreen()->actionRequested(kPort, HomeAction::Mount);
+        }
         QString kind() const
         {
             const auto entry = window.stateModel()->entry(kPort);
@@ -269,11 +278,12 @@ void TstHomeWiring::openOnNotMountedMountsThenOpens()
     s.waitForVolume();
     QCOMPARE(s.kind(), QStringLiteral("not-mounted"));
 
-    s.card()->openButton()->click();
+    s.requestMount();
     QCOMPARE(s.kind(), QStringLiteral("busy"));
     QVERIFY(s.opened.isEmpty());
 
     s.actions.next.mountPoint = QStringLiteral("/run/media/mounted");
+    QVERIFY2(!s.executor.jobs.isEmpty(), "the request did not queue a job");
     s.executor.runNext();
     QCOMPARE(s.actions.ran, QStringList{QStringLiteral("mount 1-2")});
     QCOMPARE(s.kind(), QStringLiteral("done"));
@@ -296,6 +306,7 @@ void TstHomeWiring::openReadOnlyUsesMountRo()
     emit s.window.homeScreen()->actionRequested(kPort, HomeAction::MountReadOnly);
     QCOMPARE(s.kind(), QStringLiteral("busy"));
     s.actions.next.mountPoint = kMountPoint;
+    QVERIFY2(!s.executor.jobs.isEmpty(), "the request did not queue a job");
     s.executor.runNext();
     QCOMPARE(s.actions.ran, QStringList{QStringLiteral("mount-ro 1-2")});
     QCOMPARE(s.opened, QStringList{kMountPoint});
@@ -309,9 +320,10 @@ void TstHomeWiring::failedMountOpensNothing()
     s.waitForVolume();
     QCOMPARE(s.kind(), QStringLiteral("not-mounted"));
 
-    s.card()->openButton()->click();
+    s.requestMount();
     s.actions.next.error = DiskError::Busy;
     s.actions.next.detail = QStringLiteral("device is busy");
+    QVERIFY2(!s.executor.jobs.isEmpty(), "the request did not queue a job");
     s.executor.runNext();
 
     QCOMPARE(s.kind(), QStringLiteral("failed"));
