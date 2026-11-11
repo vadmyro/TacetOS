@@ -2,7 +2,8 @@
 // Copyright (C) 2026 vadmyro
 
 // tacet-watch: prints each iPod that is added, changed or removed, with the
-// time. For development. It only reads, and Ctrl+C quits.
+// time to the millisecond (to measure delays). With --verbose it also prints
+// the lines the detection sends to the journal. For development. It only reads, and Ctrl+C quits.
 
 #include "detected.h"
 #include "linuxsource.h"
@@ -86,7 +87,7 @@ QString describe(const DetectedIpod &ipod, const QList<Model> &models)
 
 void printLine(QTextStream &out, const QString &event, const QString &portPath, const QString &rest)
 {
-    out << QTime::currentTime().toString(QStringLiteral("HH:mm:ss")) << "  "
+    out << QTime::currentTime().toString(QStringLiteral("HH:mm:ss.zzz")) << "  "
         << event.leftJustified(7) << "  " << portPath;
     if (!rest.isEmpty())
         out << "  " << rest;
@@ -108,6 +109,11 @@ int main(int argc, char *argv[])
                                     QStringLiteral("The model list to read."),
                                     QStringLiteral("file"), QStringLiteral(TACETOS_MODELS_TOML));
     parser.addOption(modelsOption);
+    QCommandLineOption verboseOption(
+        QStringLiteral("verbose"),
+        QStringLiteral(
+            "Also print the lines of the detection log (why, and each change of state)."));
+    parser.addOption(verboseOption);
     parser.process(app);
 
     QTextStream out(stdout);
@@ -144,6 +150,14 @@ int main(int argc, char *argv[])
     QObject::connect(&tracker, &LiveTracker::ipodRemoved, &app, [&](const QString &portPath) {
         printLine(out, QStringLiteral("removed"), portPath, QString());
     });
+
+    if (parser.isSet(verboseOption)) {
+        QObject::connect(&tracker, &LiveTracker::logged, &app,
+                         [&](const QString &portPath, const QStringList &lines) {
+                             for (const QString &line : lines)
+                                 printLine(out, QStringLiteral("log"), portPath, line);
+                         });
+    }
 
     // The mount table alone says nothing about USB devices, so it is only
     // added next to udev. Without udev the driver polls.
