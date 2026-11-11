@@ -43,6 +43,11 @@ inline constexpr qint64 kModeMemoryMs = 60 * 1000;
 // becomes no-disk.
 inline constexpr qint64 kDiskWaitMs = 10 * 1000;
 
+// Section 9.2: once the disk is there and no volume is mounted, how long the
+// wait lasts at most, counted from the moment the disk appeared. Then the
+// state becomes no-volume (on Linux the system may not mount it by itself).
+inline constexpr qint64 kMountGraceMs = 2 * 1000;
+
 // Section 9.4: a device with the same port path that appears within this
 // time is the same iPod in another mode.
 inline constexpr qint64 kSamePortWindowMs = 3 * 1000;

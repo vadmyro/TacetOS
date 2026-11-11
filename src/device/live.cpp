@@ -210,8 +210,8 @@ std::optional<qint64> LiveTracker::nextWakeMs() const
     for (const Entry &entry : entries_) {
         if (entry.missingSinceMs)
             consider(*entry.missingSinceMs + kSamePortWindowMs + 1);
-        else if (!entry.waitOver && entry.usb.mode != UsbMode::Dfu)
-            consider(entry.firstSeenMs + kDiskWaitMs);
+        else if (const std::optional<qint64> end = waitEndMs(entry))
+            consider(*end);
     }
     return next;
 }
@@ -259,6 +259,7 @@ void LiveTracker::readUsbNow()
             // starts again, and what the disk showed no longer applies.
             entry->firstSeenMs = now_;
             entry->waitOver = false;
+            entry->diskSeenMs.reset();
             entry->reading = PortReading();
             if (device.mode != UsbMode::Dfu)
                 entry->reading = source_->readPort(device);
@@ -310,8 +311,8 @@ void LiveTracker::expireAndWait()
             }
             continue;
         }
-        if (!entry.waitOver && entry.usb.mode != UsbMode::Dfu &&
-            now_ - entry.firstSeenMs >= kDiskWaitMs) {
+        const std::optional<qint64> end = waitEndMs(entry);
+        if (end && now_ >= *end) {
             entry.waitOver = true;
             remerge(entry);
         }
@@ -324,8 +325,25 @@ void LiveTracker::expireAndWait()
     }
 }
 
+// Section 9.2: the wait for the disk ends kDiskWaitMs after the device
+// appeared. When the disk is there but nothing is mounted, it ends sooner:
+// kMountGraceMs after the disk appeared.
+std::optional<qint64> LiveTracker::waitEndMs(const Entry &entry) const
+{
+    if (entry.waitOver || entry.usb.mode == UsbMode::Dfu)
+        return std::nullopt;
+    qint64 end = entry.firstSeenMs + kDiskWaitMs;
+    if (entry.diskSeenMs && !entry.reading.volume)
+        end = std::min(end, *entry.diskSeenMs + kMountGraceMs);
+    return end;
+}
+
 void LiveTracker::remerge(Entry &entry)
 {
+    if (!entry.reading.disk)
+        entry.diskSeenMs.reset();
+    else if (!entry.diskSeenMs)
+        entry.diskSeenMs = now_;
     IpodEvidence evidence;
     evidence.usb = entry.usb;
     evidence.disk = entry.reading.disk;

@@ -8,7 +8,7 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 |---|---|---|---|
 | Setup | Repository, app skeleton, CI on Linux, Windows and macOS | 4/4 | ✅ done |
 | Foundations | Firmware base, model database, library rules, specs of the install formats and protocols | 7/7 | ✅ done |
-| **v0.1** | Device detection and live state (plug, unplug, disk mode, DFU) | 4/7 | 🚧 in progress |
+| **v0.1** | Device detection and live state (plug, unplug, disk mode, DFU) | 6/7 | 🚧 in progress |
 | Test devices | Disk image test devices + privileged helper | 0/5 | ⏳ |
 | **v0.2** | Install and reset wizard: backup, format, firmware, bootloader, guided DFU, uninstall | 0/12 | ⏳ |
 | **v0.3** | Our own firmware build: name, custom boot logo, update channel | 0/9 | ⏳ |
@@ -43,8 +43,8 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 - [x] Live plug and unplug
 - [x] Linux disks: mount, unmount and eject without root
 - [x] Exact model, and which firmware is installed (Apple or TacetOS, and its version)
-- [ ] State machine: unplugged, normal, disk mode, mounted, DFU, rebooting, busy, done, error
-- [ ] Home screen: drawing of the model, live state, free space, firmware version
+- [x] State machine: unplugged, normal, disk mode, mounted, DFU, rebooting, busy, done, error
+- [x] Home screen: drawing of the model, live state, free space, firmware version
 - [ ] Real-device test: normal mode, disk mode, DFU, unplug
 
 ## Test devices and helper

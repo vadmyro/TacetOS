@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=TacetOS
+Comment=Manage your iPod
+Exec=tacetos
+Icon=io.github.vadmyro.TacetOS
+Terminal=false
+Categories=AudioVideo;Audio;Utility;

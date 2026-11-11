@@ -107,6 +107,7 @@ private slots:
     void unsupportedFilesystemKnowsNothing();
     void messages();
     void classicNeverSaysBootloader();
+    void logLineHasNoTrailingSpace();
 };
 
 void TstDeviceFirmware::initTestCase()
@@ -351,6 +352,23 @@ void TstDeviceFirmware::classicNeverSaysBootloader()
                          .contains(QLatin1String("bootloader"), Qt::CaseInsensitive));
         }
     }
+}
+
+void TstDeviceFirmware::logLineHasNoTrailingSpace()
+{
+    // No version: nothing after the kind, not even a space.
+    QStringList log;
+    const FirmwareLine unknown = identifyFirmware(FirmwareInfo(), QMap<QString, QString>(), &log);
+    QCOMPARE(unknown.kind, FirmwareKind::Unknown);
+    QCOMPARE(log, QStringList{QStringLiteral("firmware: unknown")});
+
+    // With a version, one space then the version.
+    FirmwareInfo files;
+    files.files = FirmwareFiles::Present;
+    files.infoVersion = QStringLiteral("1.2");
+    log.clear();
+    identifyFirmware(files, QMap<QString, QString>(), &log);
+    QCOMPARE(log, QStringList{QStringLiteral("firmware: custom 1.2")});
 }
 
 QTEST_GUILESS_MAIN(TstDeviceFirmware)

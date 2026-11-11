@@ -298,6 +298,7 @@ private slots:
     void doneDisappearsAtFiveSeconds();
     void failedStaysUntilNextAction();
     void releasedKeptWhenTheIpodLeaves();
+    void releasedKeepsTheLastReadyIpod();
     void releasedEndsOnPlugIn();
     void releasedEndsOnStartOrRefresh();
     void ejectWithTheIpodStillThere();
@@ -507,7 +508,8 @@ void TstDeviceScreenState::plugInToUnplugged()
     h.executor.runNext();
     QCOMPARE(h.kindAt(kPort), QStringLiteral("released"));
     QCOMPARE(h.model.screen().kind, ScreenKind::Released);
-    QVERIFY(!h.model.entry(kPort)->ipod);
+    // The iPod left, the record carries the last one that was ready.
+    QVERIFY(h.model.entry(kPort)->ipod);
     // The cable is out: released goes on (row 19), up to RELEASED_KEEP.
     QCOMPARE(*h.model.nextWakeMs(), 3000 + kReleasedKeepMs);
     h.runTo(3000 + kReleasedKeepMs - 1);
@@ -643,9 +645,35 @@ void TstDeviceScreenState::releasedKeptWhenTheIpodLeaves()
     h.clock.now = 10'000;
     h.unplug(kPort);
     QCOMPARE(h.kindAt(kPort), QStringLiteral("released"));
-    QVERIFY(!h.model.entry(kPort)->ipod);
+    // The last complete iPod stays with the record, for the name on the card.
+    QVERIFY(h.model.entry(kPort)->ipod);
+    QCOMPARE(h.model.entry(kPort)->ipod->state, IpodState::Ready);
     h.runTo(100 + kReleasedKeepMs);
     QCOMPARE(h.kindAt(kPort), QStringLiteral("none"));
+}
+
+// Section 2.7: after the eject the drive loses its volume, but `released`
+// carries the iPod as it was when it was ready.
+void TstDeviceScreenState::releasedKeepsTheLastReadyIpod()
+{
+    Harness h;
+    h.clock.now = 100;
+    h.readyIpod(kPort);
+    QVERIFY(h.model.entry(kPort)->ipod->volume);
+    h.model.startOperation(OperationKind::Eject, kPort);
+    // The volume goes away while the eject runs.
+    h.world.ports[kPort].volume.reset();
+    h.tracker.diskEvent();
+    h.executor.runNext();
+    QCOMPARE(h.kindAt(kPort), QStringLiteral("released"));
+    const auto entry = h.model.entry(kPort);
+    QVERIFY(entry->ipod);
+    QCOMPARE(entry->ipod->state, IpodState::Ready);
+    QVERIFY(entry->ipod->volume);
+    // After RELEASED_KEEP detection speaks again, with what it reads now.
+    h.runTo(100 + kReleasedKeepMs);
+    QCOMPARE(h.kindAt(kPort), QStringLiteral("not-mounted"));
+    QCOMPARE(h.model.entry(kPort)->ipod->state, IpodState::NoVolume);
 }
 
 // Row 18: a device that appears on the port starts from the beginning.

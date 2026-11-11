@@ -250,7 +250,7 @@ When two pieces of evidence name different models, the one closer to the hardwar
 
 | `state` | When | What the app offers |
 |---|---|---|
-| `waiting` | A USB device of a known id has just appeared, and the wait of section 9.2 is not over | A "reading the iPod" message. Nothing else |
+| `waiting` | A USB device of a known id has just appeared, and the wait of section 9.2 is not over (it ends sooner when a disk is there and nothing is mounted: `MOUNT_GRACE`) | A "reading the iPod" message. Nothing else |
 | `ready` | Model decided, volume present and readable | Everything the model allows |
 | `dfu` | `mode` is `dfu` | The DFU actions of `bootloader-classic.md`, after the model question of section 3.2 |
 | `no-disk` | The USB id is known, the wait is over, there is no disk | How to get a disk (section 3.3) |
@@ -266,7 +266,7 @@ The states are listed here so that every one has a test and a message (section 1
 
 Where "when" needed a precise meaning, the code reads it like this:
 
-- `waiting` lasts while the wait of section 9.2 is not over **and there is no mounted volume yet**. A volume that shows up early ends it at once. While it lasts, a model that is not decided yet is not asked about (`ambiguous` is skipped), because the disk reading may still decide it.
+- `waiting` lasts while the wait of section 9.2 is not over **and there is no mounted volume yet**. A volume that shows up early ends it at once. A disk with no mounted volume ends it `MOUNT_GRACE` after the disk appeared. While it lasts, a model that is not decided yet is not asked about (`ambiguous` is skipped), because the disk reading may still decide it.
 - `permission` is a disk read that was refused. It comes before `ambiguous` because the read is what would decide the model of the minis.
 - `unsupported-model` is also the case where the disk reading names a generation that has no model in `models.toml`.
 - A folder picked by hand (section 6.4) has no USB id and no disk. Its model comes from the info file or the user, and with neither the state is `ambiguous`. A volume with no filesystem name is not `unsupported-filesystem`.
@@ -327,6 +327,8 @@ The steps, as they are expected to happen on a real iPod (times are indicative, 
 2. The disk appears one to a few seconds later. The model reading starts.
 3. The volume is mounted a bit later still. The marker files are read. The state becomes `ready` or one of the others.
 4. If nothing more appears for 10 seconds after step 1 (constant, `DISK_WAIT`), the state becomes `no-disk`. A hard disk iPod can need more time to spin up: a disk or volume that appears after `no-disk` simply replaces the state, with no message of failure.
+
+5. If the disk is there but no music volume is mounted, the wait does not go on for the rest of `DISK_WAIT`: it ends 2 seconds after the disk appeared (constant, `MOUNT_GRACE`), at the latest at the end of `DISK_WAIT`, and the state becomes `no-volume`. Some systems, Linux desktops for example, do not mount the iPod by themselves, and the app must then show its button at once instead of a message that never changes. A volume that is mounted during the grace ends the wait at once, and the state goes to `ready` without passing by `no-volume`. `DISK_WAIT` stays the wait for the disk itself.
 
 Each step updates the same detected iPod, found by its port path. The screen shows what it knows so far; it does not wait for the end to show that something is there.
 
@@ -392,6 +394,7 @@ Kept in the one file of constants, with the same names. The times are starting v
 |---|---|---|
 | `USB_VENDOR_APPLE` | `05ac` | 3.1 |
 | `DISK_WAIT` | 10 s | 9.2 |
+| `MOUNT_GRACE` | 2 s | 9.2 |
 | `SAME_PORT_WINDOW` | 3 s | 9.4 |
 | `MODE_MEMORY` | 60 s | 8.2 |
 | `POLL_USB` | 500 ms | 9.1 |
@@ -445,7 +448,7 @@ Driven by a fake clock and a scripted event stream, with no sleeping: plug (USB 
 ## 13. Not decided yet
 
 - Whether the iPods in normal mode really show no disk when "disk use" is off, on each model, and what the OS then does (section 3.3). A real Classic is available for this test.
-- How long a hard disk iPod really takes between the USB event and the mounted volume, on each system. `DISK_WAIT` and the polling rates are guesses until measured.
+- How long a hard disk iPod really takes between the USB event and the mounted volume, on each system. `DISK_WAIT`, `MOUNT_GRACE` and the polling rates are guesses until measured.
 - Whether the USB serial string of an iPod is the same in normal mode, in Disk Mode and in DFU mode (section 9.4). The app uses the port path only until it is known.
 - The content of `iPod_Control/Device/SysInfo`. The key `ModelNumStr` and the leading region letter come from one source only (the model table of libgpod, which skips a first letter of the value), and the file of the real Classic is empty, so nothing was seen on an iPod yet. To be read on one that still runs Apple's firmware, and on the models without USB for the first two generations. The table from the model number to the variants is in `models.toml`, with one source for the numbers and the capacities and none for the release periods.
 - The serial number as a clue: the same table of libgpod maps the last three characters of the serial number to a model number. It could work from the USB serial string without any volume. Not used: nobody checked that the USB serial of an iPod is the serial of its label, nor that the list is complete.

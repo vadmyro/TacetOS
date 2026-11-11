@@ -53,8 +53,11 @@ FirmwareLine identifyFirmware(const FirmwareInfo &files, const QMap<QString, QSt
 
     if (log) {
         static const char *const names[] = {"unknown", "apple", "custom", "tacetos"};
-        *log << QStringLiteral("firmware: %1 %2")
-                    .arg(QLatin1String(names[static_cast<int>(line.kind)]), line.version);
+        QString text =
+            QStringLiteral("firmware: %1").arg(QLatin1String(names[static_cast<int>(line.kind)]));
+        if (!line.version.isEmpty())
+            text += QLatin1Char(' ') + line.version;
+        *log << text;
         if (files.otherModel && files.files != FirmwareFiles::Absent)
             *log << QStringLiteral("firmware: the files on the volume are for another model");
     }

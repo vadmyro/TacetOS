@@ -58,7 +58,7 @@ jobs:
 
       - name: Configure
         # Warnings are errors on Linux and macOS. Windows reports them only, for now.
-        run: cmake --preset ${{ matrix.preset }} -DCMAKE_COMPILE_WARNING_AS_ERROR=${{ runner.os != 'Windows' && 'ON' || 'OFF' }}
+        run: cmake --preset ${{ matrix.preset }} -DCMAKE_COMPILE_WARNING_AS_ERROR=${{ runner.os != 'Windows' && 'ON' || 'OFF' }} -DTACETOS_FETCH_FONT=ON
 
       - name: Build
         run: cmake --build --preset ${{ matrix.preset }} --parallel

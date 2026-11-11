@@ -137,6 +137,7 @@ DeviceStateModel::DeviceStateModel(LiveTracker *tracker, OperationRunner *runner
                                    const Clock *clock, QObject *parent)
     : WakeSource(parent), tracker_(tracker), runner_(runner), clock_(clock)
 {
+    remember();
     for (const DetectedIpod &ipod : tracker_->ipods()) {
         if (const auto now = compute(ipod.portPath)) {
             order_ << ipod.portPath;
@@ -172,7 +173,31 @@ std::optional<ScreenEntry> DeviceStateModel::compute(const QString &portPath) co
                     clock_->nowMs());
     if (!state)
         return std::nullopt;
+    // The eject takes the volume and the disk away: the detected iPod is then
+    // poorer than the one the user saw, so `released` shows the last `ready` one.
+    if (state->kind == ScreenKind::Released) {
+        const auto last = lastReady_.constFind(portPath);
+        if (last != lastReady_.constEnd())
+            ipod = *last;
+    }
     return ScreenEntry{portPath, *state, ipod};
+}
+
+void DeviceStateModel::remember()
+{
+    QStringList present;
+    for (const DetectedIpod &ipod : tracker_->ipods()) {
+        present << ipod.portPath;
+        if (ipod.state == IpodState::Ready)
+            lastReady_.insert(ipod.portPath, ipod);
+    }
+    for (auto it = lastReady_.begin(); it != lastReady_.end();) {
+        if (!present.contains(it.key()) && !released_.contains(it.key()) &&
+            !runner_->operation(it.key()))
+            it = lastReady_.erase(it);
+        else
+            ++it;
+    }
 }
 
 QList<ScreenEntry> DeviceStateModel::entries() const
@@ -258,6 +283,7 @@ void DeviceStateModel::onAdded(const DetectedIpod &ipod)
 {
     // Row 18: a device appears on the port, a new plug in.
     released_.remove(ipod.portPath);
+    lastReady_.remove(ipod.portPath);
 }
 
 void DeviceStateModel::onRemoved(const QString &portPath)
@@ -293,6 +319,7 @@ void DeviceStateModel::settle(const QString &portPath)
 
 void DeviceStateModel::update()
 {
+    remember();
     // The ports that may have an entry, the ones already shown first.
     QStringList ports = order_;
     const auto add = [&ports](const QString &port) {

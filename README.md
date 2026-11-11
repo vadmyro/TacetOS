@@ -47,7 +47,7 @@
 |---|---|---|
 | Setup | Repository, app skeleton, CI | ✅ 4/4 |
 | Foundations | Firmware base, model database, specs | ✅ 7/7 |
-| **v0.1** | Device detection and live state | 🚧 4/7 |
+| **v0.1** | Device detection and live state | 🚧 6/7 |
 | Test devices | Disk image test devices, privileged helper | ⏳ 0/5 |
 | **v0.2** | Install and reset wizard | ⏳ 0/12 |
 | **v0.3** | TacetOS firmware | ⏳ 0/9 |
@@ -65,8 +65,8 @@
 - [x] Live plug and unplug
 - [x] Linux disks: mount, unmount and eject without root
 - [x] Exact model, and which firmware is installed (Apple or TacetOS, and its version)
-- [ ] State machine: unplugged, normal, disk mode, mounted, DFU, rebooting, busy, done, error
-- [ ] Home screen: drawing of the model, live state, free space, firmware version
+- [x] State machine: unplugged, normal, disk mode, mounted, DFU, rebooting, busy, done, error
+- [x] Home screen: drawing of the model, live state, free space, firmware version
 - [ ] Real-device test: normal mode, disk mode, DFU, unplug
 
 Every task is listed in the [roadmap](docs/ROADMAP.md). News is posted on the [Discord server](https://discord.gg/XfXtZeUFYs).

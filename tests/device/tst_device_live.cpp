@@ -236,6 +236,9 @@ private slots:
     void plugInSteps();
     void plugInWithEverythingAlreadyThere();
     void noDiskThenALaterDisk();
+    void noVolumeAfterTheMountGrace();
+    void volumeInsideTheMountGraceSkipsNoVolume();
+    void noDiskStillWaitsForTheDisk();
     void unplugAtEachStep_data();
     void unplugAtEachStep();
     void unplugOfOneLeavesTheOther();
@@ -313,6 +316,43 @@ void TstDeviceLive::noDiskThenALaterDisk()
     // Never removed, never added twice: the late disk only replaces the state.
     QCOMPARE(h.count(Seen::Removed, kPort), 0);
     QCOMPARE(h.count(Seen::Added, kPort), 1);
+}
+
+// Section 9.2 step 5: the disk is there and nothing mounts it, so the wait ends
+// kMountGraceMs after the disk appeared, not at the end of the disk wait.
+void TstDeviceLive::noVolumeAfterTheMountGrace()
+{
+    Harness h;
+    h.run({plugStep(0, kClassic, kPort), diskStep(5500, kPort)}, 5500 + kMountGraceMs - 1);
+    QCOMPARE(h.only().state, IpodState::Waiting);
+    // The tracker asks to be woken at the right moment.
+    QCOMPARE(*h.tracker.nextWakeMs(), 5500 + kMountGraceMs);
+
+    h.run({}, 12000);
+    QCOMPARE(h.timeOf(Seen::Changed, kPort, IpodState::NoVolume), 7500);
+    QCOMPARE(h.only().state, IpodState::NoVolume);
+    QCOMPARE(h.count(Seen::Removed, kPort), 0);
+}
+
+void TstDeviceLive::volumeInsideTheMountGraceSkipsNoVolume()
+{
+    Harness h;
+    h.run({plugStep(0, kClassic, kPort), diskStep(5500, kPort), volumeStep(6000, kPort)}, 12000);
+    QCOMPARE(h.timeOf(Seen::Changed, kPort, IpodState::Ready), 6000);
+    QCOMPARE(h.timeOf(Seen::Changed, kPort, IpodState::NoVolume), -1);
+    QCOMPARE(h.only().state, IpodState::Ready);
+}
+
+// The grace is for the mount only: with no disk the wait is still kDiskWaitMs.
+void TstDeviceLive::noDiskStillWaitsForTheDisk()
+{
+    Harness h;
+    h.run({plugStep(0, kClassic, kPort)}, kDiskWaitMs - 1);
+    QCOMPARE(h.only().state, IpodState::Waiting);
+    QCOMPARE(*h.tracker.nextWakeMs(), kDiskWaitMs);
+    h.run({}, kDiskWaitMs + 1000);
+    QCOMPARE(h.timeOf(Seen::Changed, kPort, IpodState::NoDisk), kDiskWaitMs);
+    QCOMPARE(h.only().state, IpodState::NoDisk);
 }
 
 void TstDeviceLive::unplugAtEachStep_data()

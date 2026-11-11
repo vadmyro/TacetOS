@@ -83,8 +83,9 @@ struct ScreenEntry
 {
     QString portPath;
     ScreenState state;
-    // None when the entry is kept by a record alone (busy after an unplug,
-    // released after an unplug).
+    // None when the entry is kept by a record alone (busy after an unplug).
+    // While `released`, the last complete iPod of the port (the one that was
+    // `ready`), so the card keeps the name it showed before the eject.
     std::optional<DetectedIpod> ipod;
 };
 
@@ -133,11 +134,15 @@ private:
     // Computes every entry again and sends what is different.
     void update();
     std::optional<ScreenEntry> compute(const QString &portPath) const;
+    // Keeps the last `ready` iPod of every port, for `released`; forgets the
+    // ports that have no iPod, no operation and no released record.
+    void remember();
 
     LiveTracker *tracker_;
     OperationRunner *runner_;
     const Clock *clock_;
     QHash<QString, ReleasedRecord> released_;
+    QHash<QString, DetectedIpod> lastReady_;
     // What was last shown, and in which order.
     QStringList order_;
     QHash<QString, ScreenState> shown_;

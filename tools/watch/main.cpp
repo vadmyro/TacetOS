@@ -15,6 +15,7 @@
 #ifdef TACETOS_HAVE_UDEV
 #include "udevmonitor.h"
 #endif
+#include "watchformat.h"
 
 #include <QCommandLineParser>
 #include <QCoreApplication>
@@ -27,6 +28,8 @@
 #include <unistd.h>
 
 using namespace tacetos::device;
+using tacetos::watch::ChangeFilter;
+using tacetos::watch::describe;
 
 namespace {
 
@@ -49,40 +52,6 @@ bool installSignalHandlers()
     sigemptyset(&action.sa_mask);
     return ::sigaction(SIGINT, &action, nullptr) == 0 &&
            ::sigaction(SIGTERM, &action, nullptr) == 0;
-}
-
-QString modeName(UsbMode mode)
-{
-    switch (mode) {
-    case UsbMode::Normal:
-        return QStringLiteral("normal");
-    case UsbMode::Dfu:
-        return QStringLiteral("dfu");
-    case UsbMode::Other:
-        return QStringLiteral("other");
-    case UsbMode::None:
-        break;
-    }
-    return QStringLiteral("none");
-}
-
-QString describe(const DetectedIpod &ipod, const QList<Model> &models)
-{
-    QStringList parts;
-    parts << (ipod.model.isEmpty() ? QStringLiteral("model ?") : ipod.model);
-    if (ipod.model.isEmpty() && !ipod.candidates.isEmpty())
-        parts << QStringLiteral("(%1)").arg(ipod.candidates.join(QLatin1Char('|')));
-    parts << ipod.usbId << modeName(ipod.mode);
-    if (!ipod.serial.isEmpty())
-        parts << QStringLiteral("serial %1").arg(ipod.serial);
-    parts << QStringLiteral("\"%1\"").arg(stateMessage(ipod, models));
-    if (ipod.volume)
-        parts << QStringLiteral("\"%1\"").arg(firmwareMessage(ipod));
-    if (ipod.disk)
-        parts << ipod.disk->node;
-    if (ipod.volume)
-        parts << ipod.volume->mountPoint;
-    return parts.join(QLatin1Char(' '));
 }
 
 void printLine(QTextStream &out, const QString &event, const QString &portPath, const QString &rest)
@@ -141,13 +110,21 @@ int main(int argc, char *argv[])
     LiveTracker tracker(list.models, &clock, &source);
     LiveDriver driver(&tracker, &clock);
 
+    ChangeFilter filter;
     QObject::connect(&tracker, &LiveTracker::ipodAdded, &app, [&](const DetectedIpod &ipod) {
-        printLine(out, QStringLiteral("added"), ipod.portPath, describe(ipod, list.models));
+        const QString text = describe(ipod, list.models);
+        filter.shown(ipod.portPath, text);
+        printLine(out, QStringLiteral("added"), ipod.portPath, text);
     });
     QObject::connect(&tracker, &LiveTracker::ipodChanged, &app, [&](const DetectedIpod &ipod) {
-        printLine(out, QStringLiteral("changed"), ipod.portPath, describe(ipod, list.models));
+        // The tracker also reports changes this tool does not show (free
+        // space, label): no line when nothing visible changed.
+        const QString text = describe(ipod, list.models);
+        if (filter.isVisibleChange(ipod.portPath, text))
+            printLine(out, QStringLiteral("changed"), ipod.portPath, text);
     });
     QObject::connect(&tracker, &LiveTracker::ipodRemoved, &app, [&](const QString &portPath) {
+        filter.removed(portPath);
         printLine(out, QStringLiteral("removed"), portPath, QString());
     });
 

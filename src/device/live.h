@@ -141,6 +141,9 @@ private:
         DetectedIpod ipod;
         // When this device (in this mode) appeared; the disk wait counts from here.
         qint64 firstSeenMs = 0;
+        // When the disk of this device was first read; the mount grace counts
+        // from here. Empty while there is no disk.
+        std::optional<qint64> diskSeenMs;
         bool waitOver = false;
         bool held = false;
         // Set while the device is gone but still shown (section 9.4).
@@ -168,6 +171,8 @@ private:
     void readDisksNow();
     void expireAndWait();
     void remerge(Entry &entry);
+    // The time at which the wait of this entry ends, if it is still running.
+    std::optional<qint64> waitEndMs(const Entry &entry) const;
     void remember(const Entry &entry);
     Entry *find(const QString &portPath);
     const Entry *find(const QString &portPath) const;

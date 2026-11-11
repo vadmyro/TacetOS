@@ -200,6 +200,7 @@ A good `eject` leaves a **released record** for the port. The record outlives th
 - It is shown as `released` (the priority of section 1.2: operation, then rebooting, then released, then detection), even when the iPod is no longer in the list of detection.
 - It ends after `RELEASED_KEEP` since the eject ended (row 17), when a USB device **appears** on that port (row 18: a new plug in starts from the beginning), when the user presses Refresh (row 16), or when the user starts an operation.
 - The disappearance of the iPod does **not** end it (row 19). It is the aim of the eject, and the message "You can unplug the iPod now" stays true while the cable is still in.
+- While it lasts, the entry carries the last complete iPod of the port (the last one detected as `ready`), not what detection reads after the eject, so the card keeps the name it showed (`home-screen.md` section 4). The copy is dropped with the record.
 - After the eject, the detection state of a drive that is still on the port will usually be `no-volume`, then `no-disk`. The record hides it while it lasts. When it ends and the iPod is still there, that state shows: the screen goes from "unplug" to a message about missing storage. This is accepted: after `RELEASED_KEEP` the user has had time to act, and the message is true.
 
 A failed eject leaves no released record. It is a `failed` operation like the others.

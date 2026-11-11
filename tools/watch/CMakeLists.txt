@@ -7,7 +7,9 @@
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     qt_add_executable(tacet-watch
         main.cpp
+        watchformat.cpp
     )
+    target_include_directories(tacet-watch PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(tacet-watch PRIVATE tacet_device)
     target_compile_definitions(tacet-watch PRIVATE
         TACETOS_MODELS_TOML="${PROJECT_SOURCE_DIR}/models/models.toml")

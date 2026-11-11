@@ -117,3 +117,18 @@ target_compile_definitions(tst_device_screenstate PRIVATE
     TACETOS_MODELS_TOML="${PROJECT_SOURCE_DIR}/models/models.toml")
 
 add_test(NAME tst_device_screenstate COMMAND tst_device_screenstate)
+
+qt_add_executable(tst_device_messages tst_device_messages.cpp)
+target_link_libraries(tst_device_messages PRIVATE tacet_device Qt6::Test)
+
+add_test(NAME tst_device_messages COMMAND tst_device_messages)
+
+# The text of tacet-watch lives in tools/watch/watchformat.cpp (pure Qt code,
+# so the test builds on every system).
+qt_add_executable(tst_watch_format
+    tst_watch_format.cpp
+    ${PROJECT_SOURCE_DIR}/tools/watch/watchformat.cpp)
+target_include_directories(tst_watch_format PRIVATE ${PROJECT_SOURCE_DIR}/tools/watch)
+target_link_libraries(tst_watch_format PRIVATE tacet_device Qt6::Test)
+
+add_test(NAME tst_watch_format COMMAND tst_watch_format)
