@@ -8,7 +8,7 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 |---|---|---|---|
 | Setup | Repository, app skeleton, CI on Linux, Windows and macOS | 4/4 | ✅ done |
 | Foundations | Firmware base, model database, library rules, specs of the install formats and protocols | 7/7 | ✅ done |
-| **v0.1** | Device detection and live state (plug, unplug, disk mode, DFU) | 6/7 | 🚧 in progress |
+| **v0.1** | Device detection and live state (plug, unplug, disk mode, DFU) | 7/7 | ✅ done |
 | Test devices | Disk image test devices + privileged helper | 0/5 | ⏳ |
 | **v0.2** | Install and reset wizard: backup, format, firmware, bootloader, guided DFU, uninstall | 0/12 | ⏳ |
 | **v0.3** | Our own firmware build: name, custom boot logo, update channel | 0/9 | ⏳ |
@@ -37,15 +37,15 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 - [x] Spec: bootloader install on the iPod Classic ([bootloader-classic.md](specs/bootloader-classic.md))
 - [x] Specs: device detection and theme file format ([detection.md](specs/detection.md), [theme-format.md](specs/theme-format.md))
 
-## v0.1 · Device detection 🚧
+## v0.1 · Device detection ✅
 
 - [x] Device module: from the USB id to the iPod family
 - [x] Live plug and unplug
 - [x] Linux disks: mount, unmount and eject without root
-- [x] Exact model, and which firmware is installed (Apple or TacetOS, and its version)
-- [x] State machine: unplugged, normal, disk mode, mounted, DFU, rebooting, busy, done, error
+- [x] Exact model, and which firmware runs (Apple's or another one, and its version)
+- [x] State machine: unplugged, normal, mounted, DFU, rebooting, busy, done, error
 - [x] Home screen: drawing of the model, live state, free space, firmware version
-- [ ] Real-device test: normal mode, disk mode, DFU, unplug
+- [x] Real-device test: normal mode, disk mode, DFU, unplug
 
 ## Test devices and helper
 

@@ -47,7 +47,7 @@
 |---|---|---|
 | Setup | Repository, app skeleton, CI | ✅ 4/4 |
 | Foundations | Firmware base, model database, specs | ✅ 7/7 |
-| **v0.1** | Device detection and live state | 🚧 6/7 |
+| **v0.1** | Device detection and live state | ✅ 7/7 |
 | Test devices | Disk image test devices, privileged helper | ⏳ 0/5 |
 | **v0.2** | Install and reset wizard | ⏳ 0/12 |
 | **v0.3** | TacetOS firmware | ⏳ 0/9 |
@@ -59,15 +59,13 @@
 | **beta** | Packages, public beta | ⏳ 0/6 |
 | **v1.0** | Fixes from the beta | ⏳ 0/1 |
 
-### Now: device detection
+### Now: test devices and helper
 
-- [x] Device module: from the USB id to the iPod family
-- [x] Live plug and unplug
-- [x] Linux disks: mount, unmount and eject without root
-- [x] Exact model, and which firmware is installed (Apple or TacetOS, and its version)
-- [x] State machine: unplugged, normal, disk mode, mounted, DFU, rebooting, busy, done, error
-- [x] Home screen: drawing of the model, live state, free space, firmware version
-- [ ] Real-device test: normal mode, disk mode, DFU, unplug
+- [ ] Disk images that behave like an iPod, for every family
+- [ ] Installer for older iPods, checked byte for byte against a reference tool on the disk images
+- [ ] Installer for the iPod Classic over DFU, always dual boot, checked byte for byte
+- [ ] Privileged helper with a fixed set of commands (format, convert, install, uninstall, backup)
+- [ ] Safety tests: refuse a USB stick, power cut in the middle of a write, full disk
 
 Every task is listed in the [roadmap](docs/ROADMAP.md). News is posted on the [Discord server](https://discord.gg/XfXtZeUFYs).
 
