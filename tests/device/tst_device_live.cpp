@@ -75,6 +75,8 @@ public:
         return usb;
     }
 
+    QStringList usbLog() const override { return usbLines; }
+
     PortReading readPort(const UsbDevice &device) override
     {
         // The tracker must never ask for the disk of a DFU device.
@@ -101,6 +103,7 @@ public:
     QList<UsbDevice> usb;
     QHash<QString, PortReading> ports;
     bool usbFails = false;
+    QStringList usbLines;
     int usbReads = 0;
     int portReads = 0;
     int dfuPortReads = 0;
@@ -251,6 +254,8 @@ private slots:
     void nothingChangedSendsNothing();
     void oneCallOneAnnouncement();
     void dfuIsNeverReadForADisk();
+    void journalLinesAtEachChange();
+    void journalIsQuietOnIdenticalReadings();
     void nextWakeMs();
 };
 
@@ -580,6 +585,73 @@ void TstDeviceLive::dfuIsNeverReadForADisk()
     QCOMPARE(h.world.dfuPortReads, 0);
     QCOMPARE(h.world.portReads, 0);
     QVERIFY(h.world.usbReads > 1);
+}
+
+// The lines of the journal: an add, each change of state, the log of the merge
+// and of the USB list, a removal. Each one is sent when it appears.
+void TstDeviceLive::journalLinesAtEachChange()
+{
+    Harness h;
+    QList<QPair<QString, QStringList>> got;
+    QObject::connect(
+        &h.tracker, &LiveTracker::logged,
+        [&got](const QString &port, const QStringList &lines) { got << qMakePair(port, lines); });
+    const auto flat = [&got] {
+        QStringList all;
+        for (const auto &item : got)
+            all << item.first + QStringLiteral("|") + item.second.join(QLatin1Char('/'));
+        return all;
+    };
+
+    h.world.usbLines = {QStringLiteral("port 1-9: Apple id 05ac:ffff is in no model")};
+    h.world.plug(kClassic, kPort);
+    h.clock.now = 1000;
+    h.tracker.usbEvent();
+    QCOMPARE(got.size(), 2);
+    QCOMPARE(got.at(0).first, QString());
+    QCOMPARE(got.at(0).second, h.world.usbLines);
+    QCOMPARE(got.at(1).first, kPort);
+    // What the merge said, and the add.
+    QVERIFY(
+        got.at(1).second.contains(QStringLiteral("added: usb 05ac:1261 normal, state waiting")));
+
+    got.clear();
+    h.world.giveDisk(kPort);
+    h.world.giveVolume(kPort);
+    h.clock.now = 1500;
+    h.tracker.diskEvent();
+    QCOMPARE(h.only().state, IpodState::Ready);
+    QVERIFY(flat().join(QLatin1Char(';')).contains(QStringLiteral("state: waiting > ready")));
+    for (const auto &item : got)
+        QCOMPARE(item.first, kPort);
+
+    got.clear();
+    h.world.unplug(kPort);
+    h.clock.now = 2000;
+    h.tracker.usbEvent();
+    QCOMPARE(flat(), QStringList{kPort + QStringLiteral("|removed")});
+}
+
+// Reading the same thing again, even by polling, adds nothing to the journal.
+void TstDeviceLive::journalIsQuietOnIdenticalReadings()
+{
+    Harness h;
+    h.world.usbLines = {QStringLiteral("port 1-9: Apple id 05ac:ffff is in no model")};
+    h.world.giveDisk(kPort);
+    h.world.giveVolume(kPort);
+    h.world.plug(kClassic, kPort);
+    h.world.plug(kClassicDfu, kOtherPort);
+    h.clock.now = 5000;
+    h.tracker.refresh();
+    QSignalSpy logged(&h.tracker, &LiveTracker::logged);
+    for (int i = 0; i < 10; ++i) {
+        h.clock.now += 2000;
+        h.tracker.refresh();
+        h.tracker.usbEvent();
+        h.tracker.diskEvent();
+        h.tracker.tick();
+    }
+    QCOMPARE(logged.count(), 0);
 }
 
 void TstDeviceLive::nextWakeMs()

@@ -105,3 +105,15 @@ target_compile_definitions(tst_device_firmware PRIVATE
     TACETOS_DEVICE_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 
 add_test(NAME tst_device_firmware COMMAND tst_device_firmware)
+
+qt_add_executable(tst_device_operations tst_device_operations.cpp)
+target_link_libraries(tst_device_operations PRIVATE tacet_device Qt6::Test)
+
+add_test(NAME tst_device_operations COMMAND tst_device_operations)
+
+qt_add_executable(tst_device_screenstate tst_device_screenstate.cpp)
+target_link_libraries(tst_device_screenstate PRIVATE tacet_device Qt6::Test)
+target_compile_definitions(tst_device_screenstate PRIVATE
+    TACETOS_MODELS_TOML="${PROJECT_SOURCE_DIR}/models/models.toml")
+
+add_test(NAME tst_device_screenstate COMMAND tst_device_screenstate)
