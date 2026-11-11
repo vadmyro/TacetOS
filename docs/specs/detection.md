@@ -345,11 +345,17 @@ Entering DFU, and the restart after an install, make the iPod disappear and appe
 3. If it does not, the iPod is dropped.
 4. For the identity across modes, `port_path` is the key and `serial` is only a second check, because the serial string may differ in DFU mode (section 13). The 60 seconds memory of section 8.2 rule 5 uses the same key.
 
+The three seconds fit a reset of the USB device. A clean restart of the iPod takes longer, so an operation that ends in a restart gives its own window with the hold (`device-state.md` section 2.6).
+
 The flow "the user holds the buttons until DFU shows up" depends on the app seeing `05ac:1223` with no delay: this id must reach the screen through the same one second path as a plain plug in.
 
 ### 9.5 Refresh
 
 The user can press a "Refresh" button at any time. It does one full reading of every layer and replaces the list. It is a way out for a lost event, not the normal way.
+
+### 9.6 What the screen shows
+
+The screen shows more than the state of this spec: an operation that runs, an iPod that was ejected, an iPod that is restarting. How these combine with the states of section 8.3, which operations exist, and what goes into the log, is in `device-state.md`.
 
 ## 10. Messages
 
@@ -446,7 +452,7 @@ Driven by a fake clock and a scripted event stream, with no sleeping: plug (USB 
 - Whether the capacity windows of section 8.4 hold on real iPods of each model, and what a swapped storage looks like. Measured so far: a Classic of 120 GB, sectors of 4096 bytes.
 - Whether the disks of hard disk iPods report themselves as removable on each system. The spec does not use that flag for this reason, only the USB ancestor.
 - Answered on a real Classic (120 GB, on Linux): the music volume is at slot 1 and the sectors are 4096 bytes (section 6.1). The disk showed 6 seconds after the USB device, so `DISK_WAIT` is 10 seconds. Its `SysInfo` file was empty.
-- Whether to let the app ask the OS to mount an iPod volume that is not mounted (section 8.3 `no-volume`). A mount is done by the OS service of the user, not by TacetOS, but on some systems it writes a flag to FAT32 volumes when mounted read-write. Not offered for now.
+- Whether to let the app ask the OS to mount an iPod volume that is not mounted (section 8.3 `no-volume`). A mount is done by the OS service of the user, not by TacetOS, but on some systems it writes a flag to FAT32 volumes when mounted read-write. Not offered by detection itself. The operations of `device-state.md` section 2 offer it, on the request of the user only.
 - The key of the firmware build in the Apple model file (`visibleBuildID`, with a value like `0x01168000 (1.1.6)`, section 7.6) comes from one source (libgpod) and the file of the real Classic is empty. To be read on an iPod that still runs Apple's firmware, with the plain build key next to it.
 - The name of the TacetOS line of the info file (section 7.3), and whether the build can write it. Belongs to v0.3, our own firmware build.
 - The optional extra evidence of the device itself: older iPods answer a SCSI inquiry for a vendor page that lists further pages, which together hold a small property list with, among other things, the RAM size. It could give the model and the memory without the help of the volume. It needs raw disk access, so it would go through the helper, and it is not used by v0.1. If it is ever used, its key names must be checked on real iPods first.

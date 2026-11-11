@@ -37,6 +37,7 @@ public:
     void setReadVolumeSpace(bool on) { readVolumeSpace_ = on; }
 
     std::optional<QList<UsbDevice>> readUsb() override;
+    QStringList usbLog() const override { return usbLog_; }
     // The disk reading of section 5 (the table, the banner) is not made here:
     // `diskReading` stays at NotRead. It needs the helper and is not part of
     // this source.
@@ -46,6 +47,7 @@ private:
     QList<Model> models_;
     LinuxSourcePaths paths_;
     bool readVolumeSpace_ = true;
+    QStringList usbLog_;
 };
 
 } // namespace tacetos::device

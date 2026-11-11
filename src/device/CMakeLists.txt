@@ -21,6 +21,10 @@ qt_add_library(tacet_device STATIC
     messages.h
     models.cpp
     models.h
+    operations.cpp
+    operations.h
+    screenstate.cpp
+    screenstate.h
     toml.cpp
     toml.h
     volume.cpp

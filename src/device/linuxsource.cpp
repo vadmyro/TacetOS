@@ -21,7 +21,9 @@ std::optional<QList<UsbDevice>> LinuxDeviceSource::readUsb()
     // A list that could not be read says nothing: the screen keeps what it has.
     if (!list.error.isEmpty())
         return std::nullopt;
-    return classifyUsb(list.entries, models_).devices;
+    const UsbClassification classified = classifyUsb(list.entries, models_);
+    usbLog_ = classified.log;
+    return classified.devices;
 }
 
 PortReading LinuxDeviceSource::readPort(const UsbDevice &device)

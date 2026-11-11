@@ -31,6 +31,27 @@ signals:
     void disksChanged();
 };
 
+// Something besides the tracker that has delays of its own (the end of a
+// `done` or a `released` of the state model). The driver wakes it at the time
+// it asks for, with the same timer, so no timer runs for nothing.
+class WakeSource : public QObject
+{
+    Q_OBJECT
+
+public:
+    using QObject::QObject;
+
+    // The time of the next tick() that would change something, from the
+    // clock's own scale. Empty when nothing is waiting.
+    virtual std::optional<qint64> nextWakeMs() const = 0;
+    // Lets time pass. Called by the driver when the timer fires.
+    virtual void tick() = 0;
+
+signals:
+    // nextWakeMs() is not what the driver last heard: it sets its timer again.
+    void wakeChanged();
+};
+
 class LiveDriver : public QObject
 {
     Q_OBJECT
@@ -44,6 +65,9 @@ public:
     // stops polling and only the backup reading is left. With none, it polls
     // (section 9.1).
     void addEventSource(EventSource *source);
+
+    // Adds something to wake together with the tracker (not owned).
+    void addWakeSource(WakeSource *source);
 
     // True while no event source is there.
     bool polling() const { return sources_.isEmpty(); }
@@ -76,6 +100,7 @@ private:
     LiveTracker *tracker_;
     const Clock *clock_;
     QList<EventSource *> sources_;
+    QList<WakeSource *> wakeSources_;
     QTimer timer_;
     QTimer backup_;
     bool running_ = false;

@@ -56,6 +56,14 @@ inline constexpr qint64 kPollDisksMs = 1000;
 // only way to see a change.
 inline constexpr qint64 kPollBackupMs = 2 * 1000;
 
+// Section 2.5 of device-state.md: a finished operation is shown as `done` for
+// this long, then dropped.
+inline constexpr qint64 kDoneShownMs = 5 * 1000;
+
+// Section 2.7 of device-state.md: a good eject is shown as `released` for this
+// long (starting value).
+inline constexpr qint64 kReleasedKeepMs = 30 * 1000;
+
 // Section 7.3: the hidden folder of the firmware and the info file inside it.
 inline constexpr QLatin1String kFirmwareFolder(".rockbox");
 inline constexpr QLatin1String kFirmwareInfoFile("rockbox-info.txt");

@@ -12,7 +12,9 @@
 #include <QHash>
 #include <QList>
 #include <QObject>
+#include <QPair>
 #include <QString>
+#include <QStringList>
 #include <memory>
 #include <optional>
 
@@ -62,11 +64,15 @@ public:
     virtual std::optional<QList<UsbDevice>> readUsb() = 0;
     // Layers 2 and 3 for one device in normal mode (never asked for DFU).
     virtual PortReading readPort(const UsbDevice &device) = 0;
+    // The lines of the log that the last readUsb() made about the list as a
+    // whole (a dropped Apple device, a repeated port path). The same lines come
+    // back while the cause stays. None by default.
+    virtual QStringList usbLog() const { return {}; }
 };
 
 // The list of detected iPods. Every public call that reads, or lets time pass,
 // ends by sending the signals for what changed, in that order: removed, added,
-// changed, then listChanged once.
+// changed, then logged (one signal per port), then listChanged once.
 class LiveTracker : public QObject
 {
     Q_OBJECT
@@ -94,7 +100,13 @@ public:
     // Section 9.4 rule 1: an operation of the app runs on this iPod, or the
     // user was asked to hold buttons. Its disappearance is then not shown
     // until the same port window has passed.
+    // Letting go of an iPod whose USB device is already gone drops it at once
+    // (section 2.6 rule 2 of device-state.md): nothing is left to wait for.
     void setHeld(const QString &portPath, bool held);
+
+    // The iPod of this port is held (or in DFU mode) and its USB device is
+    // missing: it may come back within the same port window (section 9.4).
+    bool isMissing(const QString &portPath) const;
 
     // Lets time pass: polls when due, ends the disk wait, drops the iPods
     // that did not come back within the same port window.
@@ -109,6 +121,16 @@ signals:
     // Only sent when something in the iPod is different.
     void ipodChanged(const tacetos::device::DetectedIpod &ipod);
     void ipodRemoved(const QString &portPath);
+    // The USB device of a kept iPod went missing, or came back (section 9.4).
+    // Sent after the three above, before listChanged.
+    void ipodMissingChanged(const QString &portPath, bool missing);
+    // Lines for the journal: why a decision was taken (the log of the merge and
+    // of the USB list), and each add, removal and change of state ("state:
+    // waiting > ready"). A line is only sent when it is new: reading the same
+    // thing again sends nothing. `portPath` is empty for a line about the USB
+    // list as a whole. The device library does not depend on the journal: the
+    // caller decides where the lines go.
+    void logged(const QString &portPath, const QStringList &lines);
     void listChanged();
 
 private:
@@ -123,11 +145,13 @@ private:
         bool held = false;
         // Set while the device is gone but still shown (section 9.4).
         std::optional<qint64> missingSinceMs;
+        // The lines the merge gave the last time, to send only the new ones.
+        QStringList lastLog;
     };
 
     struct Notice
     {
-        enum class Kind { Removed, Added, Changed };
+        enum class Kind { Removed, Added, Changed, Missing, Returned };
         Kind kind = Kind::Changed;
         QString portPath;
         DetectedIpod ipod;
@@ -148,6 +172,7 @@ private:
     Entry *find(const QString &portPath);
     const Entry *find(const QString &portPath) const;
     void flush();
+    void logLine(const QString &portPath, const QString &line);
 
     QList<Model> models_;
     const Clock *clock_;
@@ -158,6 +183,9 @@ private:
     QList<Entry> entries_;
     QHash<QString, Memory> memory_;
     QList<Notice> notices_;
+    // Lines waiting for the next flush(), in the order they were made.
+    QList<QPair<QString, QString>> pendingLog_;
+    QStringList lastUsbLog_;
     qint64 now_ = 0;
 };
 

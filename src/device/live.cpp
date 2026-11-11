@@ -39,6 +39,51 @@ bool sameIpod(const DetectedIpod &a, const DetectedIpod &b)
            a.firmware.otherModel == b.firmware.otherModel;
 }
 
+// The words of the journal for a state (not the text shown to the user).
+QString stateName(IpodState state)
+{
+    switch (state) {
+    case IpodState::Conflict:
+        return QStringLiteral("conflict");
+    case IpodState::UnsupportedModel:
+        return QStringLiteral("unsupported-model");
+    case IpodState::Permission:
+        return QStringLiteral("permission");
+    case IpodState::Ambiguous:
+        return QStringLiteral("ambiguous");
+    case IpodState::Dfu:
+        return QStringLiteral("dfu");
+    case IpodState::Waiting:
+        return QStringLiteral("waiting");
+    case IpodState::NoDisk:
+        return QStringLiteral("no-disk");
+    case IpodState::MacFormat:
+        return QStringLiteral("mac-format");
+    case IpodState::NoVolume:
+        return QStringLiteral("no-volume");
+    case IpodState::UnsupportedFilesystem:
+        return QStringLiteral("unsupported-filesystem");
+    case IpodState::Ready:
+        return QStringLiteral("ready");
+    }
+    return QStringLiteral("?");
+}
+
+QString modeWord(UsbMode mode)
+{
+    switch (mode) {
+    case UsbMode::Normal:
+        return QStringLiteral("normal");
+    case UsbMode::Dfu:
+        return QStringLiteral("dfu");
+    case UsbMode::Other:
+        return QStringLiteral("other");
+    case UsbMode::None:
+        break;
+    }
+    return QStringLiteral("none");
+}
+
 } // namespace
 
 SystemClock::SystemClock()
@@ -115,8 +160,23 @@ void LiveTracker::refresh()
 
 void LiveTracker::setHeld(const QString &portPath, bool held)
 {
-    if (Entry *entry = find(portPath))
-        entry->held = held;
+    Entry *entry = find(portPath);
+    if (!entry)
+        return;
+    entry->held = held;
+    if (held || !entry->missingSinceMs || entry->ipod.state == IpodState::Dfu)
+        return;
+    // Only the hold was keeping it: it leaves now (section 9.3).
+    notices_ << Notice{Notice::Kind::Removed, portPath, DetectedIpod()};
+    logLine(portPath, QStringLiteral("removed"));
+    entries_.removeIf([&portPath](const Entry &e) { return e.usb.portPath == portPath; });
+    flush();
+}
+
+bool LiveTracker::isMissing(const QString &portPath) const
+{
+    const Entry *entry = find(portPath);
+    return entry && entry->missingSinceMs;
 }
 
 void LiveTracker::tick()
@@ -165,6 +225,13 @@ void LiveTracker::readUsbNow()
     if (!devices)
         return;
 
+    const QStringList usbLog = source_->usbLog();
+    for (const QString &line : usbLog) {
+        if (!lastUsbLog_.contains(line))
+            logLine(QString(), line);
+    }
+    lastUsbLog_ = usbLog;
+
     for (const UsbDevice &device : *devices) {
         Entry *entry = find(device.portPath);
         if (!entry) {
@@ -176,9 +243,15 @@ void LiveTracker::readUsbNow()
             entries_ << fresh;
             remerge(entries_.last());
             notices_ << Notice{Notice::Kind::Added, device.portPath, entries_.last().ipod};
+            logLine(device.portPath, QStringLiteral("added: usb %1 %2, state %3")
+                                         .arg(device.usbId, modeWord(device.mode),
+                                              stateName(entries_.last().ipod.state)));
             continue;
         }
-        entry->missingSinceMs.reset();
+        if (entry->missingSinceMs) {
+            entry->missingSinceMs.reset();
+            notices_ << Notice{Notice::Kind::Returned, device.portPath, DetectedIpod()};
+        }
         const bool otherMode = entry->usb.usbId != device.usbId;
         entry->usb = device;
         if (otherMode) {
@@ -205,9 +278,11 @@ void LiveTracker::readUsbNow()
             continue;
         if (entry.held || entry.ipod.state == IpodState::Dfu) {
             entry.missingSinceMs = now_;
+            notices_ << Notice{Notice::Kind::Missing, entry.usb.portPath, DetectedIpod()};
         } else {
             // Section 9.3: nothing is running, so it leaves now.
             notices_ << Notice{Notice::Kind::Removed, entry.usb.portPath, DetectedIpod()};
+            logLine(entry.usb.portPath, QStringLiteral("removed"));
             entries_.removeAt(i);
         }
     }
@@ -230,6 +305,7 @@ void LiveTracker::expireAndWait()
         if (entry.missingSinceMs) {
             if (now_ - *entry.missingSinceMs > kSamePortWindowMs) {
                 notices_ << Notice{Notice::Kind::Removed, entry.usb.portPath, DetectedIpod()};
+                logLine(entry.usb.portPath, QStringLiteral("removed"));
                 entries_.removeAt(i);
             }
             continue;
@@ -266,11 +342,21 @@ void LiveTracker::remerge(Entry &entry)
     }
 
     const DetectedIpod before = entry.ipod;
-    entry.ipod = mergeEvidence(evidence, models_).ipod;
+    const MergeResult merged = mergeEvidence(evidence, models_);
+    entry.ipod = merged.ipod;
     remember(entry);
+    // Only the lines that were not there the last time are sent.
+    for (const QString &line : merged.log) {
+        if (!entry.lastLog.contains(line))
+            logLine(entry.usb.portPath, line);
+    }
+    entry.lastLog = merged.log;
     // A new entry is announced by the caller, with its first value.
     if (before.portPath.isEmpty())
         return;
+    if (before.state != entry.ipod.state)
+        logLine(entry.usb.portPath, QStringLiteral("state: %1 > %2")
+                                        .arg(stateName(before.state), stateName(entry.ipod.state)));
     if (!sameIpod(before, entry.ipod))
         notices_ << Notice{Notice::Kind::Changed, entry.usb.portPath, entry.ipod};
 }
@@ -289,9 +375,15 @@ void LiveTracker::remember(const Entry &entry)
 
 // One signal per iPod and kind, with the value it has now: a reading that went
 // through two steps in one call is announced once.
+void LiveTracker::logLine(const QString &portPath, const QString &line)
+{
+    pendingLog_ << qMakePair(portPath, line);
+}
+
 void LiveTracker::flush()
 {
-    if (notices_.isEmpty())
+    const auto pendingLog = std::exchange(pendingLog_, {});
+    if (notices_.isEmpty() && pendingLog.isEmpty())
         return;
     const QList<Notice> notices = std::exchange(notices_, {});
     QSet<QString> added;
@@ -315,7 +407,27 @@ void LiveTracker::flush()
         changed.insert(notice.portPath);
         emit ipodChanged(entry->ipod);
     }
-    emit listChanged();
+    for (const Notice &notice : notices) {
+        const bool missing = notice.kind == Notice::Kind::Missing;
+        if ((missing || notice.kind == Notice::Kind::Returned) && find(notice.portPath))
+            emit ipodMissingChanged(notice.portPath, missing);
+    }
+    // One signal per port, in the order the ports first spoke.
+    QStringList ports;
+    for (const auto &item : pendingLog) {
+        if (!ports.contains(item.first))
+            ports << item.first;
+    }
+    for (const QString &port : std::as_const(ports)) {
+        QStringList lines;
+        for (const auto &item : pendingLog) {
+            if (item.first == port)
+                lines << item.second;
+        }
+        emit logged(port, lines);
+    }
+    if (!notices.isEmpty())
+        emit listChanged();
 }
 
 } // namespace tacetos::device

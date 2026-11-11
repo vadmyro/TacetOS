@@ -38,6 +38,19 @@ void LiveDriver::addEventSource(EventSource *source)
     reschedule();
 }
 
+void LiveDriver::addWakeSource(WakeSource *source)
+{
+    if (!source || wakeSources_.contains(source))
+        return;
+    wakeSources_ << source;
+    connect(source, &WakeSource::wakeChanged, this, &LiveDriver::reschedule);
+    connect(source, &QObject::destroyed, this, [this, source] {
+        wakeSources_.removeAll(source);
+        reschedule();
+    });
+    reschedule();
+}
+
 void LiveDriver::start()
 {
     running_ = true;
@@ -65,6 +78,8 @@ void LiveDriver::wake()
     if (!running_)
         return;
     tracker_->tick();
+    for (WakeSource *source : std::as_const(wakeSources_))
+        source->tick();
     reschedule();
 }
 
@@ -105,7 +120,12 @@ void LiveDriver::reschedule()
 {
     if (!running_)
         return;
-    const std::optional<qint64> next = tracker_->nextWakeMs();
+    std::optional<qint64> next = tracker_->nextWakeMs();
+    for (const WakeSource *source : std::as_const(wakeSources_)) {
+        const std::optional<qint64> other = source->nextWakeMs();
+        if (other && (!next || *other < *next))
+            next = other;
+    }
     if (!next) {
         timer_.stop();
         return;
