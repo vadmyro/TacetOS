@@ -247,6 +247,14 @@ private slots:
     void dfuResetWithinTheWindow();
     void dfuResetAfterTheWindow();
     void heldIpodSurvivesTheWindowOnly();
+    void unplugOfAMountedIpodShowsOnlyRemoved();
+    void slowUnplugShowsOnlyRemoved();
+    void unmountedVolumeIsShownAfterTheSettle();
+    void volumeBackWithinTheSettleShowsNothing();
+    void risingStateIsShownAtOnce();
+    void dfuLeftAtNineSixOnTheSamePort();
+    void dfuNotBackIsRemovedAfterTheWindow();
+    void settleWakesTheTracker();
     void dfuBackToNormalOnTheSamePort();
     void dfuKeepsItsFieldsPastTheMemory();
     void lostUsbEventIsRecoveredByPolling();
@@ -422,8 +430,8 @@ void TstDeviceLive::dfuAfterPlainUnplugKeepsTheFields()
     QCOMPARE(h.only().model, QStringLiteral("classic-6g"));
 }
 
-// Section 9.4 rule 2: held, it leaves the USB list, and comes back as DFU 2.9 s
-// later. The screen never shows it gone and nothing else is lost.
+// Section 9.4 rule 2: held, it leaves the USB list, and comes back as DFU just
+// before the end of the window. The screen never shows it gone and nothing else is lost.
 void TstDeviceLive::dfuResetWithinTheWindow()
 {
     Harness h;
@@ -432,7 +440,7 @@ void TstDeviceLive::dfuResetWithinTheWindow()
     h.run({plugStep(1000, kClassic, kPort)}, 9000);
     h.tracker.setHeld(kPort, true);
     h.run({unplugStep(10000, kPort), plugStep(10000 + kSamePortWindowMs - 100, kClassicDfu, kPort)},
-          20000);
+          40000);
 
     QCOMPARE(h.count(Seen::Removed, kPort), 0);
     QCOMPARE(h.count(Seen::Added, kPort), 1);
@@ -444,7 +452,7 @@ void TstDeviceLive::dfuResetWithinTheWindow()
     QVERIFY(h.only().volume.has_value());
 }
 
-// Section 9.4 rule 3: back after more than 3 s, it was dropped in between.
+// Section 9.4 rule 3: back after more than 15 s, it was dropped in between.
 void TstDeviceLive::dfuResetAfterTheWindow()
 {
     Harness h;
@@ -452,11 +460,11 @@ void TstDeviceLive::dfuResetAfterTheWindow()
     h.world.giveVolume(kPort);
     h.run({plugStep(1000, kClassic, kPort)}, 9000);
     h.tracker.setHeld(kPort, true);
-    h.run({unplugStep(10000, kPort), plugStep(14000, kClassicDfu, kPort)}, 20000);
+    h.run({unplugStep(10000, kPort), plugStep(30000, kClassicDfu, kPort)}, 40000);
 
-    // Still shown at exactly 3 s, dropped just after.
+    // Still shown at exactly 15 s, dropped just after.
     QCOMPARE(h.timeOf(Seen::Removed, kPort), 10000 + kSamePortWindowMs + 1);
-    QCOMPARE(h.timeOf(Seen::Added, kPort, IpodState::Dfu), 14000);
+    QCOMPARE(h.timeOf(Seen::Added, kPort, IpodState::Dfu), 30000);
     QCOMPARE(h.count(Seen::Added, kPort), 2);
     QCOMPARE(h.tracker.ipods().size(), 1);
 }
@@ -468,12 +476,132 @@ void TstDeviceLive::heldIpodSurvivesTheWindowOnly()
     h.world.giveVolume(kPort);
     h.run({plugStep(1000, kClassic, kPort)}, 9000);
     h.tracker.setHeld(kPort, true);
-    h.run({unplugStep(10000, kPort)}, 12999);
+    h.run({unplugStep(10000, kPort)}, 10000 + kSamePortWindowMs - 1);
     QCOMPARE(h.tracker.ipods().size(), 1);
     QCOMPARE(h.count(Seen::Removed, kPort), 0);
-    h.run({}, 13001);
+    h.run({}, 10000 + kSamePortWindowMs + 1);
     QVERIFY(h.tracker.ipods().isEmpty());
     QCOMPARE(h.count(Seen::Removed, kPort), 1);
+}
+
+// Section 9.3, measured on a real Classic: volume, disk, USB device within 230 ms.
+void TstDeviceLive::unplugOfAMountedIpodShowsOnlyRemoved()
+{
+    Harness h;
+    h.world.giveDisk(kPort);
+    h.world.giveVolume(kPort);
+    h.run({plugStep(1000, kClassic, kPort)}, 5000);
+    QCOMPARE(h.only().state, IpodState::Ready);
+    QStringList lines;
+    QObject::connect(&h.tracker, &LiveTracker::logged,
+                     [&lines](const QString &, const QStringList &l) { lines << l; });
+    const int before = h.seen.size();
+    h.run({{10000, [](FakeWorld &w) { w.ports[kPort].volume.reset(); }, Step::Disk},
+           {10120, [](FakeWorld &w) { w.ports[kPort].disk.reset(); }, Step::Disk},
+           {10230, [](FakeWorld &w) { w.unplug(kPort); }, Step::Usb}},
+          12000);
+    QCOMPARE(h.seen.size(), before + 1);
+    QCOMPARE(h.timeOf(Seen::Removed, kPort), 10230);
+    QCOMPARE(h.count(Seen::Changed, kPort), 0);
+    QVERIFY(h.tracker.ipods().isEmpty());
+    QCOMPARE(lines, QStringList{QStringLiteral("removed")});
+}
+
+// Measured on a later unplug: the volume left 1.16 s before the USB device.
+void TstDeviceLive::slowUnplugShowsOnlyRemoved()
+{
+    Harness h;
+    h.world.giveDisk(kPort);
+    h.world.giveVolume(kPort);
+    h.run({plugStep(1000, kClassic, kPort)}, 5000);
+    const int before = h.seen.size();
+    h.run({{10000, [](FakeWorld &w) { w.ports[kPort].volume.reset(); }, Step::Disk},
+           {11160, [](FakeWorld &w) { w.unplug(kPort); }, Step::Usb}},
+          13000);
+    QCOMPARE(h.seen.size(), before + 1);
+    QCOMPARE(h.timeOf(Seen::Removed, kPort), 11160);
+    QCOMPARE(h.count(Seen::Changed, kPort), 0);
+}
+
+void TstDeviceLive::unmountedVolumeIsShownAfterTheSettle()
+{
+    Harness h;
+    h.world.giveDisk(kPort);
+    h.world.giveVolume(kPort);
+    h.run({plugStep(1000, kClassic, kPort)}, 5000);
+    QStringList lines;
+    QObject::connect(&h.tracker, &LiveTracker::logged,
+                     [&lines](const QString &, const QStringList &l) { lines << l; });
+    h.run({{10000, [](FakeWorld &w) { w.ports[kPort].volume.reset(); }, Step::Disk}}, 10000 + 499);
+    QCOMPARE(h.only().state, IpodState::Ready);
+    QVERIFY(lines.isEmpty());
+    h.run({}, 12000);
+    QCOMPARE(h.timeOf(Seen::Changed, kPort, IpodState::NoVolume), 10000 + kDropSettleMs);
+    QCOMPARE(h.only().state, IpodState::NoVolume);
+    QVERIFY(lines.contains(QStringLiteral("state: ready > no-volume")));
+}
+
+void TstDeviceLive::volumeBackWithinTheSettleShowsNothing()
+{
+    Harness h;
+    h.world.giveDisk(kPort);
+    h.world.giveVolume(kPort);
+    h.run({plugStep(1000, kClassic, kPort)}, 5000);
+    QStringList lines;
+    QObject::connect(&h.tracker, &LiveTracker::logged,
+                     [&lines](const QString &, const QStringList &l) { lines << l; });
+    const int before = h.seen.size();
+    h.run({{10000, [](FakeWorld &w) { w.ports[kPort].volume.reset(); }, Step::Disk},
+           {10300, [](FakeWorld &w) { w.giveVolume(kPort); }, Step::Disk}},
+          12000);
+    QCOMPARE(h.seen.size(), before);
+    QCOMPARE(h.only().state, IpodState::Ready);
+    QVERIFY(lines.isEmpty());
+    QVERIFY(!h.tracker.nextWakeMs().has_value());
+}
+
+// A state that goes up is not held back.
+void TstDeviceLive::risingStateIsShownAtOnce()
+{
+    Harness h;
+    h.world.giveDisk(kPort);
+    h.run({plugStep(1000, kClassic, kPort), volumeStep(3000, kPort)}, 4000);
+    QCOMPARE(h.timeOf(Seen::Changed, kPort, IpodState::Ready), 3000);
+}
+
+// Section 9.4, measured: out of DFU mode the device is back after 9.6 s.
+void TstDeviceLive::dfuLeftAtNineSixOnTheSamePort()
+{
+    Harness h;
+    h.run({plugStep(1000, kClassicDfu, kPort)}, 2000);
+    QCOMPARE(h.only().state, IpodState::Dfu);
+    h.run({unplugStep(5000, kPort), plugStep(5000 + 9600, kClassic, kPort)}, 20000);
+    QCOMPARE(h.count(Seen::Removed, kPort), 0);
+    QCOMPARE(h.count(Seen::Added, kPort), 1);
+    QCOMPARE(h.tracker.ipods().size(), 1);
+    QCOMPARE(h.only().usbId, kClassic);
+    QCOMPARE(h.only().mode, UsbMode::Normal);
+}
+
+void TstDeviceLive::dfuNotBackIsRemovedAfterTheWindow()
+{
+    Harness h;
+    h.run({plugStep(1000, kClassicDfu, kPort), unplugStep(5000, kPort)}, 5000 + kSamePortWindowMs);
+    QVERIFY(h.tracker.isMissing(kPort));
+    QCOMPARE(h.count(Seen::Removed, kPort), 0);
+    h.run({}, 5000 + kSamePortWindowMs + 1);
+    QCOMPARE(h.timeOf(Seen::Removed, kPort), 5000 + kSamePortWindowMs + 1);
+    QVERIFY(h.tracker.ipods().isEmpty());
+}
+
+void TstDeviceLive::settleWakesTheTracker()
+{
+    Harness h;
+    h.world.giveDisk(kPort);
+    h.world.giveVolume(kPort);
+    h.run({plugStep(1000, kClassic, kPort)}, 5000);
+    h.run({{10000, [](FakeWorld &w) { w.ports[kPort].volume.reset(); }, Step::Disk}}, 10100);
+    QCOMPARE(*h.tracker.nextWakeMs(), 10000 + kDropSettleMs);
 }
 
 // An iPod in DFU that leaves is kept for the window without being held, and

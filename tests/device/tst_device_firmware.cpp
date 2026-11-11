@@ -56,7 +56,8 @@ void putInfoFile(const QTemporaryDir &dir, const QString &extra = QString())
         text);
 }
 
-IpodEvidence classicWith(const MarkerReading &markers)
+IpodEvidence classicWith(const MarkerReading &markers, const QString &manufacturer = QString(),
+                         const QString &product = QString())
 {
     const UsbMatch match = matchUsbId(g_models, QStringLiteral("05ac:1261"));
     UsbDevice usb;
@@ -64,6 +65,8 @@ IpodEvidence classicWith(const MarkerReading &markers)
     usb.mode = match.mode;
     usb.candidates = match.candidates;
     usb.portPath = QStringLiteral("1-2");
+    usb.manufacturer = manufacturer;
+    usb.product = product;
 
     IpodEvidence ev;
     ev.usb = usb;
@@ -105,6 +108,13 @@ private slots:
     void unknownTargetIsNotCustom();
     void dfuKeepsTheLine();
     void unsupportedFilesystemKnowsNothing();
+    void runningFromStrings_data();
+    void runningFromStrings();
+    void appleStringsBeatTheFiles();
+    void otherStringsKeepTheFiles();
+    void otherStringsWithoutVolume();
+    void noStringsUseTheFiles();
+    void unknownLineIsEmpty();
     void messages();
     void classicNeverSaysBootloader();
     void logLineHasNoTrailingSpace();
@@ -175,7 +185,7 @@ void TstDeviceFirmware::emptySysInfoIsUnknown()
     const MergeResult result =
         mergeEvidence(classicWith(readMarkers(dir.path(), g_models)), g_models);
     QCOMPARE(result.ipod.firmwareLine.kind, FirmwareKind::Unknown);
-    QCOMPARE(firmwareMessage(result.ipod), QStringLiteral("Firmware unknown"));
+    QVERIFY(firmwareMessage(result.ipod).isEmpty());
 }
 
 void TstDeviceFirmware::noMarkersIsUnknown()
@@ -219,9 +229,11 @@ void TstDeviceFirmware::distributionNameIsNotRepeated()
     FirmwareInfo files;
     files.files = FirmwareFiles::Tacetos;
     files.version = QStringLiteral("TacetOS 0.3");
-    QCOMPARE(identifyFirmware(files, QMap<QString, QString>()).version, QStringLiteral("0.3"));
+    QCOMPARE(identifyFirmware(files, QMap<QString, QString>(), RunningFirmware::Unknown).version,
+             QStringLiteral("0.3"));
     files.version = QStringLiteral("tacetos 0.3");
-    QCOMPARE(identifyFirmware(files, QMap<QString, QString>()).version, QStringLiteral("0.3"));
+    QCOMPARE(identifyFirmware(files, QMap<QString, QString>(), RunningFirmware::Unknown).version,
+             QStringLiteral("0.3"));
 }
 
 void TstDeviceFirmware::infoFileBeatsSysInfo()
@@ -317,6 +329,125 @@ void TstDeviceFirmware::unsupportedFilesystemKnowsNothing()
     QCOMPARE(result.ipod.firmwareLine.kind, FirmwareKind::Unknown);
 }
 
+void TstDeviceFirmware::runningFromStrings_data()
+{
+    QTest::addColumn<QString>("manufacturer");
+    QTest::addColumn<QString>("product");
+    QTest::addColumn<int>("running");
+    const auto apple = static_cast<int>(RunningFirmware::Apple);
+    const auto other = static_cast<int>(RunningFirmware::Other);
+    const auto unknown = static_cast<int>(RunningFirmware::Unknown);
+    QTest::newRow("apple") << "Apple Inc." << "iPod" << apple;
+    QTest::newRow("no strings") << "" << "" << unknown;
+    QTest::newRow("other both") << "Some Maker" << "Some Player" << other;
+    QTest::newRow("manufacturer only") << "Apple Inc." << "" << other;
+    QTest::newRow("product only") << "" << "iPod" << other;
+    QTest::newRow("apple manufacturer, other product") << "Apple Inc." << "iPod Classic" << other;
+}
+
+void TstDeviceFirmware::runningFromStrings()
+{
+    QFETCH(QString, manufacturer);
+    QFETCH(QString, product);
+    QFETCH(int, running);
+    QCOMPARE(static_cast<int>(runningFirmware(manufacturer, product)), running);
+
+    // The merge reads them in normal mode and carries them to the iPod.
+    const MergeResult result =
+        mergeEvidence(classicWith(MarkerReading(), manufacturer, product), g_models);
+    QCOMPARE(static_cast<int>(result.ipod.running), running);
+}
+
+void TstDeviceFirmware::appleStringsBeatTheFiles()
+{
+    // Measured: Apple's firmware running with the files of another one on the
+    // volume. The line is Apple's, with the version of the Apple model file.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    putSysInfo(dir, QStringLiteral("classic-apple-firmware.txt"));
+    putInfoFile(dir);
+    const MarkerReading markers = readMarkers(dir.path(), g_models);
+    QCOMPARE(markers.firmware.files, FirmwareFiles::Present);
+    const MergeResult result = mergeEvidence(
+        classicWith(markers, QStringLiteral("Apple Inc."), QStringLiteral("iPod")), g_models);
+    QCOMPARE(result.ipod.running, RunningFirmware::Apple);
+    QCOMPARE(firmwareMessage(result.ipod), QStringLiteral("Apple firmware 1.1.6"));
+
+    // With the files of our own firmware too.
+    putInfoFile(dir, QStringLiteral("Distro: 0.3\n"));
+    const MergeResult ours =
+        mergeEvidence(classicWith(readMarkers(dir.path(), g_models, QStringLiteral("Distro")),
+                                  QStringLiteral("Apple Inc."), QStringLiteral("iPod")),
+                      g_models);
+    QCOMPARE(firmwareMessage(ours.ipod), QStringLiteral("Apple firmware 1.1.6"));
+}
+
+void TstDeviceFirmware::otherStringsKeepTheFiles()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    putInfoFile(dir);
+    const MarkerReading markers = readMarkers(dir.path(), g_models);
+    const MergeResult custom = mergeEvidence(
+        classicWith(markers, QStringLiteral("Some Maker"), QStringLiteral("Some Player")),
+        g_models);
+    QCOMPARE(firmwareMessage(custom.ipod), QStringLiteral("Custom firmware 4.0"));
+
+    putInfoFile(dir, QStringLiteral("Distro: 0.3\n"));
+    const MergeResult ours =
+        mergeEvidence(classicWith(readMarkers(dir.path(), g_models, QStringLiteral("Distro")),
+                                  QStringLiteral("Some Maker"), QStringLiteral("Some Player")),
+                      g_models);
+    QCOMPARE(firmwareMessage(ours.ipod), QStringLiteral("TacetOS 0.3"));
+}
+
+void TstDeviceFirmware::otherStringsWithoutVolume()
+{
+    // Strings that are not Apple's and nothing to read: "Custom firmware".
+    IpodEvidence ev =
+        classicWith(MarkerReading(), QStringLiteral("Some Maker"), QStringLiteral("Some Player"));
+    ev.volume.reset();
+    const MergeResult result = mergeEvidence(ev, g_models);
+    QCOMPARE(result.ipod.firmwareLine.kind, FirmwareKind::Custom);
+    QCOMPARE(firmwareMessage(result.ipod), QStringLiteral("Custom firmware"));
+
+    // The same on a volume with no marker files at all.
+    const MergeResult onVolume = mergeEvidence(
+        classicWith(MarkerReading(), QStringLiteral("Some Maker"), QStringLiteral("Some Player")),
+        g_models);
+    QCOMPARE(firmwareMessage(onVolume.ipod), QStringLiteral("Custom firmware"));
+}
+
+void TstDeviceFirmware::noStringsUseTheFiles()
+{
+    // The old rule: the files first, then the Apple model file.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    putSysInfo(dir, QStringLiteral("classic-apple-firmware.txt"));
+    putInfoFile(dir);
+    const MergeResult files =
+        mergeEvidence(classicWith(readMarkers(dir.path(), g_models)), g_models);
+    QCOMPARE(files.ipod.running, RunningFirmware::Unknown);
+    QCOMPARE(firmwareMessage(files.ipod), QStringLiteral("Custom firmware 4.0"));
+
+    QTemporaryDir apple;
+    QVERIFY(apple.isValid());
+    putSysInfo(apple, QStringLiteral("classic-apple-firmware.txt"));
+    const MergeResult model =
+        mergeEvidence(classicWith(readMarkers(apple.path(), g_models)), g_models);
+    QCOMPARE(firmwareMessage(model.ipod), QStringLiteral("Apple firmware 1.1.6"));
+}
+
+void TstDeviceFirmware::unknownLineIsEmpty()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const MergeResult result =
+        mergeEvidence(classicWith(readMarkers(dir.path(), g_models)), g_models);
+    QCOMPARE(result.ipod.firmwareLine.kind, FirmwareKind::Unknown);
+    QVERIFY(firmwareMessage(result.ipod).isEmpty());
+}
+
 void TstDeviceFirmware::messages()
 {
     DetectedIpod ipod;
@@ -325,7 +456,7 @@ void TstDeviceFirmware::messages()
     ipod.firmwareLine = {FirmwareKind::Custom, QString()};
     QCOMPARE(firmwareMessage(ipod), QStringLiteral("Custom firmware"));
     ipod.firmwareLine = {FirmwareKind::Unknown, QStringLiteral("9.9")};
-    QCOMPARE(firmwareMessage(ipod), QStringLiteral("Firmware unknown"));
+    QVERIFY(firmwareMessage(ipod).isEmpty());
 }
 
 void TstDeviceFirmware::classicNeverSaysBootloader()
@@ -358,7 +489,8 @@ void TstDeviceFirmware::logLineHasNoTrailingSpace()
 {
     // No version: nothing after the kind, not even a space.
     QStringList log;
-    const FirmwareLine unknown = identifyFirmware(FirmwareInfo(), QMap<QString, QString>(), &log);
+    const FirmwareLine unknown =
+        identifyFirmware(FirmwareInfo(), QMap<QString, QString>(), RunningFirmware::Unknown, &log);
     QCOMPARE(unknown.kind, FirmwareKind::Unknown);
     QCOMPARE(log, QStringList{QStringLiteral("firmware: unknown")});
 
@@ -367,7 +499,7 @@ void TstDeviceFirmware::logLineHasNoTrailingSpace()
     files.files = FirmwareFiles::Present;
     files.infoVersion = QStringLiteral("1.2");
     log.clear();
-    identifyFirmware(files, QMap<QString, QString>(), &log);
+    identifyFirmware(files, QMap<QString, QString>(), RunningFirmware::Unknown, &log);
     QCOMPARE(log, QStringList{QStringLiteral("firmware: custom 1.2")});
 }
 

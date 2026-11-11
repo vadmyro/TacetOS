@@ -47,6 +47,7 @@ private slots:
     void linuxMini();
     void linuxSkipsInterfaceFolders();
     void linuxMissingRoot();
+    void linuxNameStrings();
 
     void windowsHardwareId_data();
     void windowsHardwareId();
@@ -174,6 +175,41 @@ void TestDeviceUsb::linuxSkipsInterfaceFolders()
     QCOMPARE(list.entries[0].portPath, QStringLiteral("1-2"));
 }
 
+void TestDeviceUsb::linuxNameStrings()
+{
+    // Section 3.1: the name strings are read from the files of the same name,
+    // and absent files give empty strings. The port names have no colon.
+    QTemporaryDir tmp;
+    QVERIFY(tmp.isValid());
+    const QDir root(tmp.path());
+    const auto put = [&root](const QString &file, const QByteArray &text) {
+        QFile f(root.filePath(file));
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write(text);
+    };
+    QVERIFY(root.mkpath(QStringLiteral("1-2")));
+    QVERIFY(root.mkpath(QStringLiteral("1-3")));
+    put(QStringLiteral("1-2/idVendor"), "05ac\n");
+    put(QStringLiteral("1-2/idProduct"), "1261\n");
+    put(QStringLiteral("1-2/manufacturer"), "Apple Inc.\n");
+    put(QStringLiteral("1-2/product"), "iPod\n");
+    put(QStringLiteral("1-3/idVendor"), "05ac\n");
+    put(QStringLiteral("1-3/idProduct"), "1209\n");
+
+    const UsbList list = readLinuxUsbList(tmp.path());
+    QCOMPARE(list.entries.size(), 2);
+    QCOMPARE(list.entries[0].manufacturer, QStringLiteral("Apple Inc."));
+    QCOMPARE(list.entries[0].product, QStringLiteral("iPod"));
+    QVERIFY(list.entries[1].manufacturer.isEmpty());
+    QVERIFY(list.entries[1].product.isEmpty());
+
+    // They go on to the device that classifyUsb keeps.
+    const UsbClassification c = classifyUsb(list.entries, m_models);
+    QVERIFY(!c.devices.isEmpty());
+    QCOMPARE(c.devices[0].manufacturer, QStringLiteral("Apple Inc."));
+    QCOMPARE(c.devices[0].product, QStringLiteral("iPod"));
+}
+
 void TestDeviceUsb::linuxMissingRoot()
 {
     const UsbList list = readLinuxUsbList(QStringLiteral("/nonexistent/usb"));
@@ -250,9 +286,9 @@ void TestDeviceUsb::duplicatePortKeepsTheLast()
 {
     // Section 4 rule 3: during a reset the same port shows twice.
     const QList<UsbEntry> list = {
-        {QStringLiteral("05ac:1261"), QStringLiteral("1-2"), QStringLiteral("AAAA")},
-        {QStringLiteral("05ac:1205"), QStringLiteral("1-3"), {}},
-        {QStringLiteral("05ac:1223"), QStringLiteral("1-2"), {}},
+        {QStringLiteral("05ac:1261"), QStringLiteral("1-2"), QStringLiteral("AAAA"), {}, {}},
+        {QStringLiteral("05ac:1205"), QStringLiteral("1-3"), {}, {}, {}},
+        {QStringLiteral("05ac:1223"), QStringLiteral("1-2"), {}, {}, {}},
     };
     const UsbClassification c = classifyUsb(list, m_models);
     QCOMPARE(ports(c.devices), (QStringList{QStringLiteral("1-3"), QStringLiteral("1-2")}));
@@ -267,15 +303,16 @@ void TestDeviceUsb::duplicatePortKeepsTheLast()
 void TestDeviceUsb::emptyPortPathIsNotADuplicate()
 {
     const QList<UsbEntry> list = {
-        {QStringLiteral("05ac:1261"), {}, {}},
-        {QStringLiteral("05ac:1261"), {}, {}},
+        {QStringLiteral("05ac:1261"), {}, {}, {}, {}},
+        {QStringLiteral("05ac:1261"), {}, {}, {}, {}},
     };
     QCOMPARE(classifyUsb(list, m_models).devices.size(), 2);
 }
 
 void TestDeviceUsb::idIsNormalised()
 {
-    const QList<UsbEntry> list = {{QStringLiteral(" 05AC:1261 "), QStringLiteral("1-2"), {}}};
+    const QList<UsbEntry> list = {
+        {QStringLiteral(" 05AC:1261 "), QStringLiteral("1-2"), {}, {}, {}}};
     const UsbClassification c = classifyUsb(list, m_models);
     QCOMPARE(c.devices.size(), 1);
     QCOMPARE(c.devices[0].usbId, QStringLiteral("05ac:1261"));

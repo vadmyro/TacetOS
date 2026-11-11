@@ -579,7 +579,7 @@ void TstDeviceScreenState::rebootingEndsWithNoEntry()
     h.runTo(1000 + kSamePortWindowMs + 1);
     QCOMPARE(h.kindAt(kPort), QStringLiteral("none"));
     QCOMPARE(h.model.screen().kind, ScreenKind::Unplugged);
-    QCOMPARE(h.log.last(), QStringLiteral("4001 1-2 unplugged"));
+    QCOMPARE(h.log.last(), QStringLiteral("%1 1-2 unplugged").arg(1000 + kSamePortWindowMs + 1));
 }
 
 void TstDeviceScreenState::doneDisappearsAtFiveSeconds()
@@ -752,7 +752,7 @@ void TstDeviceScreenState::unplugDuringAnOperation()
     QCOMPARE(h.kindAt(kPort), QStringLiteral("none"));
     QVERIFY(!h.runner.operation(kPort));
     QCOMPARE(h.model.screen().kind, ScreenKind::Unplugged);
-    QCOMPARE(h.log.last(), QStringLiteral("3510 1-2 unplugged"));
+    QCOMPARE(h.log.last(), QStringLiteral("%1 1-2 unplugged").arg(500 + kSamePortWindowMs + 10));
     for (const QString &line : std::as_const(h.log))
         QVERIFY2(!line.endsWith(QLatin1String("failed")), qPrintable(line));
 }

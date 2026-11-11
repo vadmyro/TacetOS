@@ -139,7 +139,7 @@ void TestHome::stateCards_data()
     row("reading", K::Reading, O::Mount, E::None, S::Ready, true, S::Waiting,
         QStringLiteral("Reading the iPod..."), none, "dot-secondary", false, none, true);
     row("ready", K::Ready, O::Mount, E::None, S::Ready, true, S::Ready, QStringLiteral("Ready."),
-        none, "dot-accent", true, QStringLiteral("Open"), true);
+        none, "dot-accent", true, QStringLiteral("Show files"), true);
     row("not-mounted", K::NotMounted, O::Mount, E::None, S::Ready, true, S::NoVolume, notMounted,
         none, "dot-secondary", true, QStringLiteral("Open"), true);
     row("dfu", K::Dfu, O::Mount, E::None, S::Ready, true, S::Dfu,
@@ -350,6 +350,12 @@ void TestHome::firmwareLineHiddenWhenEmpty()
                   models(), kHost);
     QVERIFY(card.findChild<QLabel *>("ipodFirmware")->isVisibleTo(&card));
     QCOMPARE(card.findChild<QLabel *>("ipodFirmware")->text(), QStringLiteral("TacetOS 0.1"));
+    // Section 4: an unknown firmware has no line, and never "Firmware unknown".
+    DetectedIpod unknown = ipodIn(IpodState::Ready);
+    unknown.firmwareLine = FirmwareLine();
+    card.setEntry(entryOf(QStringLiteral("1-2"), ScreenKind::Ready, unknown), models(), kHost);
+    QVERIFY(!card.findChild<QLabel *>("ipodFirmware")->isVisibleTo(&card));
+    QVERIFY(card.findChild<QLabel *>("ipodFirmware")->text().isEmpty());
     // No iPod behind the entry: no firmware line.
     card.setEntry(entryOf(QStringLiteral("1-2"), ScreenKind::Released, std::nullopt), models(),
                   kHost);
@@ -398,7 +404,7 @@ void TestHome::accessibleNames()
     QCOMPARE(screen.cards().at(0)->ejectButton()->accessibleName(),
              QStringLiteral("Eject iPod Classic"));
     QCOMPARE(screen.cards().at(1)->openButton()->accessibleName(),
-             QStringLiteral("Open iPod nano (1st generation)"));
+             QStringLiteral("Show files iPod nano (1st generation)"));
 }
 
 void TestHome::zeroOneThreeIpods()
