@@ -78,7 +78,7 @@ Buttons buttonsFor(const ScreenEntry &entry, HostSystem host)
     switch (*detection) {
     case IpodState::Ready:
         buttons.eject = buttons.open = true;
-        buttons.openText = htr("Open");
+        buttons.openText = htr("Show files");
         buttons.openAction = HomeAction::Open;
         break;
     case IpodState::NoVolume:
