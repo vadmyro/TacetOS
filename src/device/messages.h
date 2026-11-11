@@ -45,8 +45,8 @@ QString screenMessage(const ScreenState &state, const std::optional<DetectedIpod
                       const QList<Model> &models, HostSystem system = currentHostSystem());
 
 // Section 7.6 and 10: the firmware line ("Apple firmware 1.1.6", "Custom
-// firmware 4.0", "TacetOS 0.3", or "Firmware unknown"). It only tells what the
-// files on the volume say, never that a bootloader is installed.
+// firmware 4.0", "TacetOS 0.3"). Empty when the kind is unknown: the card hides
+// the line. It never says that a bootloader is installed.
 QString firmwareMessage(const DetectedIpod &ipod);
 
 } // namespace tacetos::device

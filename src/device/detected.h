@@ -40,6 +40,10 @@ enum class FirmwareFiles { Absent, Present, Tacetos, Unknown };
 // music volume only. Never a statement about the bootloader.
 enum class FirmwareKind { Unknown, Apple, Custom, Tacetos };
 
+// Section 7.6: which firmware runs now, from the USB name strings. Normal mode
+// only; `Other` is never more precise than "not Apple's".
+enum class RunningFirmware { Unknown, Apple, Other };
+
 struct FirmwareLine
 {
     FirmwareKind kind = FirmwareKind::Unknown;
@@ -99,6 +103,7 @@ struct DetectedIpod
     std::optional<VolumeInfo> volume;
     IpodState state = IpodState::Waiting;
     FirmwareInfo firmware;
+    RunningFirmware running = RunningFirmware::Unknown;
     // Section 7.6: the line to show for the firmware.
     FirmwareLine firmwareLine;
 };

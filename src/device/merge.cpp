@@ -45,6 +45,8 @@ MergeResult mergeEvidence(const IpodEvidence &ev, const QList<Model> &models)
         out.portPath = ev.usb->portPath;
         out.serial = ev.usb->serial;
         out.candidates = ev.usb->candidates;
+        if (ev.usb->mode == UsbMode::Normal)
+            out.running = runningFirmware(ev.usb->manufacturer, ev.usb->product);
     }
 
     // Rule 5: in DFU mode there is no disk. The fields of the normal mode are
@@ -61,6 +63,7 @@ MergeResult mergeEvidence(const IpodEvidence &ev, const QList<Model> &models)
             out.volume = prev.volume;
             out.firmware = prev.firmware;
             out.firmwareLine = prev.firmwareLine;
+            out.running = prev.running;
             log << QStringLiteral("dfu: fields of the normal mode kept (model %1)").arg(prev.model);
         } else {
             log << QStringLiteral("dfu: no normal mode seen on this port, candidates only");
@@ -138,7 +141,7 @@ MergeResult mergeEvidence(const IpodEvidence &ev, const QList<Model> &models)
     }
 
     // Section 7.6: the line for the firmware.
-    out.firmwareLine = identifyFirmware(out.firmware, markers.appleModelFields, &log);
+    out.firmwareLine = identifyFirmware(out.firmware, markers.appleModelFields, out.running, &log);
 
     // Section 8.4: the exact iPod, from the variants of the decided model only.
     const qint64 diskBytes = ev.disk ? ev.disk->sizeBytes : 0;

@@ -210,8 +210,12 @@ std::optional<qint64> LiveTracker::nextWakeMs() const
     for (const Entry &entry : entries_) {
         if (entry.missingSinceMs)
             consider(*entry.missingSinceMs + kSamePortWindowMs + 1);
-        else if (const std::optional<qint64> end = waitEndMs(entry))
-            consider(*end);
+        else {
+            if (const std::optional<qint64> end = waitEndMs(entry))
+                consider(*end);
+            if (entry.dropSinceMs)
+                consider(*entry.dropSinceMs + kDropSettleMs);
+        }
     }
     return next;
 }
@@ -267,7 +271,7 @@ void LiveTracker::readUsbNow()
         // A DFU iPod has nothing new to read, and its kept fields must not be
         // lost when the memory of the normal mode runs out.
         if (otherMode || device.mode != UsbMode::Dfu)
-            remerge(*entry);
+            remerge(*entry, otherMode);
     }
 
     QSet<QString> present;
@@ -316,6 +320,9 @@ void LiveTracker::expireAndWait()
             entry.waitOver = true;
             remerge(entry);
         }
+        // Section 9.3: the piece did not come back, the lower state is shown.
+        if (entry.dropSinceMs && now_ >= *entry.dropSinceMs + kDropSettleMs)
+            remerge(entry, true);
     }
     for (auto it = memory_.begin(); it != memory_.end();) {
         if (now_ - it->seenMs > kModeMemoryMs)
@@ -338,7 +345,7 @@ std::optional<qint64> LiveTracker::waitEndMs(const Entry &entry) const
     return end;
 }
 
-void LiveTracker::remerge(Entry &entry)
+void LiveTracker::remerge(Entry &entry, bool settle)
 {
     if (!entry.reading.disk)
         entry.diskSeenMs.reset();
@@ -361,6 +368,22 @@ void LiveTracker::remerge(Entry &entry)
 
     const DetectedIpod before = entry.ipod;
     const MergeResult merged = mergeEvidence(evidence, models_);
+
+    // Section 9.3: a state that goes down because the disk or the volume went
+    // away is not shown at once: the USB device may leave a moment later, and
+    // a piece may come back. The shown state, the memory and the journal keep
+    // what they had meanwhile.
+    const bool lostPiece =
+        !before.portPath.isEmpty() && before.mode == UsbMode::Normal &&
+        merged.ipod.mode == UsbMode::Normal &&
+        ((before.disk && !merged.ipod.disk) || (before.volume && !merged.ipod.volume));
+    if (lostPiece && !settle) {
+        if (!entry.dropSinceMs)
+            entry.dropSinceMs = now_;
+        return;
+    }
+    entry.dropSinceMs.reset();
+
     entry.ipod = merged.ipod;
     remember(entry);
     // Only the lines that were not there the last time are sent.

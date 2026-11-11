@@ -31,6 +31,11 @@ inline constexpr double kCapacityHigh = 1.05;
 // firmware, as `0x01168000 (1.1.6)`: the version is the part in brackets.
 inline constexpr QLatin1String kSysInfoFirmwareKey("visibleBuildID");
 
+// Section 7.6: the only name strings that are ever tested. They are Apple's
+// own; the strings of any other firmware are never compared to anything.
+inline constexpr QLatin1String kUsbManufacturerApple("Apple Inc.");
+inline constexpr QLatin1String kUsbProductApple("iPod");
+
 // Section 7.6: a value of the distribution line may start with this name, which
 // is then dropped so that the line does not read "TacetOS TacetOS 0.3".
 inline constexpr QLatin1String kDistributionName("TacetOS");
@@ -49,8 +54,14 @@ inline constexpr qint64 kDiskWaitMs = 10 * 1000;
 inline constexpr qint64 kMountGraceMs = 2 * 1000;
 
 // Section 9.4: a device with the same port path that appears within this
-// time is the same iPod in another mode.
-inline constexpr qint64 kSamePortWindowMs = 3 * 1000;
+// time is the same iPod in another mode. Measured: 8.1 s into DFU mode, 9.6 s
+// out of it, 10.25 s for a restart of the firmware.
+inline constexpr qint64 kSamePortWindowMs = 15 * 1000;
+
+// Section 9.3: a state that goes down because the volume or the disk went away
+// waits this long before it is shown, so that an unplug (volume, disk, then
+// USB device, measured up to 1.16 s apart) shows nothing but the removal.
+inline constexpr qint64 kDropSettleMs = 1500;
 
 // Section 9.1: the polling rates used where no event source exists.
 inline constexpr qint64 kPollUsbMs = 500;

@@ -254,7 +254,8 @@ QString firmwareMessage(const DetectedIpod &ipod)
     case FirmwareKind::Unknown:
         break;
     }
-    return tr("Firmware unknown");
+    // Section 7.6: nothing to say, the card hides the line.
+    return QString();
 }
 
 } // namespace tacetos::device

@@ -48,6 +48,8 @@ UsbList readLinuxUsbList(const QString &root)
         entry.usbId = (vendor + QLatin1Char(':') + product).toLower();
         entry.portPath = name;
         entry.serial = readAttribute(dir, QStringLiteral("serial"));
+        entry.manufacturer = readAttribute(dir, QStringLiteral("manufacturer"));
+        entry.product = readAttribute(dir, QStringLiteral("product"));
         list.entries.append(entry);
     }
     return list;
@@ -71,7 +73,11 @@ QList<UsbEntry> windowsUsbEntries(const QList<WindowsDevice> &devices)
             const QString usbId = usbIdFromWindowsHardwareId(id);
             if (usbId.isEmpty())
                 continue;
-            entries.append({usbId, device.locationPath, device.serial});
+            UsbEntry entry;
+            entry.usbId = usbId;
+            entry.portPath = device.locationPath;
+            entry.serial = device.serial;
+            entries.append(entry);
             break;
         }
     }
@@ -114,6 +120,8 @@ UsbClassification classifyUsb(const QList<UsbEntry> &list, const QList<Model> &m
         device.candidates = match.candidates;
         device.portPath = entry.portPath;
         device.serial = entry.serial;
+        device.manufacturer = entry.manufacturer;
+        device.product = entry.product;
         result.devices.append(device);
     }
     return result;

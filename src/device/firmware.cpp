@@ -31,21 +31,39 @@ QString appleFirmwareVersion(const QMap<QString, QString> &appleFields)
     return match.hasMatch() ? match.captured(1) : QString();
 }
 
+RunningFirmware runningFirmware(const QString &manufacturer, const QString &product)
+{
+    const QString m = manufacturer.trimmed();
+    const QString p = product.trimmed();
+    if (m.isEmpty() && p.isEmpty())
+        return RunningFirmware::Unknown;
+    if (m == kUsbManufacturerApple && p == kUsbProductApple)
+        return RunningFirmware::Apple;
+    return RunningFirmware::Other;
+}
+
 FirmwareLine identifyFirmware(const FirmwareInfo &files, const QMap<QString, QString> &appleFields,
-                              QStringList *log)
+                              RunningFirmware running, QStringList *log)
 {
     FirmwareLine line;
     // Files meant for another model are not this iPod's firmware (section 8.2
     // rule 4): they are not used for the line.
     const bool filesCount = !files.otherModel;
 
-    if (filesCount && files.files == FirmwareFiles::Tacetos) {
+    if (running == RunningFirmware::Apple) {
+        // What runs wins over the files: Apple's firmware can run with the
+        // files of another one on the volume.
+        line.kind = FirmwareKind::Apple;
+        line.version = appleFirmwareVersion(appleFields);
+    } else if (filesCount && files.files == FirmwareFiles::Tacetos) {
         line.kind = FirmwareKind::Tacetos;
         line.version = withoutDistributionName(files.version);
     } else if (filesCount && files.files == FirmwareFiles::Present) {
         line.kind = FirmwareKind::Custom;
         line.version = files.infoVersion.trimmed();
-    } else if (!appleFields.isEmpty()) {
+    } else if (running == RunningFirmware::Other) {
+        line.kind = FirmwareKind::Custom;
+    } else if (running == RunningFirmware::Unknown && !appleFields.isEmpty()) {
         // Written by Apple's firmware only; the file is empty on the others.
         line.kind = FirmwareKind::Apple;
         line.version = appleFirmwareVersion(appleFields);

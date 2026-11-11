@@ -25,6 +25,9 @@ struct UsbEntry
     QString portPath;
     // Empty when the system does not give one.
     QString serial;
+    // The name strings, empty when the system does not keep them (section 3.1).
+    QString manufacturer;
+    QString product;
 };
 
 struct UsbList
@@ -42,6 +45,9 @@ struct UsbDevice
     QStringList candidates;
     QString portPath;
     QString serial;
+    // The name strings of the entry, empty when unknown (section 3.1).
+    QString manufacturer;
+    QString product;
 };
 
 struct UsbClassification

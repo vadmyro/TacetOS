@@ -148,6 +148,10 @@ private:
         bool held = false;
         // Set while the device is gone but still shown (section 9.4).
         std::optional<qint64> missingSinceMs;
+        // Section 9.3: since when a piece (disk or volume) that the shown
+        // state counted on is missing; the new state is held back until
+        // kDropSettleMs has passed. Empty when nothing is held back.
+        std::optional<qint64> dropSinceMs;
         // The lines the merge gave the last time, to send only the new ones.
         QStringList lastLog;
     };
@@ -170,7 +174,9 @@ private:
     void readUsbNow();
     void readDisksNow();
     void expireAndWait();
-    void remerge(Entry &entry);
+    // `settle` shows a state that goes down at once (section 9.3), for a device
+    // that came back with another id (section 9.4) or after kDropSettleMs.
+    void remerge(Entry &entry, bool settle = false);
     // The time at which the wait of this entry ends, if it is still running.
     std::optional<qint64> waitEndMs(const Entry &entry) const;
     void remember(const Entry &entry);
