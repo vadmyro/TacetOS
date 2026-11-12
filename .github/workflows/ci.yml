@@ -51,10 +51,56 @@ jobs:
           version: ${{ env.QT_VERSION }}
           cache: true
 
-      - name: Install libudev
-        # The udev monitor of the device detection. Without it the build still works and polls.
+      - name: Install libudev and dosfstools
+        # libudev: the udev monitor of the device detection (without it the build still works
+        # and polls). dosfstools: fsck.fat, the second reader of the FAT32 format tests (they
+        # skip that check without it).
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libudev-dev
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev dosfstools
+
+      - name: Reference tool settings
+        # Built outside the tree and only for the comparison tests, which are skipped without it.
+        # The 2nd generation nano image goes through a loop disk (sudo), so this is Linux only.
+        if: runner.os == 'Linux'
+        run: |
+          echo "TACETOS_REFERENCE_TOOLS_DIR=$RUNNER_TEMP/reference-tools" >> "$GITHUB_ENV"
+          echo "TACETOS_REFERENCE_LOOP=1" >> "$GITHUB_ENV"
+          echo "TACETOS_DFU_PARTS_DIR=$RUNNER_TEMP/dfu-parts" >> "$GITHUB_ENV"
+
+      - name: Cache the reference partition tool
+        if: runner.os == 'Linux'
+        id: reference-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/reference-tools/partition-tool
+          key: reference-tools-${{ hashFiles('firmware/base.lock', 'tests/reference/build-reference-tools.sh') }}
+
+      - name: Build the reference partition tool
+        if: runner.os == 'Linux' && steps.reference-cache.outputs.cache-hit != 'true'
+        run: tests/reference/build-reference-tools.sh
+
+      - name: Cache the ARM toolchain
+        # Built from the pinned sources by build-dfu-parts.sh, which takes a while: kept.
+        if: runner.os == 'Linux'
+        id: toolchain-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/toolchain
+          key: toolchain-${{ hashFiles('firmware/base.lock') }}
+
+      - name: Cache the Classic DFU parts
+        if: runner.os == 'Linux'
+        id: dfu-parts-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/dfu-parts
+          key: dfu-parts-${{ hashFiles('firmware/base.lock', 'tests/reference/build-dfu-parts.sh', 'tests/reference/extract-dfu-blocks.c') }}
+
+      - name: Build the Classic DFU parts
+        # The two fixed blocks, the two programs for the iPod and the reference tool that
+        # builds images from them, for the Classic comparison test.
+        if: runner.os == 'Linux' && steps.dfu-parts-cache.outputs.cache-hit != 'true'
+        run: tests/reference/build-dfu-parts.sh --toolchain "$RUNNER_TEMP/toolchain"
 
       - name: Configure
         # Warnings are errors on Linux and macOS. Windows reports them only, for now.
