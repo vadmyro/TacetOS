@@ -48,7 +48,7 @@
 | Setup | Repository, app skeleton, CI | ✅ 4/4 |
 | Foundations | Firmware base, model database, specs | ✅ 7/7 |
 | **v0.1** | Device detection and live state | ✅ 7/7 |
-| Test devices | Disk image test devices, privileged helper | ⏳ 2/5 |
+| Test devices | Disk image test devices, privileged helper | ⏳ 3/5 |
 | **v0.2** | Install and reset wizard | ⏳ 0/12 |
 | **v0.3** | TacetOS firmware | ⏳ 0/10 |
 | **v0.4** | Music library and sync | ⏳ 0/11 |
@@ -63,7 +63,7 @@
 
 - [x] Disk images that behave like an iPod, for every family
 - [x] Installer for older iPods, checked byte for byte against a reference tool on the disk images
-- [ ] Installer for the iPod Classic over DFU, always dual boot, checked byte for byte
+- [x] Installer for the iPod Classic over DFU, always dual boot, checked byte for byte
 - [ ] Privileged helper with a fixed set of commands (format, convert, install, uninstall, backup)
 - [ ] Safety tests: refuse a USB stick, power cut in the middle of a write, full disk
 
