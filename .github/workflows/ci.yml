@@ -90,6 +90,11 @@ jobs:
           path: ${{ runner.temp }}/toolchain
           key: toolchain-${{ hashFiles('firmware/base.lock') }}
 
+      - name: Install the toolchain build tools
+        # The toolchain script of the base sources stops at once without them.
+        if: runner.os == 'Linux' && steps.toolchain-cache.outputs.cache-hit != 'true'
+        run: sudo apt-get install -y texinfo autoconf automake libtool flex bison
+
       - name: Cache the Classic DFU parts
         if: runner.os == 'Linux'
         id: dfu-parts-cache
