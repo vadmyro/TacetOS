@@ -107,7 +107,7 @@ This is what the helper does once the app has the DFU image ready (section 8) an
 4. **Send the blocks.** For block number `n` from 0, take up to 2048 bytes of the data (image plus the 4 checksum bytes), and:
    1. send DNLOAD with value `n` and the block;
    2. send GETSTATUS;
-   3. while the state is 4 (dfuDNBUSY), wait the poll timeout it gave (at least 1 ms, at most 5 seconds), and send GETSTATUS again. Stop after 20 tries;
+   3. while the state is 4 (dfuDNBUSY), wait the poll timeout it gave (at least 1 ms, at most 5 seconds), and send GETSTATUS again. Stop after 20 GETSTATUS requests for the same block, the first one included;
    4. the state must now be 5 (dfuDNLOAD-IDLE) with status 0. Otherwise stop (section 7).
 5. **Send the end.** DNLOAD with the next block number and no data. Then GETSTATUS. The usual answer is state 7 (dfuMANIFEST). A status 10 (errFIRMWARE) here means the ROM refused the image (bad checksum or bad signature): stop, and say the image is broken. Any other state: stop.
 6. **Wait for the payload to start.** Wait the poll timeout of the last answer, then send GETSTATUS once more. Three outcomes:
@@ -371,7 +371,7 @@ The checks of section 3 do **not** apply, except the battery (check 5). Uninstal
 
 ### 14.2 The exchanges
 
-The same as section 5, with the uninstaller image. The app shows the same button steps (section 2) and the same wait (section 16.1). The image is much smaller than an installer image, about 6 KB with the payload studied, so the transfer is a few blocks long. The helper refuses to send an uninstaller image that is larger than `0x30C` plus a payload of 16 KiB, which is far above what is needed and catches an installer image given by mistake. Rule 5 does not apply here (there is no single boot byte in this image), but the helper still checks that the first four bytes are the image tag of section 8.2.
+The same as section 5, with the uninstaller image. The app shows the same button steps (section 2) and the same wait (section 16.1). The image is much smaller than an installer image, about 6 KB with the payload studied, so the transfer is a few blocks long. The helper refuses to send an uninstaller image that is larger than `0x30C` plus a payload of 16 KiB, which is far above what is needed and catches an installer image given by mistake. Rule 5 does not apply here (there is no single boot byte in this image), but the helper still checks that the first four bytes are the image tag of section 8.2, and that the image is exactly the prefix and the uninstaller program, with nothing after (the length of the program comes from the same generated parts).
 
 ### 14.3 What the uninstaller payload does
 
@@ -477,6 +477,8 @@ The existing installer waits the same 10 seconds before sending. TacetOS adds th
 | The iPod does not come back in 60 seconds | As in section 12 | Reset, then DFU, then a restore by Apple's software |
 | The iPod comes back in DFU mode (`1223` again) | "The iPod went back to DFU mode" | The buttons were held, section 16.1. Not an error of the install |
 | The iPod comes back as a WTF id | "The iPod is in the wrong mode. Reset it" | Section 2 |
+
+A `1223` seen right after the last request is the iPod that has not left USB yet, so it only counts as "back in DFU mode" once the iPod has been absent from the bus at least once.
 
 **How the state is read after the restart** belongs to the detection spec (section 18). This section uses three answers: present, absent, unknown.
 
