@@ -1,10 +1,15 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 vadmyro
 
-# A device that can fail at the n-th write, for the tests of the writes.
+# A device that can fail at the n-th write, for the tests of the writes, and a
+# fake iPod in DFU mode for the tests of the protocol.
 qt_add_library(tacet_installer_testing STATIC
+    fakedfudevice.cpp
+    fakedfudevice.h
     faultdevice.cpp
     faultdevice.h
+    fakesystemlayer.cpp
+    fakesystemlayer.h
 )
 target_include_directories(tacet_installer_testing PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(tacet_installer_testing PUBLIC tacet_installer)
@@ -80,3 +85,20 @@ qt_add_executable(tst_installer_dfuimage tst_installer_dfuimage.cpp)
 target_link_libraries(tst_installer_dfuimage PRIVATE tacet_installer Qt6::Test)
 
 add_test(NAME tst_installer_dfuimage COMMAND tst_installer_dfuimage)
+
+qt_add_executable(tst_installer_dfuprotocol tst_installer_dfuprotocol.cpp)
+target_link_libraries(tst_installer_dfuprotocol PRIVATE tacet_installer_testing Qt6::Test)
+
+add_test(NAME tst_installer_dfuprotocol COMMAND tst_installer_dfuprotocol)
+
+qt_add_executable(tst_installer_dfuaround tst_installer_dfuaround.cpp)
+target_link_libraries(tst_installer_dfuaround PRIVATE tacet_installer_testing Qt6::Test)
+
+add_test(NAME tst_installer_dfuaround COMMAND tst_installer_dfuaround)
+
+qt_add_executable(tst_installer_udevrule tst_installer_udevrule.cpp)
+target_link_libraries(tst_installer_udevrule PRIVATE Qt6::Test)
+target_compile_definitions(tst_installer_udevrule PRIVATE
+    TACETOS_UDEV_RULE="${PROJECT_SOURCE_DIR}/src/helper/70-tacetos-dfu.rules")
+
+add_test(NAME tst_installer_udevrule COMMAND tst_installer_udevrule)
