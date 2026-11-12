@@ -9,14 +9,14 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 | Setup | Repository, app skeleton, CI on Linux, Windows and macOS | 4/4 | ✅ done |
 | Foundations | Firmware base, model database, library rules, specs of the install formats and protocols | 7/7 | ✅ done |
 | **v0.1** | Device detection and live state (plug, unplug, disk mode, DFU) | 7/7 | ✅ done |
-| Test devices | Disk image test devices + privileged helper | 0/5 | ⏳ |
+| Test devices | Disk image test devices + privileged helper | 2/5 | ⏳ |
 | **v0.2** | Install and reset wizard: backup, format, firmware, bootloader, guided DFU, uninstall | 0/12 | ⏳ |
-| **v0.3** | Our own firmware build: name, custom boot logo, update channel | 0/9 | ⏳ |
-| **v0.4** | Music library and sync: tags, cover art, sorting rules, playlists, conversion | 0/10 | ⏳ |
-| **v0.5** | Settings editor, fonts, menu order | 0/6 | ⏳ |
+| **v0.3** | Our own firmware build: name, custom boot logo, update channel, health page | 0/10 | ⏳ |
+| **v0.4** | Music library and sync: tags, cover art, sorting rules, playlists, conversion, import folder | 0/11 | ⏳ |
+| **v0.5** | Settings editor, fonts, menu order, listening recap | 0/7 | ⏳ |
 | **v0.6** | Themes: browser, editor with live preview, simple mode, default TacetOS theme | 0/11 | ⏳ |
 | Translations | French first, then many more | 0/3 | ⏳ |
-| Windows and macOS | Detection, DFU and disk access on every system | 0/4 | ⏳ |
+| Windows and macOS | Detection, DFU and disk access on every system | 0/5 | ⏳ |
 | **beta** | Packages (AppImage, .deb, .rpm, Windows installer, .dmg), public beta | 0/6 | ⏳ |
 | **v1.0** | Fixes from the beta | 0/1 | ⏳ |
 
@@ -49,8 +49,8 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 
 ## Test devices and helper
 
-- [ ] Disk images that behave like an iPod, for every family
-- [ ] Installer for older iPods, checked byte for byte against a reference tool on the disk images
+- [x] Disk images that behave like an iPod, for every family
+- [x] Installer for older iPods, checked byte for byte against a reference tool on the disk images
 - [ ] Installer for the iPod Classic over DFU, always dual boot, checked byte for byte
 - [ ] Privileged helper with a fixed set of commands (format, convert, install, uninstall, backup)
 - [ ] Safety tests: refuse a USB stick, power cut in the middle of a write, full disk
@@ -59,7 +59,7 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 
 - [ ] Early checks of DFU on Windows and disk writes on macOS
 - [ ] Wizard flow that resumes after an interruption
-- [ ] Diagnostic screen with blocking checks before any write
+- [ ] Diagnostic screen with blocking checks before any write, and a clear message when something is missing on the computer
 - [ ] Automatic backup of settings, themes, playlists and the firmware partition
 - [ ] Format or convert (Mac to FAT32) with a strong confirmation
 - [ ] Firmware install that keeps your settings
@@ -81,6 +81,7 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 - [ ] Voice files for the chosen language
 - [ ] Selected fixes from newer firmware development, one tested change at a time
 - [ ] Technical folder name on the iPod Classic
+- [ ] Health page: disk and battery state, with a warning when they wear out
 
 ## v0.4 · Music library and sync
 
@@ -88,11 +89,12 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 - [ ] Sorting rules from the spec, with reference tests
 - [ ] Rules editable in the app: genres, languages, artists
 - [ ] Library view: cover art, list, tag editing, "to sort" queue
-- [ ] Drag-and-drop playlists, compatible `.m3u8`
+- [ ] Drag-and-drop playlists, compatible `.m3u8`, smart playlists, playlist folders
 - [ ] One-click sync: differences, progress, mirror mode with a preview of what will be deleted
 - [ ] Automatic conversion of formats the iPod cannot play, optional space saving
 - [ ] Music database built on the computer
 - [ ] Playlist link to a "to find" list (no downloads, only links to legal sources)
+- [ ] Import folder and drag and drop: TacetOS tags, sorts and readies your own files, opens `.zip` albums, spots duplicates
 - [ ] Real-device test with a full library
 
 ## v0.5 · Settings, fonts, menus
@@ -102,11 +104,12 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 - [ ] Settings editor: categories, search, explanations, presets
 - [ ] Font preview and install
 - [ ] Main menu order, quick screen, shortcuts, status bar
+- [ ] Listening recap: your year in music, computed on your computer, no account needed
 - [ ] Real-device test
 
 ## v0.6 · Themes
 
-- [ ] Theme browser filtered for your screen size
+- [ ] Theme browser filtered for your screen size, sorted by model, color, style and popularity
 - [ ] Our own theme parser and renderer
 - [ ] Warnings for tags your firmware version does not support
 - [ ] Simulated playback (title, artist, cover, progress, battery, clock)
@@ -130,6 +133,7 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 - [ ] Windows: DFU
 - [ ] macOS: detection, DFU, helper, Mac-formatted iPods
 - [ ] Tests on Windows and macOS with a real iPod
+- [ ] CI on more systems: older Ubuntu, Fedora, Arch, Debian, ARM64, Intel Macs
 
 ## Beta
 

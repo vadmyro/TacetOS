@@ -48,21 +48,21 @@
 | Setup | Repository, app skeleton, CI | ✅ 4/4 |
 | Foundations | Firmware base, model database, specs | ✅ 7/7 |
 | **v0.1** | Device detection and live state | ✅ 7/7 |
-| Test devices | Disk image test devices, privileged helper | ⏳ 0/5 |
+| Test devices | Disk image test devices, privileged helper | ⏳ 2/5 |
 | **v0.2** | Install and reset wizard | ⏳ 0/12 |
-| **v0.3** | TacetOS firmware | ⏳ 0/9 |
-| **v0.4** | Music library and sync | ⏳ 0/10 |
-| **v0.5** | Settings, fonts, menus | ⏳ 0/6 |
+| **v0.3** | TacetOS firmware | ⏳ 0/10 |
+| **v0.4** | Music library and sync | ⏳ 0/11 |
+| **v0.5** | Settings, fonts, menus | ⏳ 0/7 |
 | **v0.6** | Themes | ⏳ 0/11 |
 | Translations | French, then many more | ⏳ 0/3 |
-| Windows and macOS | Detection, DFU, disk access | ⏳ 0/4 |
+| Windows and macOS | Detection, DFU, disk access | ⏳ 0/5 |
 | **beta** | Packages, public beta | ⏳ 0/6 |
 | **v1.0** | Fixes from the beta | ⏳ 0/1 |
 
 ### Now: test devices and helper
 
-- [ ] Disk images that behave like an iPod, for every family
-- [ ] Installer for older iPods, checked byte for byte against a reference tool on the disk images
+- [x] Disk images that behave like an iPod, for every family
+- [x] Installer for older iPods, checked byte for byte against a reference tool on the disk images
 - [ ] Installer for the iPod Classic over DFU, always dual boot, checked byte for byte
 - [ ] Privileged helper with a fixed set of commands (format, convert, install, uninstall, backup)
 - [ ] Safety tests: refuse a USB stick, power cut in the middle of a write, full disk
@@ -101,9 +101,41 @@ The goal is the 6 classic iPod families, 14 models in all:
 
 Only the iPod Classic is tested on real hardware during development. Other models will be marked *experimental* until beta testers confirm they work.
 
+## Supported systems
+
+- **Linux:**
+  - Any distribution with udisks2
+
+- **Windows:**
+  - Windows 10 (version 1809 or later)
+  - Windows 11
+  - x64 and ARM64
+
+- **macOS:**
+  - macOS 12 Monterey or later
+  - Intel and Apple Silicon
+
 ## Building
 
-The app is written in C++17 with Qt 6 (6.8 or newer) and CMake (3.21 or newer). It does nothing useful yet: for now it only opens an empty window.
+The app is written in C++17 with Qt 6 (6.8 or newer) and CMake (3.21 or newer). For now it detects a plugged-in iPod and shows its live state; installing and syncing come next. You only need this section to build TacetOS yourself: the packages of the beta will include everything.
+
+**1. Get the tools.** One script checks what you already have and installs only what is missing:
+
+- **Linux** (Fedora, Ubuntu, Debian, Arch...) and **macOS** (with Homebrew):
+
+  ```sh
+  ./scripts/install-deps.sh
+  ```
+
+- **Windows** (x64, in PowerShell):
+
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File scripts\install-deps.ps1
+  ```
+
+Add `--check` (`-Check` on Windows) to only see what is missing. When the Qt of your system is older than 6.8 (Ubuntu 24.04, Debian 12), and always on Windows, the script installs Qt 6.8 for your user only, in `~/Qt`, and prints the path to give to CMake.
+
+**2. Build, test and run.**
 
 ```sh
 cmake --preset debug
