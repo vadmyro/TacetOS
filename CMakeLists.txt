@@ -34,6 +34,7 @@ add_subdirectory(src/journal)
 add_subdirectory(app)
 add_subdirectory(tools/watch)
 add_subdirectory(tools/disk)
+add_subdirectory(tools/dfu)
 
 if(BUILD_TESTING)
     add_subdirectory(tests)
