@@ -133,7 +133,7 @@ const char *const kBadFileSum = "the checksum of the bootloader file does not ma
 
 QList<Row> makeRows()
 {
-    QList<Row> rows(int(FixtureId::Count));
+    QList<Row> rows(static_cast<int>(FixtureId::Count));
     auto at = [&rows](FixtureId id) -> Row & { return rows[int(id)]; };
 
     auto scratch = [&](FixtureId id, const char *name, const char *what, const char *model,
