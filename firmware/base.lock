@@ -34,3 +34,27 @@ TOOLCHAIN_BIN=bin
 ARTIFACTS_N="rockbox.zip rockbox.ipod"
 ARTIFACTS_B="bootloader-*.ipod"
 ARTIFACTS_S="rockboxui"
+
+# Reference tools, built only for tests (tests/reference/build-reference-tools.sh).
+# Directories inside the base sources, and the files of the partition tool that
+# its own build compiles on Linux and macOS.
+REF_PARTITION_TOOL_DIR=utils/ipodpatcher
+REF_PARTITION_TOOL_SOURCES="main.c ipodpatcher.c fat32format.c arc4.c ipodio-posix.c ipodpatcher-aupd.c"
+REF_DFU_TOOL_DIR=utils/mks5lboot
+# The Classic DFU parts (tests/reference/build-dfu-parts.sh): the tool's own files that
+# its build compiles without USB, the folder of the two programs for the iPod and the
+# make targets that build them, the prefix of the ARM compiler, the other folders of
+# the sources those programs and the toolchain script need, and the names of the two
+# fixed blocks (a structure, its signature field, and an array) in the tool's code.
+REF_DFU_TOOL_SOURCES="main.c ipoddfu.c mkdfu.c dualboot.c"
+REF_DFU_PAYLOAD_DIR=utils/mks5lboot/dualboot
+REF_DFU_PAYLOAD_TARGETS="dualboot_install_ipod6g.arm-bin dualboot_uninstall_ipod6g.arm-bin"
+# Name (without extension, inside the tool folder) of the C file made from the programs.
+REF_DFU_PAYLOAD_OUTPUT=dualboot
+REF_DFU_PLATFORM=ipod6g
+REF_DFU_CROSS=arm-elf-eabi-
+REF_DFU_FETCH_DIRS="firmware lib/arm_support tools"
+REF_DFU_BLOCKS_SOURCE=mkdfu.c
+REF_DFU_HEADER_VAR=s5l8702hdr
+REF_DFU_SIGNATURE_FIELD=info_sign
+REF_DFU_CERTIFICATE_VAR=s5l8702pwnage
