@@ -22,9 +22,14 @@ else()
     add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+# Writing to a real iPod is refused by every build until the beta (docs/specs/
+# bootloader-legacy.md section 11, check 8). Disk image files are always allowed.
+option(TACETOS_ALLOW_REAL_WRITES "Allow the installer to write to a real disk" OFF)
+
 include(CTest)
 
 add_subdirectory(src/device)
+add_subdirectory(src/installer)
 add_subdirectory(src/journal)
 add_subdirectory(app)
 add_subdirectory(tools/watch)
