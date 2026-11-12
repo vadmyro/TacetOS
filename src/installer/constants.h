@@ -126,6 +126,50 @@ inline constexpr QLatin1String kDfuPartCertificate("certificate.bin");
 inline constexpr QLatin1String kDfuPartInstaller("installer-payload.bin");
 inline constexpr QLatin1String kDfuPartUninstaller("uninstaller-payload.bin");
 
+// Sections 2 and 4 to 7: the DFU protocol of the iPod Classic.
+inline constexpr uint16_t kAppleVendorId = 0x05AC;
+inline constexpr uint16_t kClassicDfuProductId = 0x1223;
+// The iPod in normal mode: never a target of a DFU transfer.
+inline constexpr uint16_t kClassicNormalProductId = 0x1261;
+// The second step of a restore by Apple's software, one id per revision.
+inline constexpr uint16_t kClassicWtfProductIds[] = {0x1241, 0x1245, 0x1247, 0x1250};
+inline constexpr int kDfuBlockBytes = 2048;
+inline constexpr uint8_t kDfuTypeOut = 0x21;
+inline constexpr uint8_t kDfuTypeIn = 0xA1;
+inline constexpr uint8_t kDfuDnload = 1;
+inline constexpr uint8_t kDfuGetStatus = 3;
+inline constexpr uint8_t kDfuClrStatus = 4;
+inline constexpr uint8_t kDfuGetState = 5;
+inline constexpr uint8_t kDfuAbort = 6;
+inline constexpr int kDfuStatusBytes = 6;
+inline constexpr int kDfuStateIdle = 2;
+inline constexpr int kDfuStateDnBusy = 4;
+inline constexpr int kDfuStateDnloadIdle = 5;
+inline constexpr int kDfuStateManifest = 7;
+inline constexpr int kDfuStateWaitReset = 8;
+inline constexpr int kDfuStateError = 10;
+inline constexpr int kDfuStatusErrVerify = 7;
+inline constexpr int kDfuStatusErrFirmware = 10;
+inline constexpr int kDfuRequestTimeoutMs = 500;
+inline constexpr int kDfuBusyMaxStatusRequests = 20;
+inline constexpr int kDfuPollMinMs = 1;
+inline constexpr int kDfuPollMaxMs = 5000;
+
+// Sections 15.1, 16.1 and 5 (steps 1 and 8): the waits around the transfer.
+inline constexpr int kEjectRetryMs = 3000;
+inline constexpr int kEjectMaxAttempts = 100;
+inline constexpr int kEjectListedPollMs = 1000;
+inline constexpr int kEjectListedTimeoutMs = 30000;
+inline constexpr int kSpinDownMs = 18000;
+inline constexpr int kDfuAppearPollMs = 1000;
+inline constexpr int kDfuAppearTimeoutMs = 60000;
+inline constexpr int kReleaseButtonsSeconds = 10;
+inline constexpr int kMaxDfuResets = 3;
+inline constexpr int kNormalModeWaitMs = 60000;
+inline constexpr int kNormalModePollMs = 1000;
+// Section 16.3.
+inline constexpr int kMaxOneToneErrors = 2;
+
 // Section 9, 14.1 and 20.4: memory held for one write, size of one piece.
 inline constexpr qint64 kMaxWriteBytes = 8 * 1024 * 1024;
 inline constexpr qint64 kPieceBytes = 8 * 1024 * 1024;

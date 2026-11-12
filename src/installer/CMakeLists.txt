@@ -11,8 +11,12 @@ qt_add_library(tacet_installer STATIC
     constants.h
     convert.cpp
     convert.h
+    dfuaround.cpp
+    dfuaround.h
     dfuimage.cpp
     dfuimage.h
+    dfuprotocol.cpp
+    dfuprotocol.h
     firmware.cpp
     firmware.h
     format.cpp
@@ -43,3 +47,24 @@ target_compile_definitions(tacet_installer PRIVATE
 set(TACETOS_DFU_PARTS_DIR "$ENV{TACETOS_DFU_PARTS_DIR}" CACHE PATH "Folder of the generated parts of the Classic DFU image")
 target_compile_definitions(tacet_installer PRIVATE
     TACETOS_DFU_PARTS_DIR="${TACETOS_DFU_PARTS_DIR}")
+
+# The real USB access to an iPod in DFU mode (section 15.2 of the same spec):
+# Linux only, and only when libusb 1.0 is there. Without it the build still
+# works and has no Classic install over USB. No test runs this part.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(LIBUSB QUIET IMPORTED_TARGET libusb-1.0)
+    endif()
+    if(LIBUSB_FOUND)
+        qt_add_library(tacet_installer_usb STATIC
+            libusblink.cpp
+            libusblink.h
+        )
+        target_link_libraries(tacet_installer_usb PUBLIC tacet_installer PkgConfig::LIBUSB)
+        set(TACETOS_HAVE_LIBUSB ON CACHE INTERNAL "libusb found")
+    else()
+        message(STATUS "libusb not found: no USB access for the Classic install")
+        set(TACETOS_HAVE_LIBUSB OFF CACHE INTERNAL "libusb found")
+    endif()
+endif()
