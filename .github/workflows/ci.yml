@@ -51,12 +51,13 @@ jobs:
           version: ${{ env.QT_VERSION }}
           cache: true
 
-      - name: Install libudev and dosfstools
+      - name: Install libudev, libusb and dosfstools
         # libudev: the udev monitor of the device detection (without it the build still works
-        # and polls). dosfstools: fsck.fat, the second reader of the FAT32 format tests (they
+        # and polls). libusb: the USB access of the Classic install, only compiled, never run by
+        # the tests. dosfstools: fsck.fat, the second reader of the FAT32 format tests (they
         # skip that check without it).
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libudev-dev dosfstools
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev libusb-1.0-0-dev dosfstools
 
       - name: Reference tool settings
         # Built outside the tree and only for the comparison tests, which are skipped without it.
