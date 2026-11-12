@@ -418,7 +418,7 @@ After the transfer, **in every case, success or failure**, the helper resumes wh
 
 - **Library**: libusb 1.0, installed with the app, or listed as a dependency of the package.
 - **Permission**: a udev rule file that matches the USB subsystem, vendor `05ac` and product `1223`, and tags the device for the logged-in user (the `uaccess` tag). It has no other id, so that the rule never touches the iPod in normal mode. It is installed in the rules folder of the system by the package of the app.
-- **Without a package** (a tarball or a portable build): the app shows the rule and the two commands to run in a terminal, to copy it to the rules folder and to reload the rules. The app never runs `sudo`. The user then enters DFU mode again, because the rule is applied when the device appears.
+- **Without a package** (a tarball or a portable build): the app offers to put the rule in place through the helper, which asks for the administrator's password once with `pkexec` (`helper.md` section 11.5). When `pkexec` is missing or fails, the app shows the rule and the two commands to run in a terminal, to copy it to the rules folder and to reload the rules. The app never runs `sudo`. The user then enters DFU mode again, because the rule is applied when the device appears.
 - **Failures**: `LIBUSB_ERROR_ACCESS` at open: the rule is missing or not loaded (message "No permission to use the iPod over USB", with the rule). `LIBUSB_ERROR_BUSY` at claim: another program holds the interface. `LIBUSB_ERROR_NO_DEVICE` anywhere before step 6: the cable was pulled or the iPod reset.
 - A virtual machine or a container that does not pass USB devices through shows no device: the "did not appear" message of section 7 is the only symptom. The help mentions it.
 
