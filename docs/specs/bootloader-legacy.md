@@ -120,13 +120,30 @@ The test decides what the disk is. It never decides that something is safe to wr
 
 ## 4. Firmware partition check
 
-The first sector of the firmware partition must carry Apple's banner. It is a block of exactly 256 bytes, made of 16 rows of 16 characters, then a zero byte at the end:
+The first sector of the firmware partition must carry Apple's banner. It is a block of exactly 256 bytes: 16 rows of 16 characters, except that the last row has 15 characters and is followed by a zero byte. Here are the 16 rows, one per line. The two `|` at the ends of each line only mark the row and are not part of the text; spaces count.
 
-- 7 rows draw a stop sign. Each of these rows begins with the 4 characters `{{~~`, and the sign contains the words `S T O P`.
-- The next 3 rows hold the text `Copyright(C) 2001 Apple Computer, Inc.` continuing across the row boundaries, then dashes up to the end of the row.
-- The remaining rows are dashes. The banner is 255 visible characters followed by the zero byte.
+```
+|{{~~  /-----\   |
+|{{~~ /       \  |
+|{{~~|         | |
+|{{~~| S T O P | |
+|{{~~|         | |
+|{{~~ \       /  |
+|{{~~  \-----/   |
+|Copyright(C) 200|
+|1 Apple Computer|
+|, Inc.----------|
+|----------------|
+|----------------|
+|----------------|
+|----------------|
+|----------------|
+|---------------|
+```
 
-The test compares these 256 bytes with a constant stored in our code. The exact bytes of the constant come from a dump of the firmware partition of a real iPod and are kept in the test fixtures, not retyped from memory. If the banner does not match, the disk is not an iPod we handle: stop, and report "firmware partition does not carry the expected banner". Do not try to repair it.
+In rows 1 to 7 the stop sign is drawn with the characters `{` `~` `/` `-` `\` `|` and spaces; the backslash is a single character. Rows 8 to 10 read `Copyright(C) 2001 Apple Computer, Inc.` across the row boundaries, then dashes up to the end of row 10. The banner is 255 visible characters followed by the zero byte.
+
+The test compares these 256 bytes with a constant stored in our code. The rows above were checked by the test of the reference partition tool (P4.1c), which accepts them. The copy from a real older iPod is still to do (section 27, first point: a real Classic has no firmware partition, seen on 2026-11-11). If the banner does not match, the disk is not an iPod we handle: stop, and report "firmware partition does not carry the expected banner". Do not try to repair it.
 
 ## 5. Model of the iPod
 
@@ -137,7 +154,7 @@ The model is not read from the USB id, because several generations share one. It
 | `0x01` | 1st or 2nd generation | `ipod1g2g` |
 | `0x02` | 3rd generation | `ipod3g` |
 | `0x40` | 1st generation mini | `ipodmini1g` |
-| `0x50` | 4th generation (grayscale) | `ipod4gray` |
+| `0x50` | 4th generation (grayscale) | `ipod4g` |
 | `0x60` | Photo or Color | `ipodcolor` |
 | `0x70` | 2nd generation mini | `ipodmini2g` |
 | `0xB0` | Video (5th generation) | `ipodvideo` |
@@ -261,7 +278,7 @@ The checksum is the model number of the table below plus the sum of all bytes of
 | `ipod1g2g` | `1g2g` | 19 |
 | `ipod3g` | `ip3g` | 7 |
 | `ipodmini1g` | `mini` | 9 |
-| `ipod4gray` | `ip4g` | 8 |
+| `ipod4g` | `ip4g` | 8 |
 | `ipodcolor` | `ipco` | 3 |
 | `ipodmini2g` | `mn2g` | 11 |
 | `ipodnano1g` | `nano` | 4 |
@@ -678,6 +695,7 @@ For this group:
 - A 2nd generation nano whose directory is full (10 entries).
 - A test that stops the helper after each single write of each operation (a fault injected in the write function of the tests), and checks that reading the state then gives the state of the table in section 19, and that writing the backup back gives the original fixture byte for byte.
 - Uninstall with and without an install record, and with a record whose checksum no longer matches the disk.
+- Against the reference tool, byte for byte (install, update and uninstall of every partition family): on the 2nd generation nano the uninstall is compared with the clean image from before the install instead, because the reference tool's command line cannot uninstall on the 2nd generation nano. Only the bytes of our bootloader left after the last image (section 17) may differ.
 - A fixture whose padding after Apple's firmware is not zero, to check the checksum of section 14 step 5 counts it as it is on the disk.
 
 ### 26.4 Formatting and conversion (sections 20 to 24)
@@ -690,7 +708,7 @@ For this group:
 
 ## 27. Not decided yet
 
-- The exact bytes of the banner and of a real firmware partition header are taken from a real device dump. Until the first test on real hardware, the fixtures use a banner built from the description in section 4.
+- A copy of the banner and of a real firmware partition header from a real older iPod (the rows of section 4 were checked by the reference partition tool, not on a device). A real Classic has no firmware partition: its dump of 2026-11-11 shows a single FAT32 partition in slot 1, with sectors of 4096 bytes (`detection.md` section 6.1).
 - Whether a Mac iPod with 2048-byte sectors exists in the wild. If one does, section 2.3 needs a real example.
 - Whether the app should warn when an iPod passes the tests but its firmware version is much older than the others of the same generation. The version field is read (section 7.2) but no list of known versions exists yet.
 - The location of the image area for a 3rd generation iPod (section 7.3) and the version field of its OSOS entry. Needs a dump of a real 3rd generation iPod, or the spec of a trustworthy second source.
