@@ -78,7 +78,8 @@ jobs:
 
       - name: Build the reference partition tool
         if: runner.os == 'Linux' && steps.reference-cache.outputs.cache-hit != 'true'
-        run: tests/reference/build-reference-tools.sh
+        # Called through bash: the scripts are not stored as executable in the repository.
+        run: bash tests/reference/build-reference-tools.sh
 
       - name: Cache the ARM toolchain
         # Built from the pinned sources by build-dfu-parts.sh, which takes a while: kept.
@@ -101,7 +102,7 @@ jobs:
         # The two fixed blocks, the two programs for the iPod and the reference tool that
         # builds images from them, for the Classic comparison test.
         if: runner.os == 'Linux' && steps.dfu-parts-cache.outputs.cache-hit != 'true'
-        run: tests/reference/build-dfu-parts.sh --toolchain "$RUNNER_TEMP/toolchain"
+        run: bash tests/reference/build-dfu-parts.sh --toolchain "$RUNNER_TEMP/toolchain"
 
       - name: Configure
         # Warnings are errors on Linux and macOS. Windows reports them only, for now.
