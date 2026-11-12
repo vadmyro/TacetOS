@@ -91,9 +91,10 @@ jobs:
           key: toolchain-${{ hashFiles('firmware/base.lock') }}
 
       - name: Install the toolchain build tools
-        # The toolchain script of the base sources stops at once without them.
+        # The toolchain script of the base sources stops at once without them. It looks
+        # for the libtool program, which Ubuntu ships in libtool-bin, not in libtool.
         if: runner.os == 'Linux' && steps.toolchain-cache.outputs.cache-hit != 'true'
-        run: sudo apt-get install -y texinfo autoconf automake libtool flex bison
+        run: sudo apt-get install -y texinfo autoconf automake libtool libtool-bin flex bison
 
       - name: Cache the Classic DFU parts
         if: runner.os == 'Linux'
