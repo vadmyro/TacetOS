@@ -30,6 +30,7 @@ include(CTest)
 
 add_subdirectory(src/device)
 add_subdirectory(src/installer)
+add_subdirectory(src/helper)
 add_subdirectory(src/journal)
 add_subdirectory(app)
 add_subdirectory(tools/watch)
