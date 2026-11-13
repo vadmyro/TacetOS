@@ -159,8 +159,11 @@ private slots:
             << good(QStringLiteral("format-everything"), QStringLiteral("{}"))
             << QString(err::unknownCommand);
         QTest::newRow("listed in the spec but not wired")
-            << good(QStringLiteral("format-music"), QStringLiteral("{}"))
+            << good(QStringLiteral("classic-dfu"), QStringLiteral("{}"))
             << QString(err::unknownCommand);
+        QTest::newRow("wired, arguments missing")
+            << good(QStringLiteral("format-music"), QStringLiteral("{}"))
+            << QString(err::badRequest);
         QTest::newRow("not json") << QByteArray("hello") << QString(err::badRequest);
         QTest::newRow("not an object") << QByteArray("[1]") << QString(err::badRequest);
         QTest::newRow("extra field")
