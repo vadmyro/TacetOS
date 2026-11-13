@@ -81,11 +81,12 @@ jobs:
         # Called through bash: the scripts are not stored as executable in the repository.
         run: bash tests/reference/build-reference-tools.sh
 
-      - name: Cache the ARM toolchain
+      - name: Restore the ARM toolchain
         # Built from the pinned sources by build-dfu-parts.sh, which takes a while: kept.
+        # Saved right after it is built (below), so that a failing test does not lose it.
         if: runner.os == 'Linux'
         id: toolchain-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ${{ runner.temp }}/toolchain
           key: toolchain-${{ hashFiles('firmware/base.lock') }}
@@ -96,10 +97,10 @@ jobs:
         if: runner.os == 'Linux' && steps.toolchain-cache.outputs.cache-hit != 'true'
         run: sudo apt-get install -y texinfo autoconf automake libtool libtool-bin flex bison
 
-      - name: Cache the Classic DFU parts
+      - name: Restore the Classic DFU parts
         if: runner.os == 'Linux'
         id: dfu-parts-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ${{ runner.temp }}/dfu-parts
           key: dfu-parts-${{ hashFiles('firmware/base.lock', 'tests/reference/build-dfu-parts.sh', 'tests/reference/extract-dfu-blocks.c') }}
@@ -108,7 +109,22 @@ jobs:
         # The two fixed blocks, the two programs for the iPod and the reference tool that
         # builds images from them, for the Classic comparison test.
         if: runner.os == 'Linux' && steps.dfu-parts-cache.outputs.cache-hit != 'true'
+        id: dfu-parts-build
         run: bash tests/reference/build-dfu-parts.sh --toolchain "$RUNNER_TEMP/toolchain"
+
+      - name: Save the ARM toolchain
+        if: runner.os == 'Linux' && steps.toolchain-cache.outputs.cache-hit != 'true' && steps.dfu-parts-build.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/toolchain
+          key: ${{ steps.toolchain-cache.outputs.cache-primary-key }}
+
+      - name: Save the Classic DFU parts
+        if: runner.os == 'Linux' && steps.dfu-parts-build.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/dfu-parts
+          key: ${{ steps.dfu-parts-cache.outputs.cache-primary-key }}
 
       - name: Configure
         # Warnings are errors on Linux and macOS. Windows reports them only, for now.
