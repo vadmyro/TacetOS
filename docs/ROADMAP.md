@@ -9,7 +9,7 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 | Setup | Repository, app skeleton, CI on Linux, Windows and macOS | 4/4 | ✅ done |
 | Foundations | Firmware base, model database, library rules, specs of the install formats and protocols | 7/7 | ✅ done |
 | **v0.1** | Device detection and live state (plug, unplug, disk mode, DFU) | 7/7 | ✅ done |
-| Test devices | Disk image test devices + privileged helper | 3/5 | ⏳ |
+| Test devices | Disk image test devices + privileged helper | 5/5 | ⏳ |
 | **v0.2** | Install and reset wizard: backup, format, firmware, bootloader, guided DFU, uninstall | 0/12 | ⏳ |
 | **v0.3** | Our own firmware build: name, custom boot logo, update channel, health page | 0/10 | ⏳ |
 | **v0.4** | Music library and sync: tags, cover art, sorting rules, playlists, conversion, import folder | 0/11 | ⏳ |
@@ -52,8 +52,8 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 - [x] Disk images that behave like an iPod, for every family
 - [x] Installer for older iPods, checked byte for byte against a reference tool on the disk images
 - [x] Installer for the iPod Classic over DFU, always dual boot, checked byte for byte
-- [ ] Privileged helper with a fixed set of commands (format, convert, install, uninstall, backup)
-- [ ] Safety tests: refuse a USB stick, power cut in the middle of a write, full disk
+- [x] Privileged helper with a fixed set of commands (format, convert, install, uninstall, backup)
+- [x] Safety tests: refuse a USB stick, power cut in the middle of a write, full disk
 
 ## v0.2 · Install and reset wizard
 
