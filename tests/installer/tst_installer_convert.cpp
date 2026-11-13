@@ -8,6 +8,9 @@
 #include "fixtures.h"
 #include "support.h"
 
+#include <QCryptographicHash>
+#include <QDir>
+#include <QFileInfo>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -59,6 +62,7 @@ private slots:
     void faultAtEveryWrite();
     void refusals();
     void typedConfirmation();
+    void fullBackupFolderWritesNothing();
 };
 
 void TestConvert::macBecomesAWindowsIpod_data()
@@ -360,6 +364,40 @@ void TestConvert::typedConfirmation()
         QCOMPARE(macDev.writeCount() + winDev.writeCount(), 0);
         QCOMPARE(hashOutside(mac.path), macBefore);
         QCOMPARE(hashOutside(win.path), winBefore);
+    }
+}
+
+// Section 21 step 1 and legacy section 23: a data folder that is full stops the
+// conversion before any write, whichever of the two copies cannot be made.
+void TestConvert::fullBackupFolderWritesNothing()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const Img img = makeImg(dir.path(), "mac.img", "ipod-video", fp::TableKind::Apm);
+    QVERIFY(img.ok);
+    const QByteArray before =
+        QCryptographicHash::hash(readAll(img.path), QCryptographicHash::Sha256);
+    for (const QString &failing : {QStringLiteral("firmware-"), QStringLiteral("map-")}) {
+        FileSectorDevice file(img.path, kSector, FileSectorDevice::Mode::ReadWrite);
+        QVERIFY(file.open());
+        FaultSectorDevice dev(file);
+        dev.failAtWrite(0);
+        const QString backups = dir.filePath("full-" + failing);
+        ConvertRequest req = convertRequest(dev, backups);
+        req.backupFault = [&](const QString &path, qint64) {
+            return QFileInfo(path).fileName().startsWith(failing) ? QString::fromLatin1(kNoSpace)
+                                                                  : QString();
+        };
+        const ConvertResult res = convertMacToFat32(dev, req);
+        QVERIFY(!res.ok);
+        QCOMPARE(res.message, QStringLiteral("Cannot save a backup in the data folder"));
+        QVERIFY(!res.wroteAnything);
+        QCOMPARE(dev.writeCount(), 0);
+        QCOMPARE(QCryptographicHash::hash(readAll(img.path), QCryptographicHash::Sha256), before);
+        // The copy that was cut is gone, not left half written.
+        const QStringList left = QDir(backups).entryList(QDir::Files);
+        for (const QString &name : left)
+            QVERIFY2(!name.startsWith(failing), qPrintable(name));
     }
 }
 

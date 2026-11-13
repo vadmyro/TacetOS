@@ -102,3 +102,10 @@ target_compile_definitions(tst_installer_udevrule PRIVATE
     TACETOS_UDEV_RULE="${PROJECT_SOURCE_DIR}/src/helper/70-tacetos-dfu.rules")
 
 add_test(NAME tst_installer_udevrule COMMAND tst_installer_udevrule)
+
+# A full folder on the computer: the backup, the install record.
+qt_add_executable(tst_installer_diskfull tst_installer_diskfull.cpp)
+target_link_libraries(tst_installer_diskfull PRIVATE
+    tacet_installer_testing tacet_fakepod Qt6::Test)
+
+add_test(NAME tst_installer_diskfull COMMAND tst_installer_diskfull)

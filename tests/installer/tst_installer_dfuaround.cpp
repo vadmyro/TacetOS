@@ -134,6 +134,7 @@ private slots:
 
     void flowResumesOnSuccess();
     void flowResumesWhenTheTransferFails();
+    void flowWithAFullFolderSendsNothing();
     void flowResumesWhenCancelled();
     void flowDoesNothingWhenPauseFails();
 
@@ -514,6 +515,31 @@ void TestDfuAround::flowResumesOnSuccess()
     flash.layer.bus = {at(0, {dfuAt(7)}), at(14000, {}), at(20000, {normalAt(9)})};
     QVERIFY(runClassicDfu(flash.layer, flash.job, flash.layer.options()).ok);
     QVERIFY(!flash.layer.sleeps.contains(18000));
+}
+
+// A full folder: the list of paused programs cannot be written, so nothing is
+// paused and nothing is sent. The image itself is built in memory (section 8): no
+// temporary folder is involved in building it, and the same image is used when the
+// folder has room.
+void TestDfuAround::flowWithAFullFolderSendsNothing()
+{
+    Rig rig;
+    rig.layer.bus = {at(0, {dfuAt(7)})};
+    rig.job.stateFault = [](const QString &, qint64) { return QString::fromLatin1(kNoSpace); };
+    const ClassicDfuOutcome o = runClassicDfu(rig.layer, rig.job, rig.layer.options());
+    QVERIFY(!o.ok);
+    QCOMPARE(o.stage, ClassicStage::Pause);
+    QVERIFY2(o.message.contains(QStringLiteral("could not be saved")), qPrintable(o.message));
+    // Nothing was paused, nothing was opened or sent, and no file is left.
+    QCOMPARE(rig.layer.events, (QStringList{"unmounted"}));
+    QCOMPARE(rig.device.opens(), 0);
+    QVERIFY(rig.device.received().isEmpty());
+    QVERIFY(!QFile::exists(rig.job.stateFile));
+
+    // The same job with room goes through.
+    Rig fine;
+    fine.layer.bus = {at(0, {dfuAt(7)}), at(33000, {}), at(40000, {normalAt(9)})};
+    QVERIFY(runClassicDfu(fine.layer, fine.job, fine.layer.options()).ok);
 }
 
 void TestDfuAround::flowResumesWhenTheTransferFails()
