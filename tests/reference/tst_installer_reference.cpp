@@ -292,6 +292,20 @@ void TstInstallerReference::sameBytesAsTheReferenceTool()
     QVERIFY2(pod.ok, qPrintable(pod.error));
     const int sector = pod.sectorSize;
     const Image ours{spec.path, sector};
+
+    if (mac) {
+        // Section 12 and section 24 rule 6: the tool installs on a Mac iPod, TacetOS
+        // refuses on purpose. Nothing to compare: the refusal is checked, and not a
+        // byte of the image may change.
+        const QByteArray before = readAt(ours.path, 0, QFileInfo(ours.path).size());
+        QVERIFY(!before.isEmpty());
+        QString message;
+        QVERIFY(
+            !oursStep(ours, Operation::Install, fileFor(targetOf(model), installLength), &message));
+        QVERIFY2(message.contains(QLatin1String("Formatted for Mac")), qPrintable(message));
+        QCOMPARE(readAt(ours.path, 0, QFileInfo(ours.path).size()), before);
+        return;
+    }
     const Image ref{m_dir.filePath(QStringLiteral("ref%1.bin").arg(++m_count)), sector};
     QVERIFY(QFile::copy(ours.path, ref.path));
 
