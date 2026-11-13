@@ -15,8 +15,34 @@ static const QList<CommandSpec> &commandTable()
 {
     // Only the commands that are wired so far. The others of section 6.1 are added
     // with their code.
+    using A = ArgType;
+    const auto target = ArgSpec{QStringLiteral("target"), A::Target};
+    const auto token = ArgSpec{QStringLiteral("scanToken"), A::String};
+    const auto expected = ArgSpec{QStringLiteral("expectedState"), A::String};
+    const auto bootFile = ArgSpec{QStringLiteral("bootloaderFile"), A::Path};
+    const auto bootVersion = ArgSpec{QStringLiteral("bootloaderVersion"), A::String};
+    const auto dataDir = ArgSpec{QStringLiteral("dataDir"), A::Path};
+    const QList<ArgSpec> format = {target,
+                                   token,
+                                   {QStringLiteral("ipodName"), A::String},
+                                   {QStringLiteral("typedName"), A::String},
+                                   {QStringLiteral("volumeLabel"), A::String}};
+    QList<ArgSpec> convert = format;
+    convert.append(dataDir);
     static const QList<CommandSpec> table = {
-        {QString(cmd::readState), {{QStringLiteral("target"), ArgType::Target}}},
+        {QString(cmd::readState), {target}},
+        {QString(cmd::backupFirmware), {target, token, dataDir}},
+        {QString(cmd::installBootloader),
+         {target, token, expected, bootFile, bootVersion, dataDir}},
+        {QString(cmd::updateBootloader), {target, token, expected, bootFile, bootVersion, dataDir}},
+        {QString(cmd::uninstallBootloader), {target, token, expected, dataDir}},
+        {QString(cmd::restoreBackup),
+         {target, token, {QStringLiteral("backupFile"), A::Path}, dataDir}},
+        {QString(cmd::formatMusic), format},
+        {QString(cmd::convertToFat32), convert},
+        {QString(cmd::readDeviceSheet), {target}},
+        {QString(cmd::installUdevRule), {}},
+        {QString(cmd::cancel), {{QStringLiteral("request"), A::Integer}}},
     };
     return table;
 }

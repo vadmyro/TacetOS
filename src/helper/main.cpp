@@ -6,6 +6,7 @@
 #include "server.h"
 
 #include <cstdio>
+#include <memory>
 
 #if defined(Q_OS_WIN)
 #include <fcntl.h>
@@ -39,6 +40,7 @@ int main(int argc, char **)
                    size_t(bytes.size()) &&
                std::fflush(stdout) == 0;
     };
-    Server server(io, DiskLock::defaultFolder());
+    const std::unique_ptr<SystemLayer> system = makeRealSystem();
+    Server server(io, DiskLock::defaultFolder(), system.get());
     return server.run();
 }

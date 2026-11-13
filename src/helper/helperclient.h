@@ -47,6 +47,10 @@ public:
     // Sends a line as it is, to try the refusals of section 3.5. Returns its id.
     int requestRaw(const QByteArray &line, const QString &port = QString());
 
+    // Section 6.12: asks the running request `id` to stop. Its own result says
+    // whether it was heard (`too-late` after the first write).
+    int cancel(int id);
+
     // The command `read-state` on an image file.
     int readImageState(const QString &path, int sectorSize, const QString &port = QString());
 

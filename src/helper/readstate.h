@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "checks.h"
+#include "recognise.h"
 #include "sectordevice.h"
 
 #include <QJsonObject>
@@ -34,6 +36,14 @@ using StageFn = std::function<void(const QString &stage)>;
 QString makeScanToken(qint64 sizeBytes, int sectorSize, const QByteArray &sector0,
                       const QByteArray &firmwareSector, int usbBus = -1, int usbDevice = -1);
 
-CommandOutcome readState(installer::SectorDevice &dev, const LogFn &log, const StageFn &stage);
+// The token of a disk that was recognised as `rec` with the snapshot `snap`. Empty,
+// with `error` set, when sector 0 cannot be read.
+QString scanTokenFor(installer::SectorDevice &dev, const installer::Recognition &rec,
+                     const installer::ScanSnapshot &snap, QString *error, int usbBus = -1,
+                     int usbDevice = -1);
+
+// `usbBus` and `usbDevice` are those of a real disk (section 5.3), -1 for an image.
+CommandOutcome readState(installer::SectorDevice &dev, const LogFn &log, const StageFn &stage,
+                         int usbBus = -1, int usbDevice = -1);
 
 } // namespace tacetos::helper

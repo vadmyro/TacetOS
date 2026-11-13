@@ -66,6 +66,13 @@ QJsonObject HelperClient::imageTarget(const QString &path, int sectorSize)
     return t;
 }
 
+int HelperClient::cancel(int id)
+{
+    QJsonObject args;
+    args.insert(QStringLiteral("request"), id);
+    return request(QString(cmd::cancel), args);
+}
+
 int HelperClient::readImageState(const QString &path, int sectorSize, const QString &port)
 {
     QJsonObject args;

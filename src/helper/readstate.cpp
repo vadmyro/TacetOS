@@ -32,6 +32,22 @@ QString makeScanToken(qint64 sizeBytes, int sectorSize, const QByteArray &sector
         QCryptographicHash::hash(text.toUtf8(), QCryptographicHash::Sha256).toHex());
 }
 
+QString scanTokenFor(SectorDevice &dev, const Recognition &, const ScanSnapshot &snap,
+                     QString *error, int usbBus, int usbDevice)
+{
+    QByteArray sector0;
+    if (!snap.valid) {
+        const IoResult r = dev.readSectors(0, 1, sector0);
+        if (!r) {
+            if (error)
+                *error = r.error;
+            return {};
+        }
+    }
+    return makeScanToken(dev.sizeBytes(), dev.sectorSize(), snap.valid ? snap.sector0 : sector0,
+                         snap.valid ? snap.firmwareSector : QByteArray(), usbBus, usbDevice);
+}
+
 static QString tableName(const PartitionTable &t)
 {
     if (t.status != TableStatus::Ok)
@@ -63,7 +79,8 @@ static CommandOutcome failure(const QString &code, const QString &detail)
     return o;
 }
 
-CommandOutcome readState(SectorDevice &dev, const LogFn &log, const StageFn &stage)
+CommandOutcome readState(SectorDevice &dev, const LogFn &log, const StageFn &stage, int usbBus,
+                         int usbDevice)
 {
     stage(QStringLiteral("read"));
     const int sectorSize = dev.sectorSize();
@@ -92,15 +109,11 @@ CommandOutcome readState(SectorDevice &dev, const LogFn &log, const StageFn &sta
     data.insert(QStringLiteral("slots"), slotArray);
 
     const ScanSnapshot snap = takeScanSnapshot(dev, rec);
-    QByteArray sector0;
-    if (!snap.valid) {
-        IoResult r = dev.readSectors(0, 1, sector0);
-        if (!r)
-            return failure(err::openFailed, r.error);
-    }
-    data.insert(QStringLiteral("scanToken"),
-                makeScanToken(dev.sizeBytes(), sectorSize, snap.valid ? snap.sector0 : sector0,
-                              snap.valid ? snap.firmwareSector : QByteArray()));
+    QString tokenError;
+    const QString token = scanTokenFor(dev, rec, snap, &tokenError, usbBus, usbDevice);
+    if (token.isEmpty())
+        return failure(err::openFailed, tokenError);
+    data.insert(QStringLiteral("scanToken"), token);
 
     if (rec.verdict == Verdict::Recognised) {
         const FirmwareState fw = readFirmware(dev, rec);
