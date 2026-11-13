@@ -473,17 +473,18 @@ void settleAfterFailure(SectorDevice &dev, const OperationRequest &req, Operatio
 RestoreResult restoreBackup(SectorDevice &dev, const ScanSnapshot &scan, const QString &backupPath,
                             qint64 pieceBytes)
 {
-    const auto refuse = [](const QString &why) { return RestoreResult{false, why}; };
+    const auto refuse = [](const QString &why) { return RestoreResult{false, why, false}; };
+    const auto mismatch = [](const QString &why) { return RestoreResult{false, why, true}; };
     if (!scan.valid || dev.sectorSize() != scan.sectorSize)
-        return refuse(QStringLiteral("the disk is not the one that was scanned"));
+        return mismatch(QStringLiteral("the disk is not the one that was scanned"));
     QByteArray sector0;
     if (!readBytes(dev, 0, scan.sector0.size(), sector0) || sector0 != scan.sector0)
-        return refuse(QStringLiteral("sector 0 of the disk is not the one that was scanned"));
+        return mismatch(QStringLiteral("sector 0 of the disk is not the one that was scanned"));
     QFile backup(backupPath);
     if (!backup.open(QIODevice::ReadOnly))
         return refuse(QStringLiteral("the backup cannot be read"));
     if (backup.size() != scan.firmwareBytes)
-        return refuse(
+        return mismatch(
             QStringLiteral("the backup does not have the size of the firmware partition"));
     // The banner and the volume header (the first 512 bytes of the partition: the
     // directory starts after them and is the only thing an operation writes there)
@@ -494,7 +495,7 @@ RestoreResult restoreBackup(SectorDevice &dev, const ScanSnapshot &scan, const Q
     if (!bannerMatches(head.left(kBannerBytes)) ||
         !readBytes(dev, scan.firmwareStart, headBytes, onDisk) || onDisk != head ||
         head != scan.firmwareSector.left(headBytes))
-        return refuse(QStringLiteral("the banner of the backup is not the one of the disk"));
+        return mismatch(QStringLiteral("the banner of the backup is not the one of the disk"));
 
     const int ss = dev.sectorSize();
     const qint64 piece = qMax<qint64>(ss, (pieceBytes > 0 ? pieceBytes : kPieceBytes) / ss * ss);
@@ -511,7 +512,7 @@ RestoreResult restoreBackup(SectorDevice &dev, const ScanSnapshot &scan, const Q
             return refuse(io.error);
         done += n;
     }
-    return {true, QString()};
+    return {true, QString(), false};
 }
 
 OperationResult runOperation(SectorDevice &dev, const OperationRequest &req)
@@ -579,7 +580,7 @@ OperationResult runOperation(SectorDevice &dev, const OperationRequest &req)
         }
         record.delta = res.report.plan.moveDelta;
         record.backupFile = QFileInfo(res.report.backupPath).fileName();
-        if (!saveRecord(record, req.recordDir, res.recordPath, res.recordMessage))
+        if (!saveRecord(record, req.recordDir, res.recordPath, res.recordMessage, req.recordFault))
             res.recordPath.clear();
     }
     return res;

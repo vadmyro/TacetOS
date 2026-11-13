@@ -116,7 +116,8 @@ bool firmwareSum(SectorDevice &dev, const Recognition &rec, const FirmwareState 
 
 // Check 6: copies `total` bytes of the disk, from byte `start`, to `path`, reads
 // the copy back and compares it with the disk.
-bool copyRange(SectorDevice &dev, qint64 start, qint64 total, const QString &path, QString &why)
+bool copyRange(SectorDevice &dev, qint64 start, qint64 total, const QString &path, QString &why,
+               const FileFault &fault = {})
 {
     const QStorageInfo storage(QFileInfo(path).absolutePath());
     if (storage.isValid() && storage.bytesAvailable() >= 0 && storage.bytesAvailable() < total) {
@@ -137,8 +138,9 @@ bool copyRange(SectorDevice &dev, qint64 start, qint64 total, const QString &pat
             QFile::remove(path);
             return false;
         }
-        if (out.write(part) != part.size()) {
-            why = out.errorString();
+        const QString injected = fault ? fault(path, done) : QString();
+        if (!injected.isEmpty() || out.write(part) != part.size()) {
+            why = injected.isEmpty() ? out.errorString() : injected;
             out.close();
             QFile::remove(path);
             return false;
@@ -189,9 +191,10 @@ QString freeBackupPath(const QDir &dir, const QString &name)
 
 } // namespace
 
-bool copyDiskRange(SectorDevice &dev, qint64 start, qint64 bytes, const QString &path, QString &why)
+bool copyDiskRange(SectorDevice &dev, qint64 start, qint64 bytes, const QString &path, QString &why,
+                   const FileFault &fault)
 {
-    return copyRange(dev, start, bytes, path, why);
+    return copyRange(dev, start, bytes, path, why, fault);
 }
 
 QString freeFilePath(const QString &dir, const QString &name)
@@ -340,7 +343,8 @@ CheckReport runChecks(SectorDevice &dev, const CheckRequest &req)
                     QStringLiteral("the folder cannot be created"));
     }
     const QString path = freeBackupPath(dir, backupFileName(fw.target, req.now));
-    if (!copyRange(dev, r.recognition.firmwareStart, r.recognition.firmwareBytes, path, why)) {
+    if (!copyRange(dev, r.recognition.firmwareStart, r.recognition.firmwareBytes, path, why,
+                   req.backupFault)) {
         return fail(r, 6,
                     QStringLiteral("cannot save a backup in the data folder (%1 bytes needed)")
                         .arg(r.recognition.firmwareBytes),

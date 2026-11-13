@@ -51,6 +51,8 @@ struct ConvertRequest : FormatRequest
     // Section 21 step 1: the folder of the backups, on the computer, never on the
     // iPod. It is created when it does not exist.
     QString backupDir;
+    // Tests only: makes the write of the backups fail (a full folder).
+    FileFault backupFault;
 };
 
 struct ConvertResult

@@ -17,6 +17,7 @@ qt_add_library(tacet_installer STATIC
     dfuimage.h
     dfuprotocol.cpp
     dfuprotocol.h
+    filefault.h
     firmware.cpp
     firmware.h
     format.cpp

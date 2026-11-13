@@ -123,10 +123,10 @@ ConvertResult convertMacToFat32(SectorDevice &dev, const ConvertRequest &request
         QStringLiteral("map-%1").arg(name.mid(int(QStringLiteral("firmware-").size())));
     const QString firmwarePath = freeFilePath(dir.absolutePath(), name);
     if (!copyDiskRange(dev, p.recognition.firmwareStart, p.recognition.firmwareBytes, firmwarePath,
-                       why))
+                       why, request.backupFault))
         return failed(r, QStringLiteral("Cannot save a backup in the data folder"));
     const QString mapPath = freeFilePath(dir.absolutePath(), map);
-    if (!copyDiskRange(dev, 0, p.recognition.firmwareStart, mapPath, why))
+    if (!copyDiskRange(dev, 0, p.recognition.firmwareStart, mapPath, why, request.backupFault))
         return failed(r, QStringLiteral("Cannot save a backup in the data folder"));
     r.backupPath = firmwarePath;
     r.mapBackupPath = mapPath;

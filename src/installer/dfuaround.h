@@ -5,6 +5,7 @@
 
 #include "dfuimage.h"
 #include "dfuprotocol.h"
+#include "filefault.h"
 
 #include <QByteArray>
 #include <QList>
@@ -102,7 +103,7 @@ struct PauseResult
 class PausedProcesses
 {
 public:
-    PausedProcesses(ClassicSystemLayer &layer, QString stateFile);
+    PausedProcesses(ClassicSystemLayer &layer, QString stateFile, FileFault fault = {});
     ~PausedProcesses();
     PausedProcesses(const PausedProcesses &) = delete;
     PausedProcesses &operator=(const PausedProcesses &) = delete;
@@ -115,6 +116,7 @@ public:
 private:
     ClassicSystemLayer &m_layer;
     QString m_stateFile;
+    FileFault m_fault;
     QList<SystemProcess> m_paused;
 };
 
@@ -251,6 +253,8 @@ struct ClassicDfuJob
     bool hasHardDisk = true;
     // Where the paused programs are noted (section 15.1).
     QString stateFile;
+    // Tests only: makes the write of the state file fail (a full folder).
+    FileFault stateFault;
     BootloaderState stateBefore = BootloaderState::Unknown;
     // Reads the state after the restart (the detection). Unknown when empty.
     std::function<BootloaderState()> readState;

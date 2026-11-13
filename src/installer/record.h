@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "filefault.h"
+
 #include <QByteArray>
 #include <QDateTime>
 #include <QList>
@@ -41,7 +43,8 @@ QString recordFileName(const InstallRecord &record);
 
 // Writes the record in `dir` (created when missing) and gives its path. A file
 // of the same name is never replaced: a number is added.
-bool saveRecord(const InstallRecord &record, const QString &dir, QString &path, QString &why);
+bool saveRecord(const InstallRecord &record, const QString &dir, QString &path, QString &why,
+                const FileFault &fault = {});
 
 // Reads one record file. Nothing when the file is not a record of this format.
 std::optional<InstallRecord> loadRecord(const QString &path);

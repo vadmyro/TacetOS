@@ -4,6 +4,7 @@
 #pragma once
 
 #include "bootfile.h"
+#include "filefault.h"
 #include "firmware.h"
 #include "recognise.h"
 #include "sectordevice.h"
@@ -86,8 +87,8 @@ bool diskMatchesScan(SectorDevice &dev, const ScanSnapshot &scan, QString &why);
 // Check 6, for any range: copies `bytes` bytes of the disk from byte `start` to
 // the file `path`, reads the copy back and compares it. The file is removed when
 // the copy fails. `why` says what went wrong.
-bool copyDiskRange(SectorDevice &dev, qint64 start, qint64 bytes, const QString &path,
-                   QString &why);
+bool copyDiskRange(SectorDevice &dev, qint64 start, qint64 bytes, const QString &path, QString &why,
+                   const FileFault &fault = {});
 
 // A file name that does not exist yet in `dir` (`-2`, `-3`... before the suffix).
 QString freeFilePath(const QString &dir, const QString &name);
@@ -105,6 +106,8 @@ struct CheckRequest
     // The folder where check 6 puts its copy of the firmware partition. It is
     // created when it does not exist.
     QString backupDir;
+    // Tests only: makes the write of the backup fail (a full folder).
+    FileFault backupFault;
     QDateTime now = QDateTime::currentDateTime();
     // Check 8. The default is the build option; the tests set it by hand.
     bool allowRealWrites = realWritesAllowed();

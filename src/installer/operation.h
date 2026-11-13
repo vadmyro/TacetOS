@@ -50,6 +50,8 @@ struct OperationRequest : CheckRequest
     // record of the install in this folder gives the entry to go back to
     // (section 16, step 2).
     QString recordDir;
+    // Tests only: makes the write of the record fail (a full folder).
+    FileFault recordFault;
     // Written in the record: the serial number of the iPod when the system gives
     // one, and the version of the bootloader file.
     QString serial;
@@ -90,6 +92,9 @@ struct RestoreResult
     bool ok = false;
     // One short English message when not ok.
     QString message;
+    // Set when the backup was refused for not being of this disk (nothing was
+    // written).
+    bool mismatch = false;
 };
 
 // Section 19, "writing the backup back": the disk is checked against the scan

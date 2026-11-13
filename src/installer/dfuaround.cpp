@@ -52,8 +52,11 @@ QStringList namesOf(const QList<SystemProcess> &processes)
     return names;
 }
 
-bool writeStateFile(const QString &path, const QList<SystemProcess> &processes)
+bool writeStateFile(const QString &path, const QList<SystemProcess> &processes,
+                    const FileFault &fault = {})
 {
+    if (fault && !fault(path, 0).isEmpty())
+        return false;
     QJsonArray list;
     for (const SystemProcess &p : processes) {
         QJsonObject o;
@@ -142,8 +145,8 @@ int spinDownWaitMs(bool hasHardDisk)
     return hasHardDisk ? kSpinDownMs : 0;
 }
 
-PausedProcesses::PausedProcesses(ClassicSystemLayer &layer, QString stateFile)
-    : m_layer(layer), m_stateFile(std::move(stateFile))
+PausedProcesses::PausedProcesses(ClassicSystemLayer &layer, QString stateFile, FileFault fault)
+    : m_layer(layer), m_stateFile(std::move(stateFile)), m_fault(std::move(fault))
 {
 }
 
@@ -161,7 +164,7 @@ PauseResult PausedProcesses::pauseAll()
         return r;
     }
     // The file comes first: a crash after the first pause must not lose it.
-    if (!m_stateFile.isEmpty() && !writeStateFile(m_stateFile, found)) {
+    if (!m_stateFile.isEmpty() && !writeStateFile(m_stateFile, found, m_fault)) {
         r.message = QStringLiteral("The list of paused programs could not be saved, so none "
                                    "was paused. Close Apple's programs and try again.");
         return r;
@@ -511,7 +514,7 @@ ClassicDfuOutcome runClassicDfu(ClassicSystemLayer &layer, const ClassicDfuJob &
         return cancelledAt(ClassicStage::Pause);
 
     // From here on, whatever happens, the destructor resumes what was paused.
-    PausedProcesses paused(layer, job.stateFile);
+    PausedProcesses paused(layer, job.stateFile, job.stateFault);
     const PauseResult pausedNow = paused.pauseAll();
     if (!pausedNow.ok)
         return stopped(ClassicStage::Pause, pausedNow.message);

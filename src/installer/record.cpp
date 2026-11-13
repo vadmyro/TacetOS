@@ -41,7 +41,8 @@ QString recordFileName(const InstallRecord &r)
              QString::number(r.diskBytes));
 }
 
-bool saveRecord(const InstallRecord &record, const QString &dir, QString &path, QString &why)
+bool saveRecord(const InstallRecord &record, const QString &dir, QString &path, QString &why,
+                const FileFault &fault)
 {
     if (dir.isEmpty() || !QDir().mkpath(QDir(dir).absolutePath())) {
         why = QStringLiteral("the folder of the record cannot be created");
@@ -60,8 +61,9 @@ bool saveRecord(const InstallRecord &record, const QString &dir, QString &path, 
         return false;
     }
     const QByteArray bytes = QJsonDocument(toJson(record)).toJson(QJsonDocument::Indented);
-    if (f.write(bytes) != bytes.size() || !f.flush()) {
-        why = f.errorString();
+    const QString injected = fault ? fault(candidate, 0) : QString();
+    if (!injected.isEmpty() || f.write(bytes) != bytes.size() || !f.flush()) {
+        why = injected.isEmpty() ? f.errorString() : injected;
         f.close();
         QFile::remove(candidate);
         return false;
