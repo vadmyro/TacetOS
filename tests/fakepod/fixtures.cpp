@@ -15,10 +15,8 @@ namespace {
 // partition of 8 MiB from sector 64.
 constexpr quint32 kFwFirst = 64;
 constexpr quint32 kFwSectors512 = 16384;
-constexpr quint32 kMusicFirst512 = 16448;
 constexpr quint32 kMusicSectors512 = 114624;
 constexpr quint32 kFwSectors2048 = 4096;
-constexpr quint32 kMusicFirst2048 = 4160;
 constexpr quint32 kMusicSectors2048 = 28608;
 constexpr quint32 kHfs = 0xFFFF;
 
