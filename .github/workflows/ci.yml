@@ -134,4 +134,8 @@ jobs:
         run: cmake --build --preset ${{ matrix.preset }} --parallel
 
       - name: Test
+        # Without a console (Windows runners), Qt sends its messages to the debugger,
+        # and a test that stops on a fatal error shows nothing in the log.
+        env:
+          QT_FORCE_STDERR_LOGGING: 1
         run: ctest --preset ${{ matrix.preset }}
