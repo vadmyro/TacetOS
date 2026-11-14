@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 vadmyro
+
+# The same bytes on every system: some tests compare a file of the sources with
+# the text built into a program, or read it line by line.
+* text=auto eol=lf
+
+# Files with CRLF line ends on purpose, as an iPod or Windows writes them.
+tests/device/fixtures/info-synthetic.txt -text
+tests/device/fixtures/sysinfo/classic-80gb-crlf.txt -text
