@@ -36,14 +36,28 @@ QString str(const QJsonObject &o, const char *key)
     return o.value(QLatin1String(key)).toString();
 }
 
+// The size, then each block that is not all zeros with its place: two files have
+// the same hash when they have the same bytes. The large images are mostly zeros,
+// and hashing those blocks took most of the time of the test.
 QByteArray fileHash(const QString &path)
 {
     QFile f(path);
     if (!f.open(QIODevice::ReadOnly))
         return {};
     QCryptographicHash h(QCryptographicHash::Sha256);
-    while (!f.atEnd())
-        h.addData(f.read(1 << 20));
+    const qint64 size = f.size();
+    h.addData(QByteArrayView(reinterpret_cast<const char *>(&size), sizeof size));
+    constexpr qint64 kBlock = 64 * 1024;
+    const QByteArray zeros(kBlock, '\0');
+    for (qint64 at = 0; !f.atEnd(); at += kBlock) {
+        const QByteArray block = f.read(kBlock);
+        if (block.isEmpty())
+            return {};
+        if (block == QByteArrayView(zeros).first(block.size()))
+            continue;
+        h.addData(QByteArrayView(reinterpret_cast<const char *>(&at), sizeof at));
+        h.addData(block);
+    }
     return h.result();
 }
 
