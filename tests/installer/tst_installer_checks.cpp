@@ -71,16 +71,29 @@ private slots:
     void noScanIsRefused();
 
 private:
+    // The image is removed when the test no longer holds it.
     struct Opened
     {
         QString path;
         std::unique_ptr<FileSectorDevice> dev;
         fp::FixtureBuild build;
+        Opened() = default;
+        Opened(Opened &&) = default;
+        Opened &operator=(Opened &&) = default;
+        ~Opened()
+        {
+            dev.reset();
+            if (!path.isEmpty())
+                QFile::remove(path);
+        }
     };
-    Opened open(fp::FixtureId id, const QString &name = QStringLiteral("fixture.img"))
+    // A new file each time: a test often keeps two images open, and Windows does
+    // not remove an open file (the second image would be written over the first).
+    Opened open(fp::FixtureId id, const QString &name = QString())
     {
         Opened o;
-        o.path = m_dir.filePath(name);
+        o.path =
+            m_dir.filePath(name.isEmpty() ? QStringLiteral("fixture%1.img").arg(++m_count) : name);
         QFile::remove(o.path);
         o.build = fp::Fixtures::build(id, o.path);
         if (!o.build.ok)
