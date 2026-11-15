@@ -26,6 +26,8 @@ struct ArgSpec
 {
     QString name;
     ArgType type;
+    // Taken by some forms of the command only (section 6.9): it may be missing.
+    bool optional = false;
 };
 
 struct CommandSpec

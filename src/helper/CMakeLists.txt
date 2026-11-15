@@ -12,6 +12,8 @@ file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/udevruletext.h" CONTENT
     @ONLY)
 
 set(TACETOS_HELPER_CORE_SOURCES
+    classiccmds.cpp
+    classiccmds.h
     diskcmds.cpp
     diskcmds.h
     fddevice.cpp
@@ -47,6 +49,9 @@ qt_add_library(tacet_helper_core STATIC ${TACETOS_HELPER_CORE_SOURCES})
 target_include_directories(tacet_helper_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(tacet_helper_core PUBLIC Qt6::Core tacet_installer tacet_device)
+if(TACETOS_HAVE_LIBUSB)
+    target_link_libraries(tacet_helper_core PUBLIC tacet_installer_usb)
+endif()
 target_compile_definitions(tacet_helper_core PUBLIC
     TACETOS_VERSION="${PROJECT_VERSION}"
     TACETOS_HELPER_HAS_USB=$<BOOL:${TACETOS_HAVE_LIBUSB}>)
@@ -63,6 +68,9 @@ if(BUILD_TESTING AND UNIX)
     target_include_directories(tacet_helper_core_killtest PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_BINARY_DIR})
     target_link_libraries(tacet_helper_core_killtest PUBLIC Qt6::Core tacet_installer tacet_device)
+    if(TACETOS_HAVE_LIBUSB)
+        target_link_libraries(tacet_helper_core_killtest PUBLIC tacet_installer_usb)
+    endif()
     target_compile_definitions(tacet_helper_core_killtest PUBLIC
         TACETOS_VERSION="${PROJECT_VERSION}"
         TACETOS_HELPER_HAS_USB=$<BOOL:${TACETOS_HAVE_LIBUSB}>

@@ -72,6 +72,7 @@ RealDisk checkRealDisk(const QJsonObject &target, const QString &dataDir, System
     out.sizeBytes = inputs.block.sizeBytes;
     out.usbBus = inputs.usb.busNumber;
     out.usbDevice = inputs.usb.deviceNumber;
+    out.usbProduct = inputs.usb.product.toLower();
     return out;
 }
 

@@ -13,8 +13,7 @@ namespace tacetos::helper {
 
 static const QList<CommandSpec> &commandTable()
 {
-    // Only the commands that are wired so far. The others of section 6.1 are added
-    // with their code.
+    // The whole closed list of section 6.1.
     using A = ArgType;
     const auto target = ArgSpec{QStringLiteral("target"), A::Target};
     const auto token = ArgSpec{QStringLiteral("scanToken"), A::String};
@@ -42,6 +41,13 @@ static const QList<CommandSpec> &commandTable()
         {QString(cmd::convertToFat32), convert},
         {QString(cmd::readDeviceSheet), {target}},
         {QString(cmd::installUdevRule), {}},
+        {QString(cmd::classicDfu),
+         {{QStringLiteral("operation"), A::String},
+          target,
+          {QStringLiteral("bootloaderFile"), A::Path, true},
+          {QStringLiteral("stateBefore"), A::String},
+          dataDir}},
+        {QString(cmd::resumePaused), {dataDir}},
         {QString(cmd::cancel), {{QStringLiteral("request"), A::Integer}}},
     };
     return table;
@@ -57,14 +63,15 @@ const CommandSpec *findCommand(const QString &name)
 }
 
 // Exactly the keys of `names`, nothing more, nothing less.
-static QString checkKeys(const QJsonObject &obj, const QStringList &names, const QString &where)
+static QString checkKeys(const QJsonObject &obj, const QStringList &names, const QString &where,
+                         const QStringList &optional = {})
 {
     for (const QString &key : obj.keys()) {
         if (!names.contains(key))
             return QStringLiteral("%1: the argument \"%2\" is not taken").arg(where, key);
     }
     for (const QString &name : names) {
-        if (!obj.contains(name))
+        if (!obj.contains(name) && !optional.contains(name))
             return QStringLiteral("%1: the argument \"%2\" is missing").arg(where, name);
     }
     return {};
@@ -98,12 +105,18 @@ static QString checkType(const QJsonValue &value, ArgType type, const QString &n
 QString checkArguments(const CommandSpec &spec, const QJsonObject &args)
 {
     QStringList names;
-    for (const ArgSpec &arg : spec.args)
+    QStringList optional;
+    for (const ArgSpec &arg : spec.args) {
         names.append(arg.name);
-    QString why = checkKeys(args, names, spec.name);
+        if (arg.optional)
+            optional.append(arg.name);
+    }
+    QString why = checkKeys(args, names, spec.name, optional);
     if (!why.isEmpty())
         return why;
     for (const ArgSpec &arg : spec.args) {
+        if (arg.optional && !args.contains(arg.name))
+            continue;
         why = checkType(args.value(arg.name), arg.type, arg.name);
         if (!why.isEmpty())
             return QStringLiteral("%1: %2").arg(spec.name, why);

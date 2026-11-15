@@ -3,6 +3,7 @@
 
 #include "system.h"
 
+#include "classiccmds.h"
 #include "helperconstants.h"
 #include "udevrule.h"
 
@@ -83,6 +84,86 @@ public:
         }
         return out;
     }
+
+    ServiceResult unmountAll(const QString &blockPath) override
+    {
+        ServiceResult out;
+        QString error;
+        const auto all = objects(&error);
+        if (!all) {
+            out.code = QString(err::openFailed);
+            out.detail = QStringLiteral("udisks2 cannot be reached: ") + error;
+            return out;
+        }
+        const tacetos::device::UdisksSnapshot snapshot = tacetos::device::parseUdisksObjects(*all);
+        QString drive;
+        for (const auto &block : snapshot.blocks) {
+            if (block.path == blockPath)
+                drive = block.drivePath;
+        }
+        if (drive.isEmpty() || drive == QLatin1String("/")) {
+            out.code = QString(err::diskGone);
+            out.detail = QStringLiteral("udisks2 no longer knows the disk");
+            return out;
+        }
+        tacetos::device::UdisksDBusBackend backend;
+        for (const auto &block : snapshot.blocks) {
+            if (block.drivePath != drive || !block.mounted())
+                continue;
+            const tacetos::device::UdisksReply reply = backend.unmount(block.path);
+            if (reply.ok())
+                continue;
+            out.detail = reply.errorName + QLatin1Char(' ') + reply.errorMessage;
+            switch (tacetos::device::diskErrorFromName(reply.errorName)) {
+            case tacetos::device::DiskError::NotAuthorized:
+                out.code = QString(err::permissionDenied);
+                break;
+            case tacetos::device::DiskError::Busy:
+                out.code = QString(err::inUse);
+                break;
+            default:
+                out.code = QString(err::openFailed);
+            }
+            return out;
+        }
+        return out;
+    }
+
+    ServiceResult powerOff(const QString &blockPath) override
+    {
+        ServiceResult out;
+        QString error;
+        const auto all = objects(&error);
+        QString drive;
+        if (all) {
+            for (const auto &block : tacetos::device::parseUdisksObjects(*all).blocks) {
+                if (block.path == blockPath)
+                    drive = block.drivePath;
+            }
+        }
+        if (drive.isEmpty() || drive == QLatin1String("/")) {
+            out.code = QString(err::diskGone);
+            out.detail = QStringLiteral("udisks2 no longer knows the disk");
+            return out;
+        }
+        tacetos::device::UdisksDBusBackend backend;
+        const tacetos::device::UdisksReply reply = backend.powerOff(drive);
+        if (!reply.ok()) {
+            out.code = tacetos::device::diskErrorFromName(reply.errorName) ==
+                               tacetos::device::DiskError::NotAuthorized
+                           ? QString(err::permissionDenied)
+                           : QString(err::openFailed);
+            out.detail = reply.errorName + QLatin1Char(' ') + reply.errorMessage;
+        }
+        return out;
+    }
+
+    bool listed(const QString &blockPath) override
+    {
+        QString error;
+        const auto all = objects(&error);
+        return all && all->contains(blockPath);
+    }
 };
 
 } // namespace
@@ -100,6 +181,9 @@ std::unique_ptr<SystemLayer> makeRealSystem()
     system->udev.rulesFile = QString(kUdevRulesFile);
     system->udev.pkexecPath = QStandardPaths::findExecutable(QStringLiteral("pkexec"));
     system->udev.runner = runner.get();
+#if TACETOS_HELPER_HAS_USB
+    system->classicLayer = makeLinuxClassicLayer;
+#endif
 #endif
     return system;
 }

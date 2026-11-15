@@ -3,6 +3,7 @@
 
 #include "server.h"
 
+#include "classiccmds.h"
 #include "commands.h"
 #include "dfuimage.h"
 #include "diskcmds.h"
@@ -103,8 +104,24 @@ bool Server::handleLine(const LineReader::Item &item)
     }
     m_lastId = parsed.request.id;
     const QString &name = parsed.request.cmd;
-    if (name == cmd::readState || name == cmd::readDeviceSheet || isLegacyCommand(name))
+    if (name == cmd::readState || name == cmd::readDeviceSheet || isLegacyCommand(name) ||
+        name == cmd::classicDfu)
         return handleDiskCommand(parsed.request);
+    if (name == cmd::resumePaused) {
+        const qint64 id = parsed.request.id;
+        const QString why =
+            checkDataDir(parsed.request.args.value(QStringLiteral("dataDir")).toString());
+        if (!why.isEmpty())
+            return send(makeResultError(id, err::badDataDir, why));
+        send(makeAccepted(id));
+        CommandOutcome outcome;
+        if (m_system)
+            outcome = runResumePaused(parsed.request.args, *m_system);
+        else
+            outcome.ok = true;
+        return send(outcome.ok ? makeResultOk(id, outcome.data)
+                               : makeResultError(id, outcome.error, outcome.detail, outcome.data));
+    }
     if (name == cmd::installUdevRule) {
         const qint64 id = parsed.request.id;
         send(makeAccepted(id));
@@ -232,6 +249,10 @@ bool Server::handleDiskCommand(const Request &request)
             return send(makeResultError(id, disk.code, disk.detail));
         target.ok = true;
         target.lockKey = disk.lockKey;
+    } else if (request.cmd == cmd::classicDfu) {
+        // Section 6.9: the disk of a Classic to eject, never an image.
+        return send(makeResultError(id, err::badTarget,
+                                    QStringLiteral("classic-dfu takes a real disk only")));
     } else if (request.cmd == cmd::readDeviceSheet) {
         // An image file has no device to ask (section 6.3).
         return send(
@@ -262,7 +283,11 @@ bool Server::handleDiskCommand(const Request &request)
     m_cancellable = true;
     m_cancelAsked = false;
     CommandOutcome outcome;
-    if (realDisk && !diskCommand) {
+    if (realDisk && request.cmd == cmd::classicDfu) {
+        Running hooks(*this, id);
+        hooks.log(QStringLiteral("info"), QStringLiteral("classic-dfu on a real disk"));
+        outcome = runClassicDfuOnDisk(request.args, *m_system, disk, hooks);
+    } else if (realDisk && !diskCommand) {
         Running hooks(*this, id);
         hooks.log(QStringLiteral("info"), QStringLiteral("%1 on a real disk").arg(request.cmd));
         outcome = runLegacyCommandOnDisk(request.cmd, request.args, *m_system, disk, hooks);

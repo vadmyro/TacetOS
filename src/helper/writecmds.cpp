@@ -21,6 +21,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
+#include <memory>
 
 namespace tacetos::helper {
 
@@ -221,18 +222,90 @@ bool isError(const CommandOutcome &o)
     return !o.error.isEmpty();
 }
 
-// A command that opens the image twice: read only for the scan, then read and
-// write for the work (section 6.5).
-struct Opened
+// How a command reaches its disk: an image file, or a real disk through the disk
+// service of the system. The recognition, the checks and the writes are the same
+// for both; only the opening, the unmount and the gate differ.
+class DiskAccess
 {
-    FileSectorDevice reader;
-    FileSectorDevice writer;
-    Opened(const ResolvedTarget &t)
-        : reader(t.path, t.sectorSize, FileSectorDevice::Mode::ReadOnly),
-          writer(t.path, t.sectorSize, FileSectorDevice::Mode::ReadWrite)
-    {
-    }
+public:
+    virtual ~DiskAccess() = default;
+    virtual bool realDisk() const = 0;
+    // The gate of section 9 for this disk.
+    virtual bool realWrites() const = 0;
+    // Section 11.3, before a format or a conversion. Empty when done.
+    virtual CommandOutcome unmount() = 0;
+    // Read only for the scan, read and write for the work, only after every check
+    // (section 11.1). Null, with the failure in `why`, when it cannot be opened.
+    virtual std::unique_ptr<SectorDevice> open(bool write, CommandOutcome &why) = 0;
+    // A real disk adds them to its scan token (section 5.3).
+    int usbBus = -1;
+    int usbDevice = -1;
 };
+
+class ImageAccess : public DiskAccess
+{
+public:
+    explicit ImageAccess(const ResolvedTarget &t) : m_target(t) {}
+    bool realDisk() const override { return false; }
+    bool realWrites() const override { return realWritesAllowed(); }
+    // An image has no file system mounted on it: there is nothing to unmount.
+    CommandOutcome unmount() override { return {}; }
+    std::unique_ptr<SectorDevice> open(bool write, CommandOutcome &why) override
+    {
+        auto dev = std::make_unique<FileSectorDevice>(m_target.path, m_target.sectorSize,
+                                                      write ? FileSectorDevice::Mode::ReadWrite
+                                                            : FileSectorDevice::Mode::ReadOnly);
+        if (const IoResult r = dev->open(); !r) {
+            why = failure(err::openFailed, r.error);
+            return nullptr;
+        }
+        return dev;
+    }
+
+private:
+    const ResolvedTarget &m_target;
+};
+
+#if !defined(Q_OS_WIN)
+// A real disk: every open goes through the disk service, which may ask for the
+// password (section 11.1). The helper never opens the disk by itself.
+class ServiceAccess : public DiskAccess
+{
+public:
+    ServiceAccess(SystemLayer &system, const RealDisk &disk) : m_system(system), m_disk(disk)
+    {
+        usbBus = disk.usbBus;
+        usbDevice = disk.usbDevice;
+    }
+    bool realDisk() const override { return true; }
+    bool realWrites() const override { return m_system.realWrites; }
+    CommandOutcome unmount() override
+    {
+        const ServiceResult r = m_system.disks->unmountAll(m_disk.blockPath);
+        if (!r.ok())
+            return failure(r.code, r.detail);
+        return {};
+    }
+    std::unique_ptr<SectorDevice> open(bool write, CommandOutcome &why) override
+    {
+        const OpenResult opened = m_system.disks->open(m_disk.blockPath, write);
+        if (opened.fd < 0) {
+            why = failure(opened.code, opened.detail);
+            return nullptr;
+        }
+        return std::make_unique<FdSectorDevice>(opened.fd, m_disk.sizeBytes, write);
+    }
+
+private:
+    SystemLayer &m_system;
+    const RealDisk &m_disk;
+};
+#endif
+
+CommandOutcome devBuildRefusal()
+{
+    return failure(err::devBuild, QStringLiteral("this build does not write to real iPods"));
+}
 
 CommandOutcome mapOperation(const OperationResult &res, const WatchedDevice &dev,
                             CommandHooks &hooks)
@@ -321,8 +394,8 @@ CommandOutcome runBackup(const QJsonObject &args, const ResolvedTarget &t, Comma
     return backupOnDevice(image, args, hooks);
 }
 
-CommandOutcome runBootloader(const QString &cmdName, const QJsonObject &args,
-                             const ResolvedTarget &t, CommandHooks &hooks)
+CommandOutcome runBootloader(const QString &cmdName, const QJsonObject &args, DiskAccess &access,
+                             CommandHooks &hooks)
 {
     const bool install = cmdName == cmd::installBootloader;
     const bool uninstall = cmdName == cmd::uninstallBootloader;
@@ -343,24 +416,31 @@ CommandOutcome runBootloader(const QString &cmdName, const QJsonObject &args,
     }
 
     hooks.stage(QStringLiteral("open"));
-    Opened opened(t);
-    if (const IoResult r = opened.reader.open(); !r)
-        return failure(err::openFailed, r.error);
+    CommandOutcome why;
+    std::unique_ptr<SectorDevice> reader = access.open(false, why);
+    if (!reader)
+        return why;
     hooks.stage(QStringLiteral("check"));
     Scan scan;
-    CommandOutcome bad =
-        scanAndCompare(opened.reader, args.value(QStringLiteral("scanToken")).toString(), scan);
+    CommandOutcome bad = scanAndCompare(*reader, args.value(QStringLiteral("scanToken")).toString(),
+                                        scan, access.usbBus, access.usbDevice);
     if (isError(bad))
         return bad;
-    const FirmwareState fw = readFirmware(opened.reader, scan.rec);
+    const FirmwareState fw = readFirmware(*reader, scan.rec);
     if (stateName(fw.state) != expected)
         return failure(
             err::stateChanged,
             QStringLiteral("the iPod is %1, not %2 as shown").arg(stateName(fw.state), expected));
+    // Step 9: a development build never writes to a real disk, and does not even
+    // open it for writing.
+    if (!writeAllowed(*reader, access.realWrites()))
+        return devBuildRefusal();
+    reader.reset();
 
-    if (const IoResult r = opened.writer.open(); !r)
-        return failure(err::openFailed, r.error);
-    WatchedDevice dev(opened.writer, hooks);
+    std::unique_ptr<SectorDevice> writer = access.open(true, why);
+    if (!writer)
+        return why;
+    WatchedDevice dev(*writer, hooks);
 
     OperationRequest req;
     req.op = install ? Operation::Install : (uninstall ? Operation::Uninstall : Operation::Update);
@@ -371,11 +451,12 @@ CommandOutcome runBootloader(const QString &cmdName, const QJsonObject &args,
     req.backupFault = testFault("backup");
     req.recordFault = testFault("record");
     req.bootloaderVersion = args.value(QStringLiteral("bootloaderVersion")).toString();
+    req.allowRealWrites = access.realWrites();
     const OperationResult res = runOperation(dev, req);
     return mapOperation(res, dev, hooks);
 }
 
-CommandOutcome runRestore(const QJsonObject &args, const ResolvedTarget &t, CommandHooks &hooks)
+CommandOutcome runRestore(const QJsonObject &args, DiskAccess &access, CommandHooks &hooks)
 {
     // Section 6.6: the backup must be in the data folder.
     const QString dataDir = QDir(args.value(QStringLiteral("dataDir")).toString()).canonicalPath();
@@ -385,20 +466,23 @@ CommandOutcome runRestore(const QJsonObject &args, const ResolvedTarget &t, Comm
         return failure(err::badRequest, QStringLiteral("the backup is not in the data folder"));
 
     hooks.stage(QStringLiteral("open"));
-    Opened opened(t);
-    if (const IoResult r = opened.reader.open(); !r)
-        return failure(err::openFailed, r.error);
+    CommandOutcome why;
+    std::unique_ptr<SectorDevice> reader = access.open(false, why);
+    if (!reader)
+        return why;
     hooks.stage(QStringLiteral("check"));
     Scan scan;
-    CommandOutcome bad =
-        scanAndCompare(opened.reader, args.value(QStringLiteral("scanToken")).toString(), scan);
+    CommandOutcome bad = scanAndCompare(*reader, args.value(QStringLiteral("scanToken")).toString(),
+                                        scan, access.usbBus, access.usbDevice);
     if (isError(bad))
         return bad;
-    if (!writeAllowed(opened.reader))
-        return failure(err::devBuild, QStringLiteral("this build does not write to real iPods"));
-    if (const IoResult r = opened.writer.open(); !r)
-        return failure(err::openFailed, r.error);
-    WatchedDevice dev(opened.writer, hooks);
+    if (!writeAllowed(*reader, access.realWrites()))
+        return devBuildRefusal();
+    reader.reset();
+    std::unique_ptr<SectorDevice> writer = access.open(true, why);
+    if (!writer)
+        return why;
+    WatchedDevice dev(*writer, hooks);
     const RestoreResult res = restoreBackup(dev, scan.snap, backup);
     if (res.ok)
         return success({});
@@ -412,32 +496,42 @@ CommandOutcome runRestore(const QJsonObject &args, const ResolvedTarget &t, Comm
 }
 
 CommandOutcome runFormatOrConvert(const QString &cmdName, const QJsonObject &args,
-                                  const ResolvedTarget &t, CommandHooks &hooks)
+                                  DiskAccess &access, CommandHooks &hooks)
 {
     const bool convert = cmdName == cmd::convertToFat32;
-    // An image has no file system mounted on it: there is nothing to unmount.
-    hooks.stage(QStringLiteral("unmount"));
+    // Section 11.3: the music partition is unmounted first. A development build,
+    // which stops at the gate on a real disk, leaves it mounted.
+    if (!access.realDisk() || access.realWrites()) {
+        hooks.stage(QStringLiteral("unmount"));
+        const CommandOutcome unmounted = access.unmount();
+        if (isError(unmounted))
+            return unmounted;
+    }
     hooks.stage(QStringLiteral("open"));
-    Opened opened(t);
-    if (const IoResult r = opened.reader.open(); !r)
-        return failure(err::openFailed, r.error);
+    CommandOutcome why;
+    std::unique_ptr<SectorDevice> reader = access.open(false, why);
+    if (!reader)
+        return why;
     hooks.stage(QStringLiteral("check"));
     Scan scan;
-    CommandOutcome bad =
-        scanAndCompare(opened.reader, args.value(QStringLiteral("scanToken")).toString(), scan);
+    CommandOutcome bad = scanAndCompare(*reader, args.value(QStringLiteral("scanToken")).toString(),
+                                        scan, access.usbBus, access.usbDevice);
     if (isError(bad))
         return bad;
-    if (!writeAllowed(opened.reader))
-        return failure(err::devBuild, QStringLiteral("this build does not write to real iPods"));
-    if (const IoResult r = opened.writer.open(); !r)
-        return failure(err::openFailed, r.error);
-    WatchedDevice dev(opened.writer, hooks);
+    if (!writeAllowed(*reader, access.realWrites()))
+        return devBuildRefusal();
+    reader.reset();
+    std::unique_ptr<SectorDevice> writer = access.open(true, why);
+    if (!writer)
+        return why;
+    WatchedDevice dev(*writer, hooks);
 
     FormatRequest fr;
     fr.label = args.value(QStringLiteral("volumeLabel")).toString();
     fr.ipodName = args.value(QStringLiteral("ipodName")).toString();
     fr.typedName = args.value(QStringLiteral("typedName")).toString();
     fr.slotUnmounted = true;
+    fr.allowRealWrites = access.realWrites();
 
     if (!convert) {
         const FormatResult res = formatMusicPartition(dev, fr);
@@ -473,13 +567,25 @@ CommandOutcome runFormatOrConvert(const QString &cmdName, const QJsonObject &arg
     // Section 6.8: the result of the recognition again, with a new token.
     hooks.stage(QStringLiteral("verify"));
     CommandOutcome again = readState(
-        opened.writer, [&](const QString &level, const QString &text) { hooks.log(level, text); },
-        [](const QString &) {});
+        *writer, [&](const QString &level, const QString &text) { hooks.log(level, text); },
+        [](const QString &) {}, access.usbBus, access.usbDevice);
     if (!again.ok)
         return again;
     again.data.insert(QStringLiteral("backup"), res.backupPath);
     again.data.insert(QStringLiteral("mapBackup"), res.mapBackupPath);
     return again;
+}
+
+// Every command of this file but the backup, on either kind of disk.
+CommandOutcome runWithAccess(const QString &cmdName, const QJsonObject &args, DiskAccess &access,
+                             CommandHooks &hooks)
+{
+    if (cmdName == cmd::installBootloader || cmdName == cmd::updateBootloader ||
+        cmdName == cmd::uninstallBootloader)
+        return runBootloader(cmdName, args, access, hooks);
+    if (cmdName == cmd::restoreBackup)
+        return runRestore(args, access, hooks);
+    return runFormatOrConvert(cmdName, args, access, hooks);
 }
 
 } // namespace
@@ -525,44 +631,17 @@ CommandOutcome runLegacyCommandOnDisk(const QString &cmdName, const QJsonObject 
     Q_UNUSED(hooks)
     return failure(err::unsupportedSystem, QStringLiteral("no disk service on this system yet"));
 #else
-    // Step 6: for reading only. The disk is opened for writing nowhere in this
-    // function (section 11.1: only after every check).
-    hooks.stage(QStringLiteral("open"));
-    const OpenResult opened = system.disks->open(disk.blockPath, false);
-    if (opened.fd < 0)
-        return failure(opened.code, opened.detail);
-    FdSectorDevice dev(opened.fd, disk.sizeBytes, false);
-    if (cmdName == cmd::backupFirmware)
+    if (cmdName == cmd::backupFirmware) {
+        // Step 6: for reading only; the backup never opens the disk for writing.
+        hooks.stage(QStringLiteral("open"));
+        const OpenResult opened = system.disks->open(disk.blockPath, false);
+        if (opened.fd < 0)
+            return failure(opened.code, opened.detail);
+        FdSectorDevice dev(opened.fd, disk.sizeBytes, false);
         return backupOnDevice(dev, args, hooks, disk.usbBus, disk.usbDevice);
-
-    // Step 7: the recognition and the token, which is check 1 of the spec of the
-    // installer: the disk read now is the disk that was shown.
-    hooks.stage(QStringLiteral("check"));
-    Scan scan;
-    const CommandOutcome bad = scanAndCompare(
-        dev, args.value(QStringLiteral("scanToken")).toString(), scan, disk.usbBus, disk.usbDevice);
-    if (isError(bad))
-        return bad;
-    if (cmdName == cmd::installBootloader || cmdName == cmd::updateBootloader ||
-        cmdName == cmd::uninstallBootloader) {
-        const QString expected = args.value(QStringLiteral("expectedState")).toString();
-        // Section 6.5: `clean` for an install, `installed` for the two others.
-        if (expected != (cmdName == cmd::installBootloader ? QLatin1String("clean")
-                                                           : QLatin1String("installed")))
-            return failure(
-                err::badRequest,
-                QStringLiteral("expectedState \"%1\" does not fit %2").arg(expected, cmdName));
-        const FirmwareState fw = readFirmware(dev, scan.rec);
-        if (stateName(fw.state) != expected)
-            return failure(err::stateChanged, QStringLiteral("the iPod is %1, not %2 as shown")
-                                                  .arg(stateName(fw.state), expected));
     }
-    // Step 9: a development build never writes to a real disk.
-    if (!writeAllowed(dev))
-        return failure(err::devBuild, QStringLiteral("this build does not write to real iPods"));
-    // The writes of a real disk are not made yet: nothing is opened for writing.
-    return failure(err::unsupportedSystem,
-                   QStringLiteral("writing to a real disk is not made in this build yet"));
+    ServiceAccess access(system, disk);
+    return runWithAccess(cmdName, args, access, hooks);
 #endif
 }
 
@@ -571,12 +650,8 @@ CommandOutcome runLegacyCommand(const QString &cmdName, const QJsonObject &args,
 {
     if (cmdName == cmd::backupFirmware)
         return runBackup(args, t, hooks);
-    if (cmdName == cmd::installBootloader || cmdName == cmd::updateBootloader ||
-        cmdName == cmd::uninstallBootloader)
-        return runBootloader(cmdName, args, t, hooks);
-    if (cmdName == cmd::restoreBackup)
-        return runRestore(args, t, hooks);
-    return runFormatOrConvert(cmdName, args, t, hooks);
+    ImageAccess access(t);
+    return runWithAccess(cmdName, args, access, hooks);
 }
 
 } // namespace tacetos::helper

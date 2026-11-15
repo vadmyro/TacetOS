@@ -27,6 +27,8 @@ struct RealDisk
     qint64 sizeBytes = 0;
     int usbBus = -1;
     int usbDevice = -1;
+    // The USB product id, four lowercase hexadecimal digits.
+    QString usbProduct;
 };
 
 // `target` has passed `checkTargetShape` and is of kind `disk`. Opens nothing.

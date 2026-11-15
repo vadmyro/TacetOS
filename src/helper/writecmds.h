@@ -51,9 +51,10 @@ CommandOutcome runLegacyCommand(const QString &cmd, const QJsonObject &args,
                                 const ResolvedTarget &target, CommandHooks &hooks);
 
 // The same on a real disk that passed step 4 of section 7.1 (`checkRealDisk`). The
-// backup is made; for the other commands the checks run on a disk opened for
-// reading only, and then a development build answers `dev-build`. No command
-// opens a real disk for writing yet.
+// checks run on the disk opened for reading only. Then a development build
+// answers `dev-build` (`SystemLayer::realWrites`); a build with the gate open
+// unmounts the music partition for a format or a conversion (section 11.3), opens
+// the disk again for reading and writing (section 11.1), and writes as on an image.
 CommandOutcome runLegacyCommandOnDisk(const QString &cmd, const QJsonObject &args,
                                       SystemLayer &system, const RealDisk &disk,
                                       CommandHooks &hooks);

@@ -58,6 +58,8 @@ inline constexpr QLatin1String verifyFailed("verify-failed");
 inline constexpr QLatin1String backupFailed("backup-failed");
 inline constexpr QLatin1String backupMismatch("backup-mismatch");
 inline constexpr QLatin1String tooLate("too-late");
+inline constexpr QLatin1String dfuFailed("dfu-failed");
+inline constexpr QLatin1String unavailable("unavailable");
 inline constexpr QLatin1String noSuchRequest("no-such-request");
 inline constexpr QLatin1String cancelled("cancelled");
 inline constexpr QLatin1String helperCrashed("helper-crashed");
@@ -71,7 +73,7 @@ inline constexpr QLatin1String helperMismatch("helper-mismatch");
 inline constexpr QLatin1String helperSilent("helper-silent");
 } // namespace err
 
-// The names of the closed list of commands (section 6.1) that exist so far.
+// The names of the closed list of commands (section 6.1).
 namespace cmd {
 inline constexpr QLatin1String readState("read-state");
 inline constexpr QLatin1String backupFirmware("backup-firmware");
@@ -83,7 +85,13 @@ inline constexpr QLatin1String formatMusic("format-music");
 inline constexpr QLatin1String convertToFat32("convert-to-fat32");
 inline constexpr QLatin1String readDeviceSheet("read-device-sheet");
 inline constexpr QLatin1String installUdevRule("install-udev-rule");
+inline constexpr QLatin1String classicDfu("classic-dfu");
+inline constexpr QLatin1String resumePaused("resume-paused");
 inline constexpr QLatin1String cancel("cancel");
 } // namespace cmd
+
+// Sections 6.9 and 6.10: the state file of the programs paused around a DFU
+// transfer, in the data folder (bootloader-classic.md section 15.1).
+inline constexpr QLatin1String kPausedStateFile("paused-programs.json");
 
 } // namespace tacetos::helper

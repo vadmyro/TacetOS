@@ -11,3 +11,5 @@ The skeleton of the program is there too. `tacet-helper` reads one JSON request 
 For the tests of a cut in the middle of an operation there is a second program, `tacet-helper-killtest`, built only with the tests (`killpoint.h`). It is the same helper with a variable that kills it with SIGKILL at the n-th read, write or flush of a command. The normal `tacet-helper` is built without it and does not read the variable; a test looks for the name in the file.
 
 In the same program, `fullpoint.h` makes the data folder answer "no space left" (the variable `TACETOS_TEST_FULL`, `backup` or `record`), for the tests of a full disk. The normal helper always answers "no fault" there.
+
+On a real disk, a write command reads and checks the disk opened by udisks2 for reading only. A development build stops there with `dev-build`. A build made with `TACETOS_ALLOW_REAL_WRITES` unmounts the music partition for a format or a conversion, opens the disk again for reading and writing, and writes as on an image (`writecmds.cpp`, the same code for both).
