@@ -274,6 +274,9 @@ public:
         r.code = QStringLiteral("permission-denied");
         return r;
     }
+    ServiceResult unmountAll(const QString &) override { return {}; }
+    ServiceResult powerOff(const QString &) override { return {}; }
+    bool listed(const QString &) override { return true; }
 };
 
 void TestHelperLinux::realCheckWithFakeService()

@@ -65,3 +65,9 @@ if(UNIX)
     add_test(NAME tst_helper_diskfull COMMAND tst_helper_diskfull)
     set_tests_properties(tst_helper_diskfull PROPERTIES TIMEOUT 300)
 endif()
+
+# classic-dfu and resume-paused (docs/specs/helper.md sections 6.9, 6.10) on the fake
+# system layer and the fake iPod in DFU mode of the installer tests.
+qt_add_executable(tst_helper_classic tst_helper_classic.cpp)
+target_link_libraries(tst_helper_classic PRIVATE tacet_helper_core tacet_installer_testing Qt6::Test)
+add_test(NAME tst_helper_classic COMMAND tst_helper_classic)

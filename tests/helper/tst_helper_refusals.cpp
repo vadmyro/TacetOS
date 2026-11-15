@@ -2,12 +2,14 @@
 // Copyright (C) 2026 vadmyro
 
 // docs/specs/helper.md sections 7 and 15: the disks that are not an iPod, and the
-// disk that is not the one that was shown, for every command that writes. The
+// disk that is not the one that was shown, for every command that writes; then the
+// writes themselves on a "real" disk when the gate is open (section 16). The
 // helper loop runs in this process on recorded answers of udisks2 and a copy of
 // the device tree; each "disk" is an image file. Each case checks the code, that
 // there is a message, that no descriptor was opened for writing, and that the
 // image is the same byte for byte (its hash).
 
+#include "bootloaderfile.h"
 #include "checks.h"
 #include "fakepod.h"
 #include "helperconstants.h"
@@ -30,9 +32,11 @@
 
 using namespace tacetos::helper;
 using tacetos::device::UdisksObjects;
+using tacetos::fakepod::BootloaderFile;
 using tacetos::fakepod::FakePod;
 using tacetos::fakepod::FakePodResult;
 using tacetos::fakepod::FakePodSpec;
+using tacetos::fakepod::TableKind;
 
 namespace {
 
@@ -146,22 +150,50 @@ public:
     QString imagePath;
     int readOpens = 0;
     int writeOpens = 0;
+    // Every call that opens or changes the disk, in order: "r", "rw", "unmount".
+    QStringList calls;
+    // Off: an open for writing is refused, as the user who closes the password
+    // window. On: the image is given for writing, as udisks2 gives a real disk.
+    bool allowWrite = false;
+    // The answer to the unmount: empty when it works.
+    QString unmountCode;
     QString version() override { return QStringLiteral("2.9.4"); }
     std::optional<UdisksObjects> objects(QString *) override { return data; }
     OpenResult open(const QString &, bool write) override
     {
         OpenResult r;
+        calls.append(write ? QStringLiteral("rw") : QStringLiteral("r"));
         if (write) {
             ++writeOpens;
-            r.code = QStringLiteral("permission-denied");
-            return r;
+            if (!allowWrite) {
+                r.code = QStringLiteral("permission-denied");
+                r.detail = QStringLiteral("the user closed the password window");
+                return r;
+            }
+            r.fd = ::open(imagePath.toLocal8Bit().constData(), O_RDWR);
+        } else {
+            ++readOpens;
+            r.fd = ::open(imagePath.toLocal8Bit().constData(), O_RDONLY);
         }
-        ++readOpens;
-        r.fd = ::open(imagePath.toLocal8Bit().constData(), O_RDONLY);
         if (r.fd < 0)
             r.code = QStringLiteral("open-failed");
         return r;
     }
+    ServiceResult unmountAll(const QString &) override
+    {
+        calls.append(QStringLiteral("unmount"));
+        ServiceResult r;
+        r.code = unmountCode;
+        if (!r.code.isEmpty())
+            r.detail = QStringLiteral("a program is using the volume");
+        return r;
+    }
+    ServiceResult powerOff(const QString &) override
+    {
+        calls.append(QStringLiteral("power-off"));
+        return {};
+    }
+    bool listed(const QString &) override { return false; }
 };
 
 // The two ends of the helper, in memory. The input ends when the result is out,
@@ -283,6 +315,38 @@ private:
         return r.ok ? spec.path : QString();
     }
 
+    // A Windows or Mac iPod whose music partition is large enough for FAT32: made
+    // larger as a sparse file, with its size written in the table (as in the
+    // command tests of the helper).
+    QString makeLargePod(const QString &name, TableKind table)
+    {
+        FakePodSpec spec;
+        spec.modelId = QStringLiteral("ipod-video");
+        spec.path = path(name);
+        spec.table = table;
+        const FakePodResult r = FakePod::build(spec);
+        if (!r.ok || r.sectorSize != 512)
+            return {};
+        constexpr qint64 kMusicTotal = 600 * 1024 * 2;
+        QFile f(spec.path);
+        if (!f.open(QIODevice::ReadWrite) || !f.resize((r.musicStart / 512 + kMusicTotal) * 512))
+            return {};
+        QByteArray count(4, '\0');
+        for (int k = 0; k < 4; ++k) {
+            const int shift = table == TableKind::Apm ? 24 - 8 * k : 8 * k;
+            count[k] = char((quint32(kMusicTotal) >> shift) & 0xFF);
+        }
+        f.seek(table == TableKind::Apm ? 1536 + 12 : 0x1BE + 16 + 12);
+        return f.write(count) == 4 ? spec.path : QString();
+    }
+
+    // A bootloader file for the target that read-state named.
+    QString makeBootloader(const QString &target)
+    {
+        const QString file = path(QStringLiteral("boot%1.bin").arg(++m_count));
+        return put(file, BootloaderFile::build(target)) ? file : QString();
+    }
+
     QJsonObject targetFor(const Recorded &r, const QString &image) const
     {
         return {{"kind", "disk"},
@@ -335,6 +399,12 @@ private slots:
     void imageChangedAfterTheScan();
     void everyWriteCommandStopsAtTheGate();
     void backupOfTheRightIpodReadsOnly();
+    void writesWithTheGateOpen_data();
+    void writesWithTheGateOpen();
+    void restoreWithTheGateOpen();
+    void unmountRefusedWritesNothing();
+    void writeOpenRefusedWritesNothing();
+    void gateFollowsTheBuild();
 };
 
 void TestHelperRefusals::notAnIpod_data()
@@ -476,6 +546,9 @@ void TestHelperRefusals::imageChangedAfterTheScan()
     QTemporaryDir data;
     const QString extra = path(QStringLiteral("extra.bin"));
     QVERIFY(put(extra, QByteArray(64, 'x')));
+    // A restore takes its backup from the data folder only (section 6.6).
+    const QString inData = data.filePath(QStringLiteral("extra.bin"));
+    QVERIFY(put(inData, QByteArray(64, 'x')));
     for (const QString &command : kWriteCommands) {
         const QString image = makePod(QStringLiteral("scan%1.img").arg(++m_count));
         QVERIFY(!image.isEmpty());
@@ -495,9 +568,9 @@ void TestHelperRefusals::imageChangedAfterTheScan()
         }
         const QByteArray before = fileHash(image);
         const auto w = world(r, image, tree.path());
-        const Answer a =
-            runRequest(w->system, locks.path(), command,
-                       argsFor(command, targetFor(r, image), token, data.path(), extra));
+        const Answer a = runRequest(w->system, locks.path(), command,
+                                    argsFor(command, targetFor(r, image), token, data.path(),
+                                            command == cmd::restoreBackup ? inData : extra));
         checkRefused(a, QStringLiteral("disk-changed"), image, before, w->service);
         // The disk was opened for reading, to be compared, and for nothing else.
         QCOMPARE(w->service->readOpens, 1);
@@ -523,6 +596,9 @@ void TestHelperRefusals::everyWriteCommandStopsAtTheGate()
     QTemporaryDir data;
     const QString extra = path(QStringLiteral("extra.bin"));
     QVERIFY(put(extra, QByteArray(64, 'x')));
+    // A restore takes its backup from the data folder only (section 6.6).
+    const QString inData = data.filePath(QStringLiteral("extra.bin"));
+    QVERIFY(put(inData, QByteArray(64, 'x')));
     int gated = 0;
     for (const QString &command : kWriteCommands) {
         if (command == cmd::backupFirmware)
@@ -538,11 +614,13 @@ void TestHelperRefusals::everyWriteCommandStopsAtTheGate()
         const QString token = scan.data().value(QStringLiteral("scanToken")).toString();
         const QByteArray before = fileHash(image);
         const auto w = world(r, image, tree.path());
-        const Answer a =
-            runRequest(w->system, locks.path(), command,
-                       argsFor(command, targetFor(r, image), token, data.path(), extra));
+        const Answer a = runRequest(w->system, locks.path(), command,
+                                    argsFor(command, targetFor(r, image), token, data.path(),
+                                            command == cmd::restoreBackup ? inData : extra));
         QVERIFY2(!a.result.isEmpty(), qPrintable(command));
         QCOMPARE(a.code(), QString(err::devBuild));
+        // A development build leaves the music partition mounted.
+        QVERIFY2(!w->service->calls.contains(QStringLiteral("unmount")), qPrintable(command));
         QVERIFY2(a.detail().contains(QStringLiteral("does not write to real iPods")),
                  qPrintable(command + ": " + a.detail()));
         QCOMPARE(w->service->writeOpens, 0);
@@ -579,6 +657,216 @@ void TestHelperRefusals::backupOfTheRightIpodReadsOnly()
     QVERIFY(QFileInfo::exists(a.data().value(QStringLiteral("path")).toString()));
     QCOMPARE(w->service->writeOpens, 0);
     QCOMPARE(fileHash(image), before);
+}
+
+// docs/specs/helper.md section 16: the writes on a real disk, in a build whose gate is
+// open. The loop runs in this process with `SystemLayer::realWrites` set by the test,
+// which is the only way to open it besides the build option; the "real disk" is an
+// image file given by the fake disk service for reading, then for writing. Each case
+// checks the order of the calls (unmount for a format or a conversion, read only,
+// then read and write after every check), the result, and the iPod read again.
+void TestHelperRefusals::writesWithTheGateOpen_data()
+{
+    QTest::addColumn<QString>("command");
+    QTest::addColumn<bool>("installed");
+    QTest::addColumn<bool>("mac");
+    QTest::addColumn<QStringList>("calls");
+    QTest::addColumn<QString>("stateAfter");
+    QTest::addColumn<QString>("tableAfter");
+    const QStringList readThenWrite{"r", "rw"};
+    QTest::newRow("install") << QString(cmd::installBootloader) << false << false << readThenWrite
+                             << "installed" << "dos";
+    QTest::newRow("update") << QString(cmd::updateBootloader) << true << false << readThenWrite
+                            << "installed" << "dos";
+    QTest::newRow("uninstall") << QString(cmd::uninstallBootloader) << true << false
+                               << readThenWrite << "clean" << "dos";
+#if defined(Q_OS_LINUX)
+    // Large sparse files, which only Linux makes cheaply.
+    const QStringList unmountFirst{"unmount", "r", "rw"};
+    QTest::newRow("format") << QString(cmd::formatMusic) << false << false << unmountFirst
+                            << QString() << "dos";
+    QTest::newRow("convert") << QString(cmd::convertToFat32) << false << true << unmountFirst
+                             << QString() << "dos";
+#endif
+}
+
+void TestHelperRefusals::writesWithTheGateOpen()
+{
+    TACETOS_NEEDS_SYMLINKS();
+    QFETCH(QString, command);
+    QFETCH(bool, installed);
+    QFETCH(bool, mac);
+    QFETCH(QStringList, calls);
+    QFETCH(QString, stateAfter);
+    QFETCH(QString, tableAfter);
+    const Recorded r;
+    QTemporaryDir tree;
+    QVERIFY(makeTree(tree.path(), r));
+    QTemporaryDir locks;
+    QTemporaryDir data;
+    const bool large = command == cmd::formatMusic || command == cmd::convertToFat32;
+    const QString name = QStringLiteral("open-%1.img").arg(command);
+    const QString image = large ? makeLargePod(name, mac ? TableKind::Apm : TableKind::Dos)
+                                : makePod(name, installed);
+    QVERIFY(!image.isEmpty());
+
+    auto scanWorld = world(r, image, tree.path());
+    const Answer scan = runRequest(scanWorld->system, locks.path(), QString(cmd::readState),
+                                   QJsonObject{{"target", targetFor(r, image)}});
+    QVERIFY2(scan.ok(), qPrintable(scan.detail()));
+    const QString token = scan.data().value(QStringLiteral("scanToken")).toString();
+    const QString boot = makeBootloader(scan.data().value(QStringLiteral("target")).toString());
+    QVERIFY(!boot.isEmpty());
+    const QByteArray before = fileHash(image);
+
+    auto w = world(r, image, tree.path());
+    w->system.realWrites = true;
+    w->service->allowWrite = true;
+    QJsonObject args = argsFor(command, targetFor(r, image), token, data.path(), boot);
+    if (mac) {
+        args.insert(QStringLiteral("ipodName"), QStringLiteral("Mac iPod"));
+        args.insert(QStringLiteral("typedName"), QStringLiteral("Mac iPod"));
+    }
+    const Answer a = runRequest(w->system, locks.path(), command, args);
+    QVERIFY2(a.ok(), qPrintable(a.code() + QLatin1Char(' ') + a.detail()));
+    QCOMPARE(w->service->calls, calls);
+    QVERIFY(fileHash(image) != before);
+    // The first stage is the unmount for a format or a conversion, the open otherwise.
+    QString firstStage;
+    for (const QJsonObject &e : a.events) {
+        if (e.value(QStringLiteral("event")).toString() == QLatin1String("progress")) {
+            firstStage = e.value(QStringLiteral("stage")).toString();
+            break;
+        }
+    }
+    QCOMPARE(firstStage, calls.first() == QLatin1String("unmount") ? QStringLiteral("unmount")
+                                                                   : QStringLiteral("open"));
+
+    auto again = world(r, image, tree.path());
+    const Answer after = runRequest(again->system, locks.path(), QString(cmd::readState),
+                                    QJsonObject{{"target", targetFor(r, image)}});
+    QVERIFY2(after.ok(), qPrintable(after.detail()));
+    QCOMPARE(after.data().value(QStringLiteral("table")).toString(), tableAfter);
+    if (!stateAfter.isEmpty())
+        QCOMPARE(after.data().value(QStringLiteral("state")).toString(), stateAfter);
+}
+
+// A backup of the firmware partition made on the real disk is written back to it.
+void TestHelperRefusals::restoreWithTheGateOpen()
+{
+    TACETOS_NEEDS_SYMLINKS();
+    const Recorded r;
+    QTemporaryDir tree;
+    QVERIFY(makeTree(tree.path(), r));
+    QTemporaryDir locks;
+    QTemporaryDir data;
+    const QString image = makePod(QStringLiteral("open-restore.img"));
+    QVERIFY(!image.isEmpty());
+    const QByteArray original = fileHash(image);
+    auto read = [&] {
+        auto w = world(r, image, tree.path());
+        return runRequest(w->system, locks.path(), QString(cmd::readState),
+                          QJsonObject{{"target", targetFor(r, image)}});
+    };
+
+    Answer state = read();
+    QVERIFY(state.ok());
+    QString token = state.data().value(QStringLiteral("scanToken")).toString();
+    auto w = world(r, image, tree.path());
+    const Answer backup = runRequest(
+        w->system, locks.path(), QString(cmd::backupFirmware),
+        argsFor(QString(cmd::backupFirmware), targetFor(r, image), token, data.path(), QString()));
+    QVERIFY2(backup.ok(), qPrintable(backup.detail()));
+    const QString saved = backup.data().value(QStringLiteral("path")).toString();
+
+    const QString boot = makeBootloader(state.data().value(QStringLiteral("target")).toString());
+    w = world(r, image, tree.path());
+    w->system.realWrites = true;
+    w->service->allowWrite = true;
+    const Answer install = runRequest(
+        w->system, locks.path(), QString(cmd::installBootloader),
+        argsFor(QString(cmd::installBootloader), targetFor(r, image), token, data.path(), boot));
+    QVERIFY2(install.ok(), qPrintable(install.detail()));
+    QVERIFY(fileHash(image) != original);
+
+    state = read();
+    token = state.data().value(QStringLiteral("scanToken")).toString();
+    w = world(r, image, tree.path());
+    w->system.realWrites = true;
+    w->service->allowWrite = true;
+    const Answer restore = runRequest(
+        w->system, locks.path(), QString(cmd::restoreBackup),
+        argsFor(QString(cmd::restoreBackup), targetFor(r, image), token, data.path(), saved));
+    QVERIFY2(restore.ok(), qPrintable(restore.code() + QLatin1Char(' ') + restore.detail()));
+    QCOMPARE(w->service->calls, (QStringList{"r", "rw"}));
+    QCOMPARE(read().data().value(QStringLiteral("state")).toString(), QStringLiteral("clean"));
+}
+
+// The music volume is used by a program: the format stops at the unmount, before
+// the disk is even opened, and nothing is written.
+void TestHelperRefusals::unmountRefusedWritesNothing()
+{
+    TACETOS_NEEDS_SYMLINKS();
+    const Recorded r;
+    QTemporaryDir tree;
+    QVERIFY(makeTree(tree.path(), r));
+    QTemporaryDir locks;
+    QTemporaryDir data;
+    const QString image = makePod(QStringLiteral("open-busy.img"));
+    QVERIFY(!image.isEmpty());
+    auto scanWorld = world(r, image, tree.path());
+    const Answer scan = runRequest(scanWorld->system, locks.path(), QString(cmd::readState),
+                                   QJsonObject{{"target", targetFor(r, image)}});
+    QVERIFY(scan.ok());
+    const QByteArray before = fileHash(image);
+    auto w = world(r, image, tree.path());
+    w->system.realWrites = true;
+    w->service->allowWrite = true;
+    w->service->unmountCode = QString(err::inUse);
+    const Answer a = runRequest(w->system, locks.path(), QString(cmd::formatMusic),
+                                argsFor(QString(cmd::formatMusic), targetFor(r, image),
+                                        scan.data().value(QStringLiteral("scanToken")).toString(),
+                                        data.path(), QString()));
+    checkRefused(a, QString(err::inUse), image, before, w->service);
+    QCOMPARE(w->service->calls, QStringList{QStringLiteral("unmount")});
+}
+
+// The user closes the password window when the disk is opened for writing: the
+// answer says so and the iPod is as it was.
+void TestHelperRefusals::writeOpenRefusedWritesNothing()
+{
+    TACETOS_NEEDS_SYMLINKS();
+    const Recorded r;
+    QTemporaryDir tree;
+    QVERIFY(makeTree(tree.path(), r));
+    QTemporaryDir locks;
+    QTemporaryDir data;
+    const QString image = makePod(QStringLiteral("open-denied.img"));
+    QVERIFY(!image.isEmpty());
+    auto scanWorld = world(r, image, tree.path());
+    const Answer scan = runRequest(scanWorld->system, locks.path(), QString(cmd::readState),
+                                   QJsonObject{{"target", targetFor(r, image)}});
+    QVERIFY(scan.ok());
+    const QString boot = makeBootloader(scan.data().value(QStringLiteral("target")).toString());
+    const QByteArray before = fileHash(image);
+    auto w = world(r, image, tree.path());
+    w->system.realWrites = true;
+    const Answer a = runRequest(w->system, locks.path(), QString(cmd::installBootloader),
+                                argsFor(QString(cmd::installBootloader), targetFor(r, image),
+                                        scan.data().value(QStringLiteral("scanToken")).toString(),
+                                        data.path(), boot));
+    QVERIFY(!a.ok());
+    QCOMPARE(a.code(), QString(err::permissionDenied));
+    QVERIFY(!a.detail().isEmpty());
+    QCOMPARE(w->service->calls, (QStringList{"r", "rw"}));
+    QCOMPARE(fileHash(image), before);
+}
+
+// Section 9: outside these tests, the gate is the build option and nothing else.
+void TestHelperRefusals::gateFollowsTheBuild()
+{
+    QCOMPARE(SystemLayer().realWrites, tacetos::installer::realWritesAllowed());
+    QCOMPARE(makeRealSystem()->realWrites, tacetos::installer::realWritesAllowed());
 }
 
 QTEST_GUILESS_MAIN(TestHelperRefusals)

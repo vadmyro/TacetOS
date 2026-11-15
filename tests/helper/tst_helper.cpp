@@ -158,9 +158,11 @@ private slots:
         QTest::newRow("unknown command")
             << good(QStringLiteral("format-everything"), QStringLiteral("{}"))
             << QString(err::unknownCommand);
-        QTest::newRow("listed in the spec but not wired")
+        // Every command of section 6.1 is wired now: an empty request is refused for
+        // its missing arguments, not as an unknown command.
+        QTest::newRow("classic-dfu, arguments missing")
             << good(QStringLiteral("classic-dfu"), QStringLiteral("{}"))
-            << QString(err::unknownCommand);
+            << QString(err::badRequest);
         QTest::newRow("wired, arguments missing")
             << good(QStringLiteral("format-music"), QStringLiteral("{}"))
             << QString(err::badRequest);
