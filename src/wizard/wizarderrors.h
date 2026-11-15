@@ -19,5 +19,12 @@ inline constexpr QLatin1String badFlow("bad-flow");
 inline constexpr QLatin1String cancelled("cancelled");
 inline constexpr QLatin1String ipodGone("ipod-gone");
 inline constexpr QLatin1String checkBlocking("check-blocking");
+inline constexpr QLatin1String backupFullDisk("backup-full-disk");
+inline constexpr QLatin1String backupReadFailed("backup-read-failed");
+inline constexpr QLatin1String backupVerifyFailed("backup-verify-failed");
+inline constexpr QLatin1String sourceChanged("source-changed");
+inline constexpr QLatin1String backupNameRefused("backup-name-refused");
+inline constexpr QLatin1String backupNotVerified("backup-not-verified");
+inline constexpr QLatin1String backupDamaged("backup-damaged");
 
 } // namespace tacetos::wizard::error

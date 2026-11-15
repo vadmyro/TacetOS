@@ -4,6 +4,8 @@
 # The logic of the install wizard (docs/specs/install-wizard.md), with no user
 # interface. Qt Core only.
 qt_add_library(tacet_wizard STATIC
+    backup.cpp
+    backup.h
     diagnose.cpp
     diagnose.h
     flow.cpp
