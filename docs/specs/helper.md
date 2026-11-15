@@ -264,7 +264,7 @@ A disk that is not recognised as an iPod is still a success, with `method` `unkn
 |---|---|---|
 | `target` | object | A real disk only: an image file has no device to ask (`bad-target`) |
 
-The iPod in Disk Mode or in normal mode answers SCSI INQUIRY requests for vendor pages of vital product data, which together hold a small property list (XML) about the device: the exact model, the version of Apple's firmware, the serial number and more. The helper reads it **without writing anything**:
+The iPod in Disk Mode or in normal mode answers SCSI INQUIRY requests for vendor pages of vital product data, which together hold a small property list (XML) about the device: the version of Apple's firmware, the serial number and more. The exact model number is not always there: a real 120 GB Classic gave none (2026-11-14). The helper reads it **without writing anything**:
 
 1. It opens the disk for reading only.
 2. It sends INQUIRY (operation code `0x12`) with the EVPD bit set, for page `0xC0`. The answer lists the page codes that hold the property list.
@@ -273,7 +273,7 @@ The iPod in Disk Mode or in normal mode answers SCSI INQUIRY requests for vendor
 
 INQUIRY is the only SCSI command the helper ever sends. It has no other: no mode page, no vendor command, nothing that writes.
 
-The `data` of the result is the text of the property list, as the iPod gave it. Reading the keys of that list is the app's work (a pure function, tested on recorded sheets), and every key used must first be seen on real iPods (`detection.md` section 13). An iPod that does not answer page `0xC0` gives `sheet-unsupported`, which is not an error for the app: it goes on without the sheet.
+The `data` of the result is an object with one field, `text`: the property list, as the iPod gave it. It is not always a strict property list: the sheet of a real Classic has lists that hold key and value pairs, which a strict reader refuses, so the reader of the app must accept them. Reading the keys of that list is the app's work (a pure function, tested on recorded sheets), and every key used must first be seen on real iPods (`detection.md` section 13). An iPod that does not answer page `0xC0` gives `sheet-unsupported`, which is not an error for the app: it goes on without the sheet.
 
 ### 6.4 `backup-firmware`
 
@@ -397,7 +397,7 @@ The helper checks a request in this order, and stops at the first refusal. Up to
    - no file system of the disk holds the system, the home folder or the data folder, and no partition of it is used as swap (`system-disk`). This one cannot fail on a real iPod; it is there so that no mistake in the steps above can ever reach a disk of the computer.
 5. **The lock** of section 8 (`disk-locked`).
 6. **Opening the disk**: refused by the user (`permission-denied`), held by another program (`in-use`), or another failure (`open-failed`).
-7. **The recognition** of `bootloader-legacy.md` section 6, and the token of section 5.3 (`not-an-ipod`, `unsupported-model`, `disk-changed`, `state-changed`).
+7. **The recognition** of `bootloader-legacy.md` section 6, and the token of section 5.3 (`not-an-ipod`, `unsupported-model`, `wrong-method`, `disk-changed`, `state-changed`).
 8. **The checks of the command**: `bootloader-legacy.md` section 11, section 20.1, section 21; `bootloader-classic.md` sections 3 and 8 (`check-failed`, with the number of the check in `data`, or the code of the case).
 9. **The gate** of section 9 (`dev-build`), at the moment of the first write.
 
@@ -569,6 +569,7 @@ The code is what the app reads; the `detail` is for the journal. The app shows i
 | `not-an-ipod` | Sections 7.1 steps 4 and 7 | "This disk is not an iPod" |
 | `system-disk` | Section 7.1 step 4 | "This disk is not an iPod", and the log at the level `error` |
 | `unsupported-model` | Section 7.1 step 7 | "An iPod TacetOS does not support" |
+| `wrong-method` | Section 7.1 step 7: a command of sections 6.4 to 6.8 sent to a Classic, which has no firmware partition | "This iPod is installed over DFU" and the Classic install of section 6.9. The app reads `method` first and does not send these commands, so this is a guard |
 | `not-classic` | Section 6.9 | "This iPod is not an iPod Classic" |
 | `disk-locked` | Section 8 | "Another TacetOS window is working on this iPod" |
 | `permission-denied` | Sections 7.1 step 6, 11.5 | "Permission denied", and how to give it on this system |

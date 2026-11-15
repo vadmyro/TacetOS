@@ -708,7 +708,7 @@ For this group:
 
 ## 27. Not decided yet
 
-- A copy of the banner and of a real firmware partition header from a real older iPod (the rows of section 4 were checked by the reference partition tool, not on a device). A real Classic has no firmware partition: its dump of 2026-11-11 shows a single FAT32 partition in slot 1, with sectors of 4096 bytes (`detection.md` section 6.1).
+- A copy of the banner and of a real firmware partition header from a real older iPod (the rows of section 4 were checked by the reference partition tool, not on a device). A real Classic has no firmware partition: its dump of 2026-11-11 shows a single FAT32 partition in slot 1, with sectors of 4096 bytes (`detection.md` section 6.1). Seen again on 2026-11-14 by the helper on a real 120 GB Classic: `read-state` gives a DOS table, slot 1 of type `0x0B` starting at sector 63, the other slots empty, and `method` `dfu`.
 - Whether a Mac iPod with 2048-byte sectors exists in the wild. If one does, section 2.3 needs a real example.
 - Whether the app should warn when an iPod passes the tests but its firmware version is much older than the others of the same generation. The version field is read (section 7.2) but no list of known versions exists yet.
 - The location of the image area for a 3rd generation iPod (section 7.3) and the version field of its OSOS entry. Needs a dump of a real 3rd generation iPod, or the spec of a trustworthy second source.
