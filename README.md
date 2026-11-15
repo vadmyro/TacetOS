@@ -48,7 +48,7 @@
 | Setup | Repository, app skeleton, CI | ✅ 4/4 |
 | Foundations | Firmware base, model database, specs | ✅ 7/7 |
 | **v0.1** | Device detection and live state | ✅ 7/7 |
-| Test devices | Disk image test devices, privileged helper | ⏳ 5/5 |
+| Test devices | Disk image test devices, privileged helper | ✅ 6/6 |
 | **v0.2** | Install and reset wizard | ⏳ 0/12 |
 | **v0.3** | TacetOS firmware | ⏳ 0/10 |
 | **v0.4** | Music library and sync | ⏳ 0/11 |
@@ -59,13 +59,20 @@
 | **beta** | Packages, public beta | ⏳ 0/6 |
 | **v1.0** | Fixes from the beta | ⏳ 0/1 |
 
-### Now: test devices and helper
+### Now: install and reset wizard
 
-- [x] Disk images that behave like an iPod, for every family
-- [x] Installer for older iPods, checked byte for byte against a reference tool on the disk images
-- [x] Installer for the iPod Classic over DFU, always dual boot, checked byte for byte
-- [x] Privileged helper with a fixed set of commands (format, convert, install, uninstall, backup)
-- [x] Safety tests: refuse a USB stick, power cut in the middle of a write, full disk
+- [ ] Early checks of DFU on Windows and disk writes on macOS
+- [ ] Wizard flow that resumes after an interruption
+- [ ] Diagnostic screen with blocking checks before any write, and a clear message when something is missing on the computer
+- [ ] Automatic backup of settings, themes, playlists and the firmware partition
+- [ ] Format or convert (Mac to FAT32) with a strong confirmation
+- [ ] Firmware install that keeps your settings
+- [ ] Bootloader install on older iPods
+- [ ] Built-in DFU guide: buttons to hold, countdown, carries on by itself
+- [ ] Bootloader install on the iPod Classic, dual boot
+- [ ] Uninstall: back to 100 % Apple software
+- [ ] Real-device test: uninstall, reinstall, check
+- [ ] Log and a "copy report" button for Discord
 
 Every task is listed in the [roadmap](docs/ROADMAP.md). News is posted on the [Discord server](https://discord.gg/XfXtZeUFYs).
 
