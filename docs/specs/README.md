@@ -8,5 +8,6 @@ Precise rules the code must follow (library sorting, install flow...), written b
 - [helper.md](helper.md): the program that does every disk write, its messages, commands and refusals
 - [bootloader-legacy.md](bootloader-legacy.md): the bootloader of the older iPods
 - [bootloader-classic.md](bootloader-classic.md): the bootloader of the iPod Classic
+- [install-wizard.md](install-wizard.md): the steps of an install and an uninstall, the backups, the resume after a cut, the report
 - [library-rules.md](library-rules.md): how music is sorted and copied
 - [theme-format.md](theme-format.md): how a theme is written
