@@ -89,4 +89,19 @@ inline constexpr QLatin1String kFirmwareInfoFile("rockbox-info.txt");
 // empty, no info file can be taken for a TacetOS one.
 inline constexpr QLatin1String kDistributionKey("");
 
+// docs/specs/install-wizard.md section 5.3: the playlist folder at the root of
+// the music volume, kept by the backup of "Keep my music".
+inline constexpr QLatin1String kPlaylistsFolder("Playlists");
+
+// docs/specs/install-wizard.md section 7.3: what a new install keeps of the old
+// firmware folder, and what the backup of an uninstall copies. Compared without
+// case, as FAT32 does.
+inline constexpr const char *kKeptFirmwareFiles[] = {
+    "config.cfg",        "fixed.cfg",         ".resume.cfg",
+    ".playlist_control", "most-recent.bmark", "battery_levels.cfg",
+};
+inline constexpr const char *kKeptFirmwareFolders[] = {
+    "themes", "wps", "backdrops", "icons", "fonts", "eqs", "recpresets", "rocks.data",
+};
+
 } // namespace tacetos::device
