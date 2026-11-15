@@ -299,7 +299,7 @@ Rules:
 
 ### 5.4 The manifest
 
-Each backup has a `manifest.json` at its root, written last, in one move (as in section 3.1), only once every file has been copied and checked.
+Each backup has a `manifest.json` at its root, written last, in one move (as in section 3.1), only once every file has been copied and checked. The files of the music volume are kept under a `volume/` folder of the backup, with their paths, so that no name of the iPod meets the manifest or the copy of the firmware partition that the helper writes at the root.
 
 | Key | Type | Meaning |
 |---|---|---|
