@@ -42,6 +42,9 @@ struct SystemProcess
     bool operator==(const SystemProcess &o) const { return id == o.id && name == o.name; }
 };
 
+// The steps of one run of a transfer, in their order (`runClassicDfu`).
+enum class ClassicStage { Check, Eject, Pause, WaitDevice, Transfer, Watch, Done };
+
 // Everything the flow asks of the system. A real one exists per system.
 class ClassicSystemLayer
 {
@@ -70,6 +73,8 @@ struct AroundOptions
     std::function<bool()> cancelled;
     // A line for the user: the countdown, "Close the programs using the iPod".
     std::function<void(const QString &)> notify;
+    // Each step of `runClassicDfu` as it starts.
+    std::function<void(ClassicStage)> stage;
 };
 
 // Section 15.1, steps 1 and 2.
@@ -259,9 +264,11 @@ struct ClassicDfuJob
     // Reads the state after the restart (the detection). Unknown when empty.
     std::function<BootloaderState()> readState;
     DfuSendOptions send;
+    // False: the run ends when the iPod has taken the image (step 7 of section 5),
+    // and the watch of step 8 is left to the caller (the helper leaves it to the
+    // detection of the app).
+    bool watchAfter = true;
 };
-
-enum class ClassicStage { Check, Eject, Pause, WaitDevice, Transfer, Watch, Done };
 
 struct ClassicDfuOutcome
 {

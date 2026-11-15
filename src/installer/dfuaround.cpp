@@ -501,12 +501,18 @@ ClassicDfuOutcome runClassicDfu(ClassicSystemLayer &layer, const ClassicDfuJob &
     if (!check.ok)
         return stopped(ClassicStage::Check, check.message);
 
+    const auto enter = [&](ClassicStage s) {
+        if (options.stage)
+            options.stage(s);
+    };
+    enter(ClassicStage::Eject);
     const EjectResult ejected = ejectIpod(layer, options);
     if (ejected.cancelled)
         return cancelledAt(ClassicStage::Eject);
     if (!ejected.ok)
         return stopped(ClassicStage::Eject, ejected.message);
 
+    enter(ClassicStage::Pause);
     const int spin = spinDownWaitMs(job.hasHardDisk);
     if (spin > 0)
         pause(options, spin);
@@ -519,12 +525,14 @@ ClassicDfuOutcome runClassicDfu(ClassicSystemLayer &layer, const ClassicDfuJob &
     if (!pausedNow.ok)
         return stopped(ClassicStage::Pause, pausedNow.message);
 
+    enter(ClassicStage::WaitDevice);
     const DfuWaitResult waited = waitForQuietDfu(layer, options);
     if (waited.cancelled)
         return cancelledAt(ClassicStage::WaitDevice);
     if (!waited.ok)
         return stopped(ClassicStage::WaitDevice, waited.message);
 
+    enter(ClassicStage::Transfer);
     std::unique_ptr<UsbDfuLink> link = layer.makeLink(waited.device);
     ClassicDfuOutcome out;
     out.stage = ClassicStage::Transfer;
@@ -542,7 +550,14 @@ ClassicDfuOutcome runClassicDfu(ClassicSystemLayer &layer, const ClassicDfuJob &
         return out;
     }
 
+    if (!job.watchAfter) {
+        out.stage = ClassicStage::Done;
+        out.ok = true;
+        out.message = QStringLiteral("The iPod took the image and restarts.");
+        return out;
+    }
     out.stage = ClassicStage::Watch;
+    enter(ClassicStage::Watch);
     out.returned = watchAfterTransfer(layer, options);
     const BootloaderState now = out.returned == ReturnedMode::Normal && job.readState
                                     ? job.readState()
