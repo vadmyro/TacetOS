@@ -71,7 +71,7 @@ jobs:
       - name: Cache the reference partition tool
         if: runner.os == 'Linux'
         id: reference-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/reference-tools/partition-tool
           key: reference-tools-${{ hashFiles('firmware/base.lock', 'tests/reference/build-reference-tools.sh') }}
@@ -86,7 +86,7 @@ jobs:
         # Saved right after it is built (below), so that a failing test does not lose it.
         if: runner.os == 'Linux'
         id: toolchain-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ runner.temp }}/toolchain
           key: toolchain-${{ hashFiles('firmware/base.lock') }}
@@ -100,7 +100,7 @@ jobs:
       - name: Restore the Classic DFU parts
         if: runner.os == 'Linux'
         id: dfu-parts-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ runner.temp }}/dfu-parts
           key: dfu-parts-${{ hashFiles('firmware/base.lock', 'tests/reference/build-dfu-parts.sh', 'tests/reference/extract-dfu-blocks.c') }}
@@ -114,14 +114,14 @@ jobs:
 
       - name: Save the ARM toolchain
         if: runner.os == 'Linux' && steps.toolchain-cache.outputs.cache-hit != 'true' && steps.dfu-parts-build.outcome == 'success'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ runner.temp }}/toolchain
           key: ${{ steps.toolchain-cache.outputs.cache-primary-key }}
 
       - name: Save the Classic DFU parts
         if: runner.os == 'Linux' && steps.dfu-parts-build.outcome == 'success'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ runner.temp }}/dfu-parts
           key: ${{ steps.dfu-parts-cache.outputs.cache-primary-key }}
@@ -151,7 +151,7 @@ jobs:
       - name: Restore the ARM toolchain
         # The same cache as the build job, read only: that job saves it.
         id: toolchain-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ runner.temp }}/toolchain
           key: toolchain-${{ hashFiles('firmware/base.lock') }}
@@ -195,7 +195,7 @@ jobs:
           PY
 
       - name: Keep the package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tacetos-ipod6g
           path: ${{ runner.temp }}/fw/package/
