@@ -198,6 +198,12 @@ CommandOutcome scanAndCompare(SectorDevice &dev, const QString &token, Scan &sca
         return failure(err::openFailed, scan.rec.message);
     if (scan.rec.verdict == Verdict::UnknownGeneration)
         return failure(err::unsupportedModel, scan.rec.message);
+    // A Classic is an iPod, but these commands are for a firmware partition it does
+    // not have (section 13).
+    if (scan.rec.verdict != Verdict::Recognised && looksLikeClassic(scan.rec.table))
+        return failure(
+            err::wrongMethod,
+            QStringLiteral("this iPod is installed over DFU, it has no firmware partition"));
     if (scan.rec.verdict != Verdict::Recognised)
         return failure(err::notAnIpod, scan.rec.message);
     scan.snap = takeScanSnapshot(dev, scan.rec);

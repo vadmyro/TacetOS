@@ -44,6 +44,7 @@ inline constexpr QLatin1String notRemovableUsb("not-removable-usb");
 inline constexpr QLatin1String notAnIpod("not-an-ipod");
 inline constexpr QLatin1String systemDisk("system-disk");
 inline constexpr QLatin1String unsupportedModel("unsupported-model");
+inline constexpr QLatin1String wrongMethod("wrong-method");
 inline constexpr QLatin1String diskLocked("disk-locked");
 inline constexpr QLatin1String permissionDenied("permission-denied");
 inline constexpr QLatin1String inUse("in-use");

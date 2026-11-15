@@ -55,9 +55,7 @@ static QString tableName(const PartitionTable &t)
     return t.kind == TableKind::Apm ? QStringLiteral("apple") : QStringLiteral("dos");
 }
 
-// A Classic: a DOS table with one FAT32 partition in the first slot, and no
-// firmware partition.
-static bool looksLikeClassic(const PartitionTable &t)
+bool looksLikeClassic(const PartitionTable &t)
 {
     if (t.status != TableStatus::Ok || t.kind != TableKind::Dos || t.slotList.isEmpty())
         return false;

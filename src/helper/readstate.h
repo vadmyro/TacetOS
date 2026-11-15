@@ -42,6 +42,10 @@ QString scanTokenFor(installer::SectorDevice &dev, const installer::Recognition 
                      const installer::ScanSnapshot &snap, QString *error, int usbBus = -1,
                      int usbDevice = -1);
 
+// A Classic: a DOS table with one FAT32 partition in the first slot, and no
+// firmware partition (section 6.2, method `dfu`).
+bool looksLikeClassic(const installer::PartitionTable &t);
+
 // `usbBus` and `usbDevice` are those of a real disk (section 5.3), -1 for an image.
 CommandOutcome readState(installer::SectorDevice &dev, const LogFn &log, const StageFn &stage,
                          int usbBus = -1, int usbDevice = -1);
