@@ -379,6 +379,45 @@ private slots:
                  QStringLiteral("dfu"));
     }
 
+    void legacyCommandsOnAClassicAreWrongMethod()
+    {
+        HelperClient client;
+        client.setProgram(QStringLiteral(TACETOS_HELPER_PROGRAM));
+        QSignalSpy spy(&client, &HelperClient::finished);
+        client.readImageState(m_classicImage, 4096);
+        QVERIFY(spy.wait(20000));
+        const QString token = spy.first()
+                                  .at(1)
+                                  .toJsonObject()
+                                  .value(QStringLiteral("data"))
+                                  .toObject()
+                                  .value(QStringLiteral("scanToken"))
+                                  .toString();
+        QVERIFY(!token.isEmpty());
+        const QByteArray before = fileHash(m_classicImage);
+
+        QJsonObject backup = imageArgs(m_classicImage, 4096);
+        backup.insert(QStringLiteral("scanToken"), token);
+        backup.insert(QStringLiteral("dataDir"), m_dir.filePath(QStringLiteral("classic-data")));
+        QJsonObject format = imageArgs(m_classicImage, 4096);
+        format.insert(QStringLiteral("scanToken"), token);
+        format.insert(QStringLiteral("ipodName"), QStringLiteral("iPod"));
+        format.insert(QStringLiteral("typedName"), QStringLiteral("iPod"));
+        format.insert(QStringLiteral("volumeLabel"), QStringLiteral("IPOD"));
+
+        // One at a time: the helper answers `busy` to a request sent during another.
+        const QList<QPair<QString, QJsonObject>> requests = {
+            {QStringLiteral("backup-firmware"), backup}, {QStringLiteral("format-music"), format}};
+        for (const auto &[name, args] : requests) {
+            spy.clear();
+            client.request(name, args);
+            QVERIFY(spy.wait(20000));
+            QCOMPARE(spy.first().at(1).toJsonObject().value(QStringLiteral("error")).toString(),
+                     QString(err::wrongMethod));
+        }
+        QCOMPARE(fileHash(m_classicImage), before);
+    }
+
     void clientGetsRefusals()
     {
         HelperClient client;
