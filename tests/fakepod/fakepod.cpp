@@ -343,6 +343,21 @@ FakePodResult buildSinglePartition(const FakePodSpec &spec, const ModelRow &m)
 
 } // namespace
 
+bool FakePod::growMusic(const QString &path, qint64 musicFirstSector, TableKind table)
+{
+    QFile f(path);
+    if (!f.open(QIODevice::ReadWrite) || !f.resize((musicFirstSector + kGrownMusicSectors) * 512))
+        return false;
+    QByteArray count(4, '\0');
+    for (int k = 0; k < 4; ++k) {
+        // Big-endian in the Apple map, little-endian in the DOS table.
+        const int shift = table == TableKind::Apm ? 24 - 8 * k : 8 * k;
+        count[k] = char((quint32(kGrownMusicSectors) >> shift) & 0xFF);
+    }
+    f.seek(table == TableKind::Apm ? 1536 + 12 : 0x1BE + 16 + 12);
+    return f.write(count) == 4;
+}
+
 FakePodResult FakePod::build(const FakePodSpec &spec)
 {
     FakePodResult r;

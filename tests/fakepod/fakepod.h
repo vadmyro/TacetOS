@@ -110,6 +110,12 @@ public:
     // The 256 bytes of the banner of section 4, built from its description.
     static QByteArray banner();
 
+    // The music partition of an image is too small for FAT32: this makes it
+    // `kGrownMusicSectors` long, as a sparse file, and writes that size in the
+    // table. Images of 512-byte sectors only.
+    static bool growMusic(const QString &path, qint64 musicFirstSector, TableKind table);
+    static constexpr qint64 kGrownMusicSectors = 600 * 1024 * 2;
+
     // Fixed sizes of this library.
     static constexpr qint64 kImageBytes = 64 * 1024 * 1024;
     static constexpr qint64 kFirmwareStartSector = 64;
