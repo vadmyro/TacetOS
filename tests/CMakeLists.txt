@@ -12,6 +12,7 @@ if(TACETOS_HAS_VARIADIC_MACRO_WARNING)
 endif()
 
 add_subdirectory(app)
+add_subdirectory(archive)
 add_subdirectory(device)
 add_subdirectory(fakepod)
 add_subdirectory(journal)
