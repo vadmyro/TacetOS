@@ -60,7 +60,7 @@ An iPod with no serial is refused: the wizard does not start (`no-serial`). The 
 Rules:
 
 1. **Clean install is chosen by default.** If the computer has not enough room for it (section 5.2), it is greyed with the reason ("Not enough space on this computer: 92 GB needed, 40 GB free"), and Keep my music is chosen instead.
-2. **A Mac iPod can only take the clean install.** Its music volume is HFS+, which the firmware cannot read, and the conversion of `bootloader-legacy.md` section 21 erases the music volume. Keep my music is greyed with the reason ("This iPod is formatted for Mac. TacetOS needs a Windows format, which erases the iPod"). If the computer has not enough room either, the install cannot start, and the message says how much space is needed.
+2. **A Mac iPod can only take the clean install.** Its music volume is HFS+, which the firmware cannot read, and the conversion of `bootloader-legacy.md` section 21 erases the music volume. Keep my music is greyed with the reason ("This iPod is formatted for Mac. TacetOS needs a Windows format, which erases the iPod"). If the computer has not enough room either, the install cannot start, and the message says how much space is needed. An iPod Classic formatted for Mac takes neither path in this version (section 6.4): both are greyed with "This iPod Classic is formatted for Mac, which TacetOS cannot change yet. Restore it with Apple's software on a Windows computer first", and the check `format` blocks.
 3. **Nothing is erased until the copy is verified.** The format of section 6 refuses to run without a complete and verified manifest of the whole volume for this serial (section 6.1).
 
 ### 2.3 The steps, by family and path
@@ -347,6 +347,7 @@ The screen lists the backups of the folder of section 5.1, by serial and date, f
 
 - **`keep` and `settings` backups** (small): the app checks the sha256 of every file of the backup first. A difference refuses the whole restore (`backup-damaged`), with nothing written. Then it copies each file back to its place on the volume (to a temporary name, then renamed over the file there), and reads it back.
 - **`full` backups** ("Put my music back"): every file and folder of the manifest is copied back the same way, by pieces, the sha256 computed while reading the backup and compared with the manifest **before** the file is renamed to its name on the iPod: a damaged file is never placed, and the restore stops there (`backup-damaged`), saying how many files were put back. A file already on the iPod with the same size and sha256 is skipped. Progress, cancel and the time left are as in section 5.5. The firmware folder of the backup is not copied back over a TacetOS install: it is the old one.
+- **A write that fails on the iPod** (it is full, or its file system refuses a name) stops the restore with `restore-write-failed`, saying how many files were put back. The temporary file is deleted, and a new restore skips the files already there.
 - **The firmware partition** is written back only by `restore-backup` (`helper.md` section 6.6), and only when `bootloader-legacy.md` section 19 offers it or the user asks for it on the restore screen, with the confirmation of an install (`bootloader-legacy.md` section 22).
 
 ## 6. Format and conversion
@@ -367,9 +368,19 @@ The step waits for the user with the dialog of `bootloader-legacy.md` section 22
 
 1. `read-state` for a new scan token.
 2. `format-music` or `convert-to-fat32` with the token, the names, the label, and for the conversion the backup folder as `dataDir`. Each `progress` of the helper goes to the screen (stages `unmount`, `open`, `check`, `backup`, `write`, `verify`).
-3. On success, the app asks the disk service to mount the music volume (`helper.md` section 6.7), then waits for detection to show the iPod `ready` again, for at most `VOLUME_RETURN`. The volume must be FAT32 and empty except what the system makes there.
+3. On success, the app asks the disk service to mount the music volume (`helper.md` section 6.7), then waits for detection to show the iPod `ready` again, for at most `VOLUME_RETURN`. The volume must be FAT32 and empty except what the system makes there: `System Volume Information` (Windows), `.fseventsd`, `.Spotlight-V100`, `.Trashes` and `.TemporaryItems` (macOS), and the `.Trash-<user id>` folders of the Linux desktops. A volume that holds anything else fails the step as one that did not come back.
 4. A volume that does not come back fails the step with `volume-not-back`: "The iPod was formatted, but its volume did not come back. Unplug the iPod, plug it in again, then press Resume". The resume finds an empty FAT32 volume and counts the step as done (section 3.3).
 5. A helper that stops (`helper-crashed`, `helper.md` section 3.7) fails the step: the state is read again and the step can be run again (section 3.3).
+
+### 6.4 The iPod Classic
+
+The helper formats the music partition of the older iPods only (`bootloader-legacy.md` section 20.1: 512-byte sectors, music in slot 2). The iPod Classic has 4096-byte sectors and its music in slot 1. In this version, its `format` **empties the music volume through the file system** instead:
+
+1. The checks of section 6.1 and the confirmation of section 6.2 are the same. No helper is asked, so the app checks the typed name itself, with the rule of `bootloader-legacy.md` section 22 (`confirmation-mismatch`).
+2. Every entry at the root of the volume is deleted, folders with everything in them, except what the systems make there (section 6.3). The first deletion is the first write: the step can be cancelled until then.
+3. The step is done when the volume is FAT32 and empty but for what the systems make there. An entry that cannot be deleted fails the step with `erase-failed`; a volume that went away, with `ipod-gone`.
+
+The label of the volume does not change. The resume is the one of `format` in section 3.3: an empty FAT32 volume means the step was done, anything else runs it again from the confirmation. A Classic formatted for Mac cannot be converted in this version (section 2.2 rule 2).
 
 ## 7. The firmware
 
@@ -379,11 +390,11 @@ In v0.2 the user gives the package with a file dialog on the first screen (D39):
 
 1. The manifest is a JSON object, at most 64 KiB, and `format` is `1` (else `package-format`: "This package is for another version of TacetOS").
 2. `target` is the `bootloader_target` of the model of the iPod in `models/models.toml` (else `package-wrong-model`: "This package is for another iPod model").
-3. `files` has exactly two entries, one of kind `firmware` and one of kind `bootloader`, with names that have no folder part, and both files are next to the manifest (else `package-incomplete`).
+3. `files` has exactly two entries, one of kind `firmware` and one of kind `bootloader`, with names that have no folder part, and both files are next to the manifest (else `package-incomplete`: "This package is incomplete"). A manifest that cannot be read at all is incomplete too.
 4. The size and sha256 of each file are those of the manifest (else `package-damaged`: "This package is damaged. Download it again").
 5. The zip of the firmware can be read by the reader of section 7.6, and all its entries are inside one top folder whose name is the firmware folder (else `package-damaged`).
 
-These checks run in `diagnose` (check `package`), and again at the start of `firmware`, of `bootloader` and of `classic-bootloader`, because the files may have changed on the computer. The progress file keeps the path of the manifest and its sha256: a manifest that changed between two steps of the same flow is `package-changed`, and the flow must start again.
+These checks run in `diagnose` (check `package`), and again at the start of `firmware`, of `bootloader` and of `classic-bootloader`, because the files may have changed on the computer. The progress file keeps the path of the manifest and its sha256: a manifest that changed between two steps of the same flow is `package-changed` ("This package changed on this computer since the install started. Start again"), and the flow must start again.
 
 ### 7.2 The space
 
@@ -409,8 +420,8 @@ These names are names the firmware looks for. In the code they are in the one fi
 
 ### 7.4 The steps
 
-1. Check the package (section 7.1) and the space (section 7.2).
-2. Clean up what a cut left (section 7.5).
+1. Check the package (section 7.1).
+2. Clean up what a cut left (section 7.5). Then check the space (section 7.2), only when the step unpacks: a run that goes straight to the check after writes nothing, and the folders a cut left would count against it.
 3. **Unpack** the zip into a folder next to the firmware folder, on the music volume: the name of the firmware folder followed by `NEW_SUFFIX`. The top folder of the zip is not kept in the path: its content goes straight into the new folder. Each file is written, flushed, closed, then read back and its CRC-32 compared with the zip.
 4. **Copy the kept files** from the old folder (or the backup) into the new folder, each one read back and compared with its sha256.
 5. **Swap**: rename the old firmware folder to its name followed by `OLD_SUFFIX` (when there is one), then rename the new folder to the name of the firmware folder. Then delete the old folder.
@@ -449,8 +460,8 @@ Qt has no public way to read a zip. TacetOS has **its own reader** in a small li
 
 The step `disk-mode` waits for the user: the screen shows how to enter Disk Mode on this model and a button "The iPod is in Disk Mode". The app cannot tell Disk Mode from Apple's firmware (D27), so it believes the user. After the button:
 
-- if the iPod went away and came back on the same port (`detection.md` section 9.4) during the wait, or did not go away, the app waits for it to be `ready` again, for at most `VOLUME_RETURN`, then the step is done;
-- if it does not come back in `RESTART_WINDOW`, the step fails with `ipod-not-back`.
+- whether the iPod went away and came back on the same port (`detection.md` section 9.4) during the wait or did not go away, the app waits for detection to show it `ready`, for at most `RESTART_WINDOW` plus `VOLUME_RETURN` (the restart, then its volume), then the step is done;
+- if it is not `ready` by then, the step fails with `ipod-not-back`.
 
 ### 8.2 The run
 
@@ -582,6 +593,8 @@ The wizard has its own codes, and passes on the codes of the helper (`helper.md`
 | `backup-name-refused` | Section 5.5 | "Some names of the iPod cannot be used on this computer", the count |
 | `backup-not-verified` | Sections 5.6, 6.1, 8.2 | "No verified backup of this iPod. Run the backup again" |
 | `backup-damaged` | Section 5.7 | "This backup is damaged", how many files were put back |
+| `restore-write-failed` | Section 5.7 | "Some files could not be written back to the iPod. Check that it has room, then try again", how many files were put back |
+| `erase-failed` | Section 6.4 | "Some files of the iPod could not be erased. Unplug it, plug it in again, then press Resume" |
 | `volume-not-back` | Section 6.3 | "The iPod was formatted, but its volume did not come back. Unplug it, plug it in again, press Resume" |
 | `package-format`, `package-wrong-model`, `package-incomplete`, `package-damaged`, `package-changed` | Section 7.1 | The message of the check, "Choose another package" |
 | `firmware-no-room` | Section 7.2 | "Not enough space on the iPod for TacetOS", the space needed |
@@ -665,3 +678,4 @@ Nothing in the tests touches a real disk, a real iPod, the system bus, a real US
 - Names that the computer refuses (section 5.5): failing is safe, but a user with such names cannot make a clean install. Renaming them in the backup, with a list in the manifest, is for a later version.
 - Whether the list of kept files (section 7.3) is complete for the firmware of v0.3, which adds its own settings.
 - The copy speed of a full Classic over USB 2, which sets the time shown before a clean install.
+- A real format of the iPod Classic (4096-byte sectors, music in slot 1), and the conversion of a Classic formatted for Mac. This version empties the volume of a Classic instead (section 6.4).
