@@ -105,7 +105,9 @@ public:
     QString backupFolder() const override { return QString(); }
     void setBackupFolder(const QString &) override {}
     QString packageManifest() const override { return QStringLiteral("/p/m.json"); }
-    QString packageSha256() const override { return QString(); }
+    QString packageSha256() const override { return flowSha256; }
+
+    QString flowSha256;
 };
 
 class FakeSources : public DiagnoseSources
@@ -152,6 +154,7 @@ private slots:
     void folder();
     void stepAsksTheBattery();
     void stepStopsOnABlockingCheck();
+    void stepSeesAChangedPackage();
 };
 
 void TstWizardDiagnose::allPass()
@@ -259,15 +262,21 @@ void TstWizardDiagnose::rows_data()
         i.ipod.volumeMessage = QStringLiteral("The iPod is not mounted");
     }) << "volume" << F << "not mounted"
                                       << none;
-    QTest::newRow("Mac, clean") << true << Change([](DiagnoseInput &i) {
+    QTest::newRow("Mac, clean") << false << Change([](DiagnoseInput &i) {
         i.ipod.filesystem = Filesystem::HfsPlus;
         i.path = InstallPath::Clean;
     }) << "format" << W << "formatted for Mac"
                                 << none;
-    QTest::newRow("Mac, keep") << true << Change([](DiagnoseInput &i) {
+    QTest::newRow("Mac, keep") << false << Change([](DiagnoseInput &i) {
         i.ipod.filesystem = Filesystem::HfsPlus;
+        i.path = InstallPath::Keep;
     }) << "format" << F << "erases the iPod"
                                << none;
+    QTest::newRow("Classic, Mac") << true << Change([](DiagnoseInput &i) {
+        i.ipod.filesystem = Filesystem::HfsPlus;
+        i.path = InstallPath::Clean;
+    }) << "format" << F << "cannot change yet"
+                                  << none;
     QTest::newRow("other file system")
         << true << Change([](DiagnoseInput &i) { i.ipod.filesystem = Filesystem::Other; })
         << "format" << F << "cannot be used" << none;
@@ -294,7 +303,7 @@ void TstWizardDiagnose::rows_data()
         << "bootloader-state" << F << "could not be read" << none;
     QTest::newRow("package for another model") << true << Change([](DiagnoseInput &i) {
         i.package = {QStringLiteral("package-wrong-model"),
-                     QStringLiteral("This package is for another iPod model"), 0};
+                     QStringLiteral("This package is for another iPod model"), 0, QString()};
     }) << "package" << F << "another iPod model"
                                                << none;
     QTest::newRow("no room on the iPod")
@@ -486,6 +495,26 @@ void TstWizardDiagnose::stepStopsOnABlockingCheck()
     QCOMPARE(outcome.detail, QStringLiteral("udisks"));
     // A failure on the computer never asks the battery question.
     QCOMPARE(context.asked, 0);
+}
+
+// Section 7.1: the package of the progress file is the one the flow started with.
+void TstWizardDiagnose::stepSeesAChangedPackage()
+{
+    FakeSources sources;
+    sources.in.package.manifestSha256 = QStringLiteral("aaaa");
+    FakeContext context;
+    context.battery = true;
+    context.flowShape = {Family::Partition, FlowKind::Install, InstallPath::Keep, false};
+    context.flowSha256 = QStringLiteral("aaaa");
+    DiagnoseStep same(sources);
+    QCOMPARE(same.run(context).kind, StepOutcome::Kind::Done);
+    QCOMPARE(sources.askedPackage, QStringLiteral("/p/m.json"));
+
+    context.flowSha256 = QStringLiteral("bbbb");
+    DiagnoseStep changed(sources);
+    const StepOutcome outcome = changed.run(context);
+    QCOMPARE(outcome.code, QStringLiteral("check-blocking"));
+    QCOMPARE(outcome.detail, QStringLiteral("package"));
 }
 
 QTEST_GUILESS_MAIN(TstWizardDiagnose)

@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 vadmyro
 
-// docs/specs/install-wizard.md section 5 and 15.3: the backups of "Keep my
-// music" and of an uninstall, and their restore. A temporary folder plays the
-// music volume, with files of the fixtures of the tests; the firmware partition
-// is a fake one, then the real helper on an image from end to end.
+// docs/specs/install-wizard.md section 5 and 15.3: the backups of the clean
+// install, of "Keep my music" and of an uninstall, and their restore. A
+// temporary folder plays the music volume, with files of the fixtures of the
+// tests; the firmware partition is a fake one, then the real helper on an image
+// from end to end.
 
 #include "backup.h"
 #include "constants.h"
 #include "fixtures.h"
 #include "helperclient.h"
 #include "runner.h"
+#include "timeleft.h"
 #include "wizardconstants.h"
 #include "wizarderrors.h"
 
@@ -24,6 +26,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QThread>
+#include <algorithm>
 #include <atomic>
 
 using namespace tacetos::wizard;
@@ -118,7 +121,7 @@ public:
     QString volumeLabel() const override { return QStringLiteral("IPOD"); }
     QString backupRoot() const override { return root; }
     qint64 freeBytes(const QString &) const override { return free; }
-    qint64 volumeUsedBytes() const override { return 0; }
+    qint64 volumeUsedBytes() const override { return used; }
     FirmwarePartition *firmwarePartition() const override { return partition; }
     qint64 firmwarePartitionBytes() const override { return 4096; }
     QString appVersion() const override { return QStringLiteral("0.2.0"); }
@@ -128,6 +131,7 @@ public:
     QString volume;
     QString root;
     qint64 free = -1;
+    qint64 used = 0;
     FirmwarePartition *partition = nullptr;
     installer::FileFault injected;
 };
@@ -140,7 +144,12 @@ public:
     FlowShape shape() const override { return flow; }
     bool isResume() const override { return false; }
     bool stopRequested() const override { return stop; }
-    void progress(const QString &, qint64 done, qint64) override { lastDone = done; }
+    void progress(const QString &stage, qint64 done, qint64) override
+    {
+        lastDone = done;
+        if (stage == QLatin1String("copy"))
+            dones << done;
+    }
     UserAnswer waitForUser(WaitKind, const QJsonObject &) override { return {}; }
     QJsonValue fact(const QString &, const QString &key) const override { return facts.value(key); }
     void setFact(const QString &key, const QJsonValue &value) override { facts.insert(key, value); }
@@ -152,6 +161,7 @@ public:
     FlowShape flow{Family::Partition, FlowKind::Install, InstallPath::Keep, false};
     std::atomic<bool> stop{false};
     qint64 lastDone = 0;
+    QList<qint64> dones;
     QJsonObject facts;
     QString folder;
 };
@@ -218,6 +228,47 @@ private:
         for (const BackupFile &f : readManifest(folder).manifest.files)
             paths << f.path;
         return paths;
+    }
+
+    // The volume of a clean install: the one of `makeVolume()`, plus names with
+    // accents, an empty file, a deep folder, an empty folder, and hidden things
+    // at the root.
+    QString makeFullVolume()
+    {
+        const QString v = makeVolume();
+        writeFile(v + QStringLiteral("/Music/Ça va/Öl/1/2/3/4/5/6/7/8/song.flac"),
+                  fixture("reference-left-in-inbox.txt"));
+        writeFile(v + QStringLiteral("/Music/empty.mp3"), QByteArray());
+        writeFile(v + QStringLiteral("/Music/big.flac"), QByteArray(3 << 20, 'g'));
+        writeFile(v + QStringLiteral("/.metadata"), "hidden at the root");
+        writeFile(v + QStringLiteral("/.Trash-1000/files/old.mp3"), QByteArray(2000, 't'));
+        QDir().mkpath(v + QStringLiteral("/Empty folder"));
+        return v;
+    }
+
+    // A full backup of a Classic's volume, for the restore tests.
+    QString fullBackupOf(const QString &volume)
+    {
+        FakeSources s = sources(volume);
+        TestContext context;
+        context.flow.family = Family::Dfu;
+        BackupStep step(BackupKind::Full, s);
+        return step.run(context).kind == StepOutcome::Kind::Done ? context.folder : QString();
+    }
+
+    // What the format of a clean install leaves, as far as these tests go.
+    static void emptyVolume(const QString &volume)
+    {
+        QDir(volume).removeRecursively();
+        QDir().mkpath(volume);
+    }
+
+    static bool noPartFile(const QString &root)
+    {
+        const auto all = snapshot(root);
+        return std::none_of(all.keyBegin(), all.keyEnd(), [](const QString &path) {
+            return path.endsWith(QString(kPartSuffix));
+        });
     }
 
 private slots:
@@ -371,13 +422,18 @@ private slots:
     void sourceChanged_data()
     {
         QTest::addColumn<bool>("always");
-        QTest::newRow("once") << false;
-        QTest::newRow("twice") << true;
+        QTest::addColumn<bool>("full");
+        QTest::newRow("keep, once") << false << false;
+        QTest::newRow("keep, twice") << true << false;
+        QTest::newRow("full, once") << false << true;
+        QTest::newRow("full, twice") << true << true;
     }
 
     void sourceChanged()
     {
         QFETCH(bool, always);
+        QFETCH(bool, full);
+        const BackupKind kind = full ? BackupKind::Full : BackupKind::Keep;
         const QString volume = makeVolume();
         const QString changing = volume + QStringLiteral("/Mix.M3U");
         FakeSources s = sources(volume);
@@ -392,7 +448,7 @@ private slots:
             }
             return QString();
         };
-        BackupStep step(BackupKind::Keep, s);
+        BackupStep step(kind, s);
         const StepOutcome out = step.run(context);
         if (always) {
             QCOMPARE(out.code, QString(error::sourceChanged));
@@ -527,6 +583,365 @@ private slots:
         const RestoreResult r = restoreFromBackup(context.folder, volume, serial, nullptr);
         QCOMPARE(r.code, code);
         QCOMPARE(snapshot(volume), before);
+    }
+
+    // Section 5.3, `backup-full`: the whole volume as it is (D36).
+    void fullBackup()
+    {
+        const QString volume = makeFullVolume();
+        FakePartition partition;
+        FakeSources s = sources(volume);
+        s.partition = &partition;
+        s.used = 8 << 20;
+        // Exactly the room of section 5.2.
+        s.free = s.used + partition.bytes.size() + kBackupMargin;
+        TestContext context;
+        context.flow.path = InstallPath::Clean;
+        BackupStep step(BackupKind::Full, s);
+        const StepOutcome out = step.run(context);
+        QVERIFY2(out.kind == StepOutcome::Kind::Done, qPrintable(out.code + out.detail));
+
+        const ManifestRead read = readManifest(context.folder);
+        QVERIFY2(read.error.isEmpty(), qPrintable(read.error));
+        QCOMPARE(read.manifest.kind, BackupKind::Full);
+        const auto source = snapshot(volume);
+        QStringList paths = manifestPaths(context.folder);
+        // Section 5.5: folders first, names sorted, hidden ones included.
+        QCOMPARE(paths.first(), QStringLiteral(".Trash-1000/files/old.mp3"));
+        QCOMPARE(paths.last(), QStringLiteral("notes.txt"));
+        paths.sort();
+        QCOMPARE(paths, source.keys());
+        QCOMPARE(snapshot(backupVolumeFolder(context.folder)), source);
+        for (const BackupFile &f : read.manifest.files) {
+            const QString copy = backupVolumeFolder(context.folder) + QLatin1Char('/') + f.path;
+            QCOMPARE(f.sha256, sha(readFile(copy)));
+            QCOMPARE(QFileInfo(copy).lastModified().toUTC(), kOld);
+        }
+        for (const char *folder :
+             {"Empty folder", "Playlists/empty", "Music/Ça va/Öl/1/2/3/4/5/6/7/8"}) {
+            QVERIFY2(read.manifest.folders.contains(QString::fromUtf8(folder)), folder);
+            QVERIFY(QFileInfo(backupVolumeFolder(context.folder) + QLatin1Char('/') +
+                              QString::fromUtf8(folder))
+                        .isDir());
+        }
+        QVERIFY(read.manifest.firmwarePartition);
+        QVERIFY(isVerifiedFullBackup(context.folder, kSerial, Family::Partition));
+        QCOMPARE(step.report().copied, source.size());
+        // Bytes done and total, from 0 to every byte of the files.
+        qint64 total = 0;
+        for (const QByteArray &bytes : source)
+            total += bytes.size();
+        QCOMPARE(context.dones.first(), 0);
+        QCOMPARE(context.dones.last(), total);
+    }
+
+    // Section 5.2: the room of a clean install is the used space of the
+    // volume, plus the firmware partition, plus the margin.
+    void fullNoRoom()
+    {
+        FakePartition partition;
+        FakeSources s = sources(makeFullVolume());
+        s.partition = &partition;
+        s.used = 50LL * 1000 * 1000 * 1000;
+        s.free = s.used + kBackupMargin;
+        TestContext context;
+        BackupStep step(BackupKind::Full, s);
+        const StepOutcome out = step.run(context);
+        QCOMPARE(out.code, QString(error::backupFullDisk));
+        QCOMPARE(out.detail, QString::number(s.used + 4096 + kBackupMargin));
+        QVERIFY(snapshot(context.folder).isEmpty());
+        QCOMPARE(partition.backups, 0);
+
+        QCOMPARE(backupSpaceNeeded(BackupKind::Full, 100, 7, 4), 104 + kBackupMargin);
+        QCOMPARE(backupSpaceNeeded(BackupKind::Keep, 100, 7, 0), 7 + kBackupMargin);
+    }
+
+    // Section 2.2 rules 1 and 2 (D38): a path that cannot be taken is greyed
+    // with its reason.
+    void offer_data()
+    {
+        QTest::addColumn<bool>("classic");
+        QTest::addColumn<bool>("mac");
+        QTest::addColumn<qint64>("free");
+        QTest::addColumn<int>("chosen");
+        QTest::addColumn<QString>("cleanWhy");
+        QTest::addColumn<QString>("keepWhy");
+        const qint64 gb = 1000LL * 1000 * 1000;
+        const QString mac = QStringLiteral("This iPod is formatted for Mac. TacetOS needs a "
+                                           "Windows format, which erases the iPod");
+        const QString clean40 =
+            QStringLiteral("Not enough space on this computer: 92 GB needed, 40 GB free");
+        QTest::newRow("room for both")
+            << false << false << 100 * gb << int(InstallPath::Clean) << QString() << QString();
+        QTest::newRow("no room for clean")
+            << false << false << 40 * gb << int(InstallPath::Keep) << clean40 << QString();
+        QTest::newRow("no room at all")
+            << false << false << gb << int(InstallPath::None)
+            << QStringLiteral("Not enough space on this computer: 92 GB needed, 1.0 GB free")
+            << QStringLiteral("Not enough space on this computer: 2.0 GB needed, 1.0 GB free");
+        QTest::newRow("mac") << false << true << 100 * gb << int(InstallPath::Clean) << QString()
+                             << mac;
+        QTest::newRow("mac, no room")
+            << false << true << 40 * gb << int(InstallPath::None) << clean40 << mac;
+        QTest::newRow("free not known")
+            << false << false << qint64(-1) << int(InstallPath::Clean) << QString() << QString();
+        // Section 6.4: an iPod Classic formatted for Mac takes no path yet.
+        const QString classic = QStringLiteral(
+            "This iPod Classic is formatted for Mac, which TacetOS cannot change yet. Restore it "
+            "with Apple's software on a Windows computer first");
+        QTest::newRow("Classic, mac")
+            << true << true << 100 * gb << int(InstallPath::None) << classic << classic;
+        QTest::newRow("Classic") << true << false << 100 * gb << int(InstallPath::Clean)
+                                 << QString() << QString();
+    }
+
+    void offer()
+    {
+        QFETCH(bool, classic);
+        QFETCH(bool, mac);
+        QFETCH(qint64, free);
+        QFETCH(int, chosen);
+        QFETCH(QString, cleanWhy);
+        QFETCH(QString, keepWhy);
+        const qint64 gb = 1000LL * 1000 * 1000;
+        const PathOffer offer =
+            offerPaths(classic ? Family::Dfu : Family::Partition, mac, 92 * gb, 2 * gb, free);
+        QCOMPARE(int(offer.chosen), chosen);
+        QCOMPARE(offer.clean, cleanWhy.isEmpty());
+        QCOMPARE(offer.keep, keepWhy.isEmpty());
+        QCOMPARE(offer.cleanWhy, cleanWhy);
+        QCOMPARE(offer.keepWhy, keepWhy);
+    }
+
+    // Sections 2.2 rule 3 and 6.1: nothing is erased without a verified full
+    // backup of this iPod.
+    void eraseNeedsFullBackup()
+    {
+        const QString volume = makeFullVolume();
+        FakePartition partition;
+        QString why;
+        QVERIFY(!isVerifiedFullBackup(m_tmp.filePath(QStringLiteral("nowhere")), kSerial,
+                                      Family::Dfu, &why));
+        QCOMPARE(why, QStringLiteral("no manifest"));
+
+        FakeSources keepSources = sources(volume);
+        keepSources.partition = &partition;
+        TestContext keep;
+        QCOMPARE(BackupStep(BackupKind::Keep, keepSources).run(keep).kind, StepOutcome::Kind::Done);
+        QVERIFY(isVerifiedBackup(keep.folder, kSerial));
+        QVERIFY(!isVerifiedFullBackup(keep.folder, kSerial, Family::Partition, &why));
+        QCOMPARE(why, QStringLiteral("the backup is not of the whole volume"));
+
+        // A Classic's backup has no firmware partition: enough for a Classic only.
+        const QString classic = fullBackupOf(volume);
+        QVERIFY(isVerifiedFullBackup(classic, kSerial, Family::Dfu));
+        QVERIFY(!isVerifiedFullBackup(classic, kSerial, Family::Partition, &why));
+        QCOMPARE(why, QStringLiteral("the backup holds no firmware partition"));
+
+        FakeSources fullSources = sources(volume);
+        fullSources.partition = &partition;
+        TestContext full;
+        QCOMPARE(BackupStep(BackupKind::Full, fullSources).run(full).kind, StepOutcome::Kind::Done);
+        QVERIFY(isVerifiedFullBackup(full.folder, kSerial, Family::Partition));
+        QVERIFY(!isVerifiedFullBackup(full.folder, QStringLiteral("other"), Family::Partition));
+
+        // A file of the copy gone, then the manifest gone (a cut copy has only
+        // `manifest.partial`).
+        QVERIFY(QFile::remove(backupVolumeFolder(full.folder) + QStringLiteral("/Music/a.mp3")));
+        QVERIFY(!isVerifiedFullBackup(full.folder, kSerial, Family::Partition, &why));
+        QCOMPARE(why, QStringLiteral("a file of the backup is missing or has another size"));
+        QVERIFY(QFile::remove(full.folder + QLatin1Char('/') + QString(kManifestFile)));
+        writeFile(full.folder + QLatin1Char('/') + QString(kManifestPartialFile), "{}\n");
+        QVERIFY(!isVerifiedFullBackup(full.folder, kSerial, Family::Partition));
+    }
+
+    // Section 5.5: a cut, then the resume. The files already verified are not
+    // copied again, a `.part` file left by the cut is copied again, and the
+    // progress starts from the bytes already there.
+    void fullCutThenResume()
+    {
+        const QString volume = makeFullVolume();
+        FakeSources s = sources(volume);
+        TestContext context;
+        context.flow.family = Family::Dfu;
+        QStringList seen;
+        bool cut = true;
+        s.injected = [&](const QString &path, qint64 written) {
+            if (written == 0)
+                seen << QFileInfo(path).fileName();
+            if (cut && seen.size() == 6)
+                context.stop = true;
+            return QString();
+        };
+        int firstCopied = 0;
+        {
+            BackupStep step(BackupKind::Full, s);
+            QCOMPARE(step.run(context).kind, StepOutcome::Kind::Cancelled);
+            firstCopied = step.report().copied;
+        }
+        QVERIFY(firstCopied > 0);
+        QVERIFY(noPartFile(context.folder));
+        const QString partial = context.folder + QLatin1Char('/') + QString(kManifestPartialFile);
+        qint64 doneBytes = 0;
+        QFile lines(partial);
+        QVERIFY(lines.open(QIODevice::ReadOnly));
+        while (!lines.atEnd())
+            doneBytes += QJsonDocument::fromJson(lines.readLine())
+                             .object()
+                             .value(QStringLiteral("size"))
+                             .toInteger();
+        lines.close();
+        // A process killed in the middle of a copy leaves its `.part` file.
+        writeFile(backupVolumeFolder(context.folder) + QStringLiteral("/notes.txt.part"), "cut");
+        const QStringList first = seen;
+
+        seen.clear();
+        cut = false;
+        context.stop = false;
+        context.dones.clear();
+        BackupStep again(BackupKind::Full, s);
+        QCOMPARE(again.run(context).kind, StepOutcome::Kind::Done);
+        QCOMPARE(again.report().skipped, firstCopied);
+        QCOMPARE(context.dones.first(), doneBytes);
+        for (const QString &name : first)
+            QVERIFY2(!seen.contains(name), qPrintable(name));
+        QVERIFY(noPartFile(context.folder));
+        QCOMPARE(snapshot(backupVolumeFolder(context.folder)), snapshot(volume));
+        QVERIFY(isVerifiedFullBackup(context.folder, kSerial, Family::Dfu));
+    }
+
+    // Section 5.7: "Put my music back" after a clean install. The firmware
+    // folder of the backup is the old one: TacetOS keeps its own.
+    void putMusicBack()
+    {
+        const QString volume = makeFullVolume();
+        const auto before = snapshot(volume);
+        const QString folder = fullBackupOf(volume);
+        QVERIFY(!folder.isEmpty());
+
+        emptyVolume(volume);
+        const QString config = fw() + QStringLiteral("/config.cfg");
+        writeFile(volume + QLatin1Char('/') + config, "new install");
+        QList<QPair<qint64, qint64>> steps;
+        RestoreOptions options;
+        options.progress = [&](qint64 done, qint64 total) { steps << qMakePair(done, total); };
+        const RestoreResult r = restoreFromBackup(folder, volume, kSerial, nullptr, options);
+        QVERIFY2(r.ok(), qPrintable(r.code + r.detail));
+
+        auto expected = before;
+        for (auto it = expected.begin(); it != expected.end();)
+            it = it.key().startsWith(fw() + QLatin1Char('/')) ? expected.erase(it) : std::next(it);
+        QCOMPARE(r.restored, expected.size());
+        expected.insert(config, "new install");
+        QCOMPARE(snapshot(volume), expected);
+        QVERIFY(QFileInfo(volume + QStringLiteral("/Empty folder")).isDir());
+        QVERIFY(QFileInfo(volume + QStringLiteral("/Playlists/empty")).isDir());
+        QCOMPARE(QFileInfo(volume + QStringLiteral("/Music/big.flac")).lastModified().toUTC(),
+                 kOld);
+        QCOMPARE(steps.first().first, 0);
+        QCOMPARE(steps.last().first, steps.last().second);
+
+        // Once more: every file is there already, with the same sha256.
+        const RestoreResult again = restoreFromBackup(folder, volume, kSerial, nullptr);
+        QVERIFY2(again.ok(), qPrintable(again.code + again.detail));
+        QCOMPARE(again.restored, 0);
+        QCOMPARE(again.skipped, r.restored);
+        QCOMPARE(snapshot(volume), expected);
+    }
+
+    // With no firmware folder on the iPod, the whole backup goes back.
+    void putEverythingBack()
+    {
+        const QString volume = makeFullVolume();
+        const auto before = snapshot(volume);
+        const QString folder = fullBackupOf(volume);
+        emptyVolume(volume);
+        const RestoreResult r = restoreFromBackup(folder, volume, kSerial, nullptr);
+        QVERIFY2(r.ok(), qPrintable(r.code + r.detail));
+        QCOMPARE(r.restored, before.size());
+        QCOMPARE(snapshot(volume), before);
+    }
+
+    // A damaged file is never placed: the restore stops there and says how
+    // many files were put back.
+    void putMusicBackDamaged()
+    {
+        const QString volume = makeFullVolume();
+        const QString folder = fullBackupOf(volume);
+        const QString damaged = QStringLiteral("Music/a.mp3");
+        // The same size: only the sha256 can tell.
+        writeFile(backupVolumeFolder(folder) + QLatin1Char('/') + damaged, QByteArray(5000, 'x'));
+        emptyVolume(volume);
+        const RestoreResult r = restoreFromBackup(folder, volume, kSerial, nullptr);
+        QCOMPARE(r.code, QString(error::backupDamaged));
+        QVERIFY(r.restored > 0);
+        QCOMPARE(r.detail, QString::number(r.restored));
+        QVERIFY(!QFile::exists(volume + QLatin1Char('/') + damaged));
+        QVERIFY(noPartFile(volume));
+        QCOMPARE(snapshot(volume).size(), r.restored);
+    }
+
+    void putMusicBackStopped_data()
+    {
+        QTest::addColumn<bool>("full");
+        QTest::addColumn<QString>("code");
+        QTest::newRow("cancel") << false << QString(error::cancelled);
+        QTest::newRow("iPod full") << true << QString(error::restoreWriteFailed);
+    }
+
+    // A cancel and an iPod that fills up, in the middle of a big file.
+    void putMusicBackStopped()
+    {
+        QFETCH(bool, full);
+        QFETCH(QString, code);
+        const QString volume = makeFullVolume();
+        const QString folder = fullBackupOf(volume);
+        emptyVolume(volume);
+        std::atomic<bool> stop{false};
+        RestoreOptions options;
+        options.stop = [&stop] { return stop.load(); };
+        options.fault = [&](const QString &path, qint64 written) {
+            if (!path.contains(QLatin1String("big.flac")) || written == 0)
+                return QString();
+            if (full)
+                return QString::fromLatin1(installer::kNoSpace);
+            stop = true;
+            return QString();
+        };
+        const RestoreResult r = restoreFromBackup(folder, volume, kSerial, nullptr, options);
+        QCOMPARE(r.code, code);
+        QCOMPARE(r.detail, QString::number(r.restored));
+        QVERIFY(!QFile::exists(volume + QStringLiteral("/Music/big.flac")));
+        QVERIFY(noPartFile(volume));
+    }
+
+    // Section 5.5: the time left, from the speed of the last 10 seconds.
+    void timeLeft()
+    {
+        TimeLeft t;
+        QCOMPARE(t.secondsLeft(1000), -1);
+        t.add(0, 0);
+        t.add(500, 50);
+        // Under a second, the speed is not known yet.
+        QCOMPARE(t.speed(), -1.0);
+        t.add(1000, 100);
+        QCOMPARE(t.speed(), 100.0);
+        QCOMPARE(t.secondsLeft(1000), 9);
+        // Ten bytes a second from then on: after 10 seconds, only that counts.
+        for (qint64 ms = 2000; ms <= 11000; ms += 1000)
+            t.add(ms, 100 + (ms - 1000) / 100);
+        QCOMPARE(t.speed(), 10.0);
+        QCOMPARE(t.secondsLeft(1000), 80);
+        QCOMPARE(t.secondsLeft(200), 0);
+        // A new copy starts from nothing.
+        t.add(12000, 0);
+        QCOMPARE(t.speed(), -1.0);
+        // A resume starts from the bytes already there, not from 0.
+        TimeLeft resumed;
+        resumed.add(0, 5000000000);
+        resumed.add(2000, 5002000000);
+        QCOMPARE(resumed.speed(), 1000000.0);
+        QCOMPARE(resumed.secondsLeft(6000000000), 998);
     }
 
     // Section 5.6: a failed backup stops the flow before any step that writes.

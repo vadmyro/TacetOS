@@ -27,3 +27,34 @@ if(UNIX)
     add_dependencies(tst_wizard_backup tacet-helper-killtest)
 endif()
 add_test(NAME tst_wizard_backup COMMAND tst_wizard_backup)
+
+# The format and the conversion (section 6): the runner, the helper program on
+# image files, and recorded detection events.
+qt_add_executable(tst_wizard_format tst_wizard_format.cpp)
+target_link_libraries(tst_wizard_format PRIVATE tacet_wizard tacet_fakepod Qt6::Test)
+target_compile_definitions(tst_wizard_format PRIVATE
+    TACETOS_HELPER_PROGRAM="$<TARGET_FILE:tacet-helper>")
+add_dependencies(tst_wizard_format tacet-helper)
+if(UNIX)
+    target_compile_definitions(tst_wizard_format PRIVATE
+        TACETOS_HELPER_KILLTEST_PROGRAM="$<TARGET_FILE:tacet-helper-killtest>")
+    add_dependencies(tst_wizard_format tacet-helper-killtest)
+endif()
+add_test(NAME tst_wizard_format COMMAND tst_wizard_format)
+
+qt_add_executable(tst_wizard_package tst_wizard_package.cpp testzip.h)
+target_link_libraries(tst_wizard_package PRIVATE tacet_wizard Qt6::Test)
+add_test(NAME tst_wizard_package COMMAND tst_wizard_package)
+
+qt_add_executable(tst_wizard_firmware tst_wizard_firmware.cpp testzip.h)
+target_link_libraries(tst_wizard_firmware PRIVATE tacet_wizard Qt6::Test)
+add_test(NAME tst_wizard_firmware COMMAND tst_wizard_firmware)
+
+# The bootloader of the older iPods (section 8): the runner, the helper program
+# on image files of every family.
+qt_add_executable(tst_wizard_bootloader tst_wizard_bootloader.cpp testpackage.h testzip.h)
+target_link_libraries(tst_wizard_bootloader PRIVATE tacet_wizard tacet_fakepod Qt6::Test)
+target_compile_definitions(tst_wizard_bootloader PRIVATE
+    TACETOS_HELPER_PROGRAM="$<TARGET_FILE:tacet-helper>")
+add_dependencies(tst_wizard_bootloader tacet-helper)
+add_test(NAME tst_wizard_bootloader COMMAND tst_wizard_bootloader)
