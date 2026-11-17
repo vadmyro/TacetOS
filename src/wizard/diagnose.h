@@ -92,6 +92,8 @@ struct PackageCheck
     QString code;
     QString message;
     qint64 unpackedBytes = 0;
+    // The sha256 of the manifest, kept in the progress file of a flow.
+    QString manifestSha256;
 };
 
 // Everything the checks are made from.
@@ -121,6 +123,13 @@ bool canGoOn(const QList<Check> &checks);
 
 // The first blocking check that stops the flow, or null.
 const Check *firstBlocking(const QList<Check> &checks);
+
+// A size for a message: "92 GB", "4.5 GB", "40 MB", in decimal units as the
+// systems show free space.
+QString sizeText(qint64 bytes);
+
+// Section 6.4: why an iPod Classic formatted for Mac cannot be installed yet.
+QString macClassicRefusal();
 
 // Section 4.4: the command for udisks2, from the text of the system release
 // file. Empty when the system is not known.

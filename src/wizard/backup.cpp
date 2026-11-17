@@ -4,26 +4,23 @@
 #include "backup.h"
 
 #include "constants.h"
+#include "diagnose.h"
 #include "helperclient.h"
 #include "helperconstants.h"
 #include "wizardconstants.h"
 #include "wizarderrors.h"
 
+#include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
-#include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
 #include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
-#include <QMutex>
-#include <QMutexLocker>
 #include <QSaveFile>
 #include <QStandardPaths>
 #include <QStorageInfo>
-#include <QThread>
-#include <QWaitCondition>
 #include <algorithm>
 
 namespace tacetos::wizard {
@@ -33,6 +30,11 @@ namespace {
 const QString kStageCopy = QStringLiteral("copy");
 const QString kStageFirmware = QStringLiteral("firmware-partition");
 const QString kStageCheck = QStringLiteral("check");
+
+QString tr(const char *text)
+{
+    return QCoreApplication::translate("tacetos::wizard::Backup", text);
+}
 
 QString isoUtc(const QDateTime &time)
 {
@@ -182,21 +184,6 @@ PieceCopy copyPieces(const QString &from, const QString &to, const installer::Fi
     return out;
 }
 
-QString fileSha256(const QString &path)
-{
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly))
-        return QString();
-    QCryptographicHash hash(QCryptographicHash::Sha256);
-    while (!file.atEnd()) {
-        const QByteArray piece = file.read(kCopyPiece);
-        if (piece.isEmpty() && file.error() != QFileDevice::NoError)
-            return QString();
-        hash.addData(piece);
-    }
-    return QString::fromLatin1(hash.result().toHex());
-}
-
 // A write to the computer failed: a full disk, or something else of its disk.
 QString writeFailureCode(const QString &detail, const QString &folder)
 {
@@ -240,6 +227,21 @@ QHash<QString, BackupFile> readPartial(const QString &path)
 }
 
 } // namespace
+
+QString fileSha256(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return QString();
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    while (!file.atEnd()) {
+        const QByteArray piece = file.read(kCopyPiece);
+        if (piece.isEmpty() && file.error() != QFileDevice::NoError)
+            return QString();
+        hash.addData(piece);
+    }
+    return QString::fromLatin1(hash.result().toHex());
+}
 
 QString backupKindName(BackupKind kind)
 {
@@ -473,6 +475,59 @@ bool isVerifiedBackup(const QString &backupFolder, const QString &serial, QStrin
     return true;
 }
 
+bool isVerifiedFullBackup(const QString &backupFolder, const QString &serial, Family family,
+                          QString *why)
+{
+    if (!isVerifiedBackup(backupFolder, serial, why))
+        return false;
+    const BackupManifest m = readManifest(backupFolder).manifest;
+    QString reason;
+    if (m.kind != BackupKind::Full)
+        reason = QStringLiteral("the backup is not of the whole volume");
+    else if (family == Family::Partition && !m.firmwarePartition)
+        reason = QStringLiteral("the backup holds no firmware partition");
+    if (why)
+        *why = reason;
+    return reason.isEmpty();
+}
+
+qint64 backupSpaceNeeded(BackupKind kind, qint64 volumeUsed, qint64 fileBytes,
+                         qint64 partitionBytes)
+{
+    return (kind == BackupKind::Full ? volumeUsed : fileBytes) + partitionBytes + kBackupMargin;
+}
+
+PathOffer offerPaths(Family family, bool macFormat, qint64 cleanNeed, qint64 keepNeed, qint64 free)
+{
+    const auto noRoom = [free](qint64 need) {
+        return tr("Not enough space on this computer: %1 needed, %2 free")
+            .arg(sizeText(need), sizeText(free));
+    };
+    PathOffer offer;
+    if (macFormat && family == Family::Dfu) {
+        offer.clean = offer.keep = false;
+        offer.cleanWhy = offer.keepWhy = macClassicRefusal();
+        offer.chosen = InstallPath::None;
+        return offer;
+    }
+    if (free >= 0 && free < cleanNeed) {
+        offer.clean = false;
+        offer.cleanWhy = noRoom(cleanNeed);
+    }
+    if (macFormat) {
+        offer.keep = false;
+        offer.keepWhy = tr("This iPod is formatted for Mac. TacetOS needs a Windows format, "
+                           "which erases the iPod");
+    } else if (free >= 0 && free < keepNeed) {
+        offer.keep = false;
+        offer.keepWhy = noRoom(keepNeed);
+    }
+    offer.chosen = offer.clean  ? InstallPath::Clean
+                   : offer.keep ? InstallPath::Keep
+                                : InstallPath::None;
+    return offer;
+}
+
 QString checkedFirmwarePartition(const QString &backupFolder, const QString &serial, QString *why)
 {
     if (!isVerifiedBackup(backupFolder, serial, why))
@@ -494,94 +549,23 @@ QString checkedFirmwarePartition(const QString &backupFolder, const QString &ser
 
 HelperFirmwarePartition::HelperFirmwarePartition(helper::HelperClient &client,
                                                  const QJsonObject &target, const QString &port)
-    : m_client(client), m_target(target), m_port(port)
+    : m_commands(client, target, port)
 {
-}
-
-HelperAnswer HelperFirmwarePartition::call(const QString &cmd, const QJsonObject &args)
-{
-    QMutex mutex;
-    QWaitCondition arrived;
-    QHash<int, QJsonObject> results;
-    int id = -1;
-    QEventLoop loop;
-    const bool sameThread = QThread::currentThread() == m_client.thread();
-
-    const QMetaObject::Connection connection = QObject::connect(
-        &m_client, &helper::HelperClient::finished, &m_client,
-        [&](int got, const QJsonObject &result) {
-            QMutexLocker locker(&mutex);
-            results.insert(got, result);
-            arrived.wakeAll();
-            if (sameThread && got == id)
-                loop.quit();
-        },
-        Qt::DirectConnection);
-    auto send = [&] {
-        const int sent = m_client.request(cmd, args, m_port);
-        QMutexLocker locker(&mutex);
-        id = sent;
-    };
-    QJsonObject result;
-    if (sameThread) {
-        send();
-        if (!results.contains(id))
-            loop.exec();
-        result = results.value(id);
-    } else {
-        QMetaObject::invokeMethod(&m_client, send, Qt::BlockingQueuedConnection);
-        QMutexLocker locker(&mutex);
-        while (!results.contains(id))
-            arrived.wait(&mutex);
-        result = results.value(id);
-    }
-    QObject::disconnect(connection);
-
-    HelperAnswer answer;
-    if (!result.value(QStringLiteral("ok")).toBool()) {
-        answer.code = result.value(QStringLiteral("error")).toString();
-        answer.detail = result.value(QStringLiteral("detail")).toString();
-        if (answer.code.isEmpty())
-            answer.code = QString(helper::err::badRequest);
-    }
-    answer.data = result.value(QStringLiteral("data")).toObject();
-    return answer;
-}
-
-HelperAnswer HelperFirmwarePartition::scanToken(QString *token)
-{
-    QJsonObject args;
-    args.insert(QStringLiteral("target"), m_target);
-    HelperAnswer answer = call(QString(helper::cmd::readState), args);
-    *token = answer.data.value(QStringLiteral("scanToken")).toString();
-    return answer;
 }
 
 HelperAnswer HelperFirmwarePartition::backup(const QString &dataDir)
 {
-    QString token;
-    const HelperAnswer state = scanToken(&token);
-    if (!state.ok())
-        return state;
     QJsonObject args;
-    args.insert(QStringLiteral("target"), m_target);
-    args.insert(QStringLiteral("scanToken"), token);
     args.insert(QStringLiteral("dataDir"), dataDir);
-    return call(QString(helper::cmd::backupFirmware), args);
+    return m_commands.callWithToken(QString(helper::cmd::backupFirmware), args);
 }
 
 HelperAnswer HelperFirmwarePartition::restore(const QString &file, const QString &dataDir)
 {
-    QString token;
-    const HelperAnswer state = scanToken(&token);
-    if (!state.ok())
-        return state;
     QJsonObject args;
-    args.insert(QStringLiteral("target"), m_target);
-    args.insert(QStringLiteral("scanToken"), token);
     args.insert(QStringLiteral("backupFile"), file);
     args.insert(QStringLiteral("dataDir"), dataDir);
-    return call(QString(helper::cmd::restoreBackup), args);
+    return m_commands.callWithToken(QString(helper::cmd::restoreBackup), args);
 }
 
 StepOutcome BackupStep::run(StepContext &context)
@@ -610,16 +594,26 @@ StepOutcome BackupStep::run(StepContext &context)
 
     const BackupPlan plan = planBackup(m_sources.volumeRoot(), m_kind);
     m_report.symlinks = plan.symlinks;
-    const QHash<QString, BackupFile> done = readPartial(partialPath);
+
+    // Section 5.5: the files of a cut run whose copy still has its size are not
+    // copied again. They are counted first, so that the progress starts from
+    // them and the time left measures the copy only.
+    const QHash<QString, BackupFile> partialFiles = readPartial(partialPath);
+    QHash<QString, BackupFile> done;
+    qint64 doneBytes = 0;
+    for (const QString &path : plan.files) {
+        const auto previous = partialFiles.constFind(path);
+        const QFileInfo copy(volume.filePath(path));
+        if (previous != partialFiles.cend() && copy.isFile() && copy.size() == previous->size) {
+            done.insert(path, *previous);
+            doneBytes += previous->size;
+        }
+    }
 
     // Section 5.2: the space, less what a cut run already copied.
-    qint64 doneBytes = 0;
-    for (const BackupFile &file : done)
-        doneBytes += file.size;
-    qint64 need = (m_kind == BackupKind::Full ? m_sources.volumeUsedBytes() : plan.bytes) -
-                  doneBytes + kBackupMargin;
-    if (partition)
-        need += m_sources.firmwarePartitionBytes();
+    const qint64 need = backupSpaceNeeded(m_kind, m_sources.volumeUsedBytes(), plan.bytes,
+                                          partition ? m_sources.firmwarePartitionBytes() : 0) -
+                        doneBytes;
     const qint64 free = m_sources.freeBytes(folder);
     if (free >= 0 && free < need)
         return StepOutcome::failed(QString(error::backupFullDisk), QString::number(need));
@@ -640,11 +634,12 @@ StepOutcome BackupStep::run(StepContext &context)
 
     const installer::FileFault fault = m_sources.fault();
     const auto stop = [&context] { return context.stopRequested(); };
-    qint64 progressDone = 0;
+    qint64 progressDone = doneBytes;
     const auto advance = [&](qint64 bytes) {
         progressDone += bytes;
         context.progress(kStageCopy, progressDone, plan.bytes);
     };
+    context.progress(kStageCopy, progressDone, plan.bytes);
     int changed = 0;
     QList<BackupFile> files;
 
@@ -652,11 +647,9 @@ StepOutcome BackupStep::run(StepContext &context)
         const QString target = volume.filePath(path);
         const QString part = target + kPartSuffix;
         const auto previous = done.constFind(path);
-        if (previous != done.cend() && QFileInfo(target).isFile() &&
-            QFileInfo(target).size() == previous->size) {
+        if (previous != done.cend()) {
             files << *previous;
             ++m_report.skipped;
-            advance(previous->size);
             continue;
         }
         bool placed = false;
@@ -769,6 +762,141 @@ StepOutcome BackupStep::run(StepContext &context)
     return StepOutcome::done();
 }
 
+namespace {
+
+RestoreResult restoreFailed(RestoreResult result, const QString &code)
+{
+    result.code = code;
+    result.detail = QString::number(result.restored);
+    return result;
+}
+
+// What a copy back to the iPod that went wrong means. A file of the backup that
+// cannot be read or does not match its manifest is damaged; anything else
+// failed on the side of the iPod. The temporary file is gone either way.
+QString copyFailure(const PieceCopy &copy, const BackupFile &file, const QDir &target)
+{
+    QString code;
+    if (copy.failure == PieceCopy::Failure::Cancelled)
+        code = QString(error::cancelled);
+    else if (copy.failure == PieceCopy::Failure::Read)
+        code = QString(error::backupDamaged);
+    else if (copy.failure != PieceCopy::Failure::None)
+        code = QFileInfo(target.path()).isDir() ? QString(error::restoreWriteFailed)
+                                                : QString(error::ipodGone);
+    else if (copy.sha256 != file.sha256 || copy.bytes != file.size)
+        code = QString(error::backupDamaged);
+    if (!code.isEmpty() && copy.failure == PieceCopy::Failure::None)
+        QFile::remove(target.filePath(file.path) + kPartSuffix);
+    return code;
+}
+
+// Section 5.7, `keep` and `settings`: every sha256 is checked first, then each
+// file is copied back and read again.
+RestoreResult putSmallBack(const BackupManifest &m, const QDir &from, const QDir &target,
+                           const RestoreOptions &options)
+{
+    RestoreResult result;
+    for (const BackupFile &file : m.files) {
+        const QString path = from.filePath(file.path);
+        if (QFileInfo(path).size() != file.size || fileSha256(path) != file.sha256)
+            return restoreFailed(result, QString(error::backupDamaged));
+    }
+    for (const QString &folder : m.folders) {
+        if (!target.mkpath(folder))
+            return restoreFailed(result, QString(error::restoreWriteFailed));
+    }
+    for (const BackupFile &file : m.files) {
+        const QString to = target.filePath(file.path);
+        const QString part = to + kPartSuffix;
+        const PieceCopy copy =
+            copyPieces(from.filePath(file.path), part, options.fault, options.stop, {});
+        if (const QString code = copyFailure(copy, file, target); !code.isEmpty())
+            return restoreFailed(result, code);
+        if (fileSha256(part) != file.sha256) {
+            QFile::remove(part);
+            return restoreFailed(result, QString(error::restoreWriteFailed));
+        }
+        setModified(part, file.modified);
+        if (!replaceFile(part, to)) {
+            QFile::remove(part);
+            return restoreFailed(result, QString(error::restoreWriteFailed));
+        }
+        ++result.restored;
+    }
+    return result;
+}
+
+bool inFirmwareFolder(const QString &path)
+{
+    return sameName(path.section(QLatin1Char('/'), 0, 0), device::kFirmwareFolder);
+}
+
+bool hasFirmwareFolder(const QString &volumeRoot)
+{
+    const QFileInfoList entries =
+        QDir(volumeRoot).entryInfoList(QDir::Dirs | QDir::Hidden | QDir::NoDotAndDotDot);
+    return std::any_of(entries.cbegin(), entries.cend(), [](const QFileInfo &info) {
+        return sameName(info.fileName(), device::kFirmwareFolder);
+    });
+}
+
+// Section 5.7, `full` ("Put my music back"): file by file, by pieces, the
+// sha256 computed while reading the backup and compared before the file takes
+// its name on the iPod. A file already there with the same sha256 is skipped.
+RestoreResult putMusicBack(const BackupManifest &m, const QDir &from, const QDir &target,
+                           const RestoreOptions &options)
+{
+    RestoreResult result;
+    // The firmware folder of the backup is the old one.
+    const bool skipFirmware = hasFirmwareFolder(target.path());
+    QList<BackupFile> files;
+    qint64 total = 0;
+    for (const BackupFile &file : m.files) {
+        if (skipFirmware && inFirmwareFolder(file.path))
+            continue;
+        files << file;
+        total += file.size;
+    }
+    for (const QString &folder : m.folders) {
+        if (!(skipFirmware && inFirmwareFolder(folder)) && !target.mkpath(folder))
+            return restoreFailed(result, QString(error::restoreWriteFailed));
+    }
+
+    qint64 done = 0;
+    const auto advance = [&](qint64 bytes) {
+        done += bytes;
+        if (options.progress)
+            options.progress(done, total);
+    };
+    advance(0);
+    for (const BackupFile &file : std::as_const(files)) {
+        if (options.stop && options.stop())
+            return restoreFailed(result, QString(error::cancelled));
+        const QString to = target.filePath(file.path);
+        const QFileInfo there(to);
+        if (there.isFile() && there.size() == file.size && fileSha256(to) == file.sha256) {
+            ++result.skipped;
+            advance(file.size);
+            continue;
+        }
+        const QString part = to + kPartSuffix;
+        const PieceCopy copy =
+            copyPieces(from.filePath(file.path), part, options.fault, options.stop, advance);
+        if (const QString code = copyFailure(copy, file, target); !code.isEmpty())
+            return restoreFailed(result, code);
+        setModified(part, file.modified);
+        if (!replaceFile(part, to)) {
+            QFile::remove(part);
+            return restoreFailed(result, QString(error::restoreWriteFailed));
+        }
+        ++result.restored;
+    }
+    return result;
+}
+
+} // namespace
+
 RestoreResult restoreFromBackup(const QString &backupFolder, const QString &volumeRoot,
                                 const QString &serial, FirmwarePartition *firmware,
                                 const RestoreOptions &options)
@@ -786,51 +914,22 @@ RestoreResult restoreFromBackup(const QString &backupFolder, const QString &volu
     if (!m.complete || m.serial != serial)
         return fail(QString(error::backupNotVerified),
                     QStringLiteral("the backup is not complete or is of another iPod"));
-    if (m.kind == BackupKind::Full)
-        return fail(QString(error::badFlow), QStringLiteral("a full backup is put back by pieces"));
     if (options.firmwarePartition && (!m.firmwarePartition || firmware == nullptr))
         return fail(QString(error::backupNotVerified),
                     QStringLiteral("the backup holds no firmware partition"));
 
-    // Section 5.7: every sha256 first. A difference writes nothing.
-    const QDir volume(backupVolumeFolder(backupFolder));
-    int damaged = 0;
-    for (const BackupFile &file : m.files) {
-        const QString path = volume.filePath(file.path);
-        if (QFileInfo(path).size() != file.size || fileSha256(path) != file.sha256)
-            ++damaged;
-    }
+    // The copy of the firmware partition is checked before anything is written.
     const QString partitionPath =
         m.firmwarePartition ? QDir(backupFolder).filePath(m.firmwarePartition->file) : QString();
     if (options.firmwarePartition && fileSha256(partitionPath) != m.firmwarePartition->sha256)
-        ++damaged;
-    if (damaged > 0)
         return fail(QString(error::backupDamaged), QStringLiteral("0"));
 
+    const QDir from(backupVolumeFolder(backupFolder));
     const QDir target(volumeRoot);
-    for (const QString &folder : m.folders) {
-        if (!target.mkpath(folder))
-            return fail(QString(error::backupNameRefused), folder);
-    }
-    for (const BackupFile &file : m.files) {
-        const QString to = target.filePath(file.path);
-        const QString part = to + kPartSuffix;
-        const PieceCopy copy =
-            copyPieces(volume.filePath(file.path), part, options.fault, options.stop, {});
-        if (copy.failure == PieceCopy::Failure::Cancelled)
-            return fail(QString(error::cancelled), QString::number(result.restored));
-        if (copy.failure != PieceCopy::Failure::None || copy.sha256 != file.sha256 ||
-            fileSha256(part) != file.sha256) {
-            QFile::remove(part);
-            return fail(QString(error::backupDamaged), QString::number(result.restored));
-        }
-        setModified(part, file.modified);
-        if (!replaceFile(part, to)) {
-            QFile::remove(part);
-            return fail(QString(error::backupDamaged), QString::number(result.restored));
-        }
-        ++result.restored;
-    }
+    result = m.kind == BackupKind::Full ? putMusicBack(m, from, target, options)
+                                        : putSmallBack(m, from, target, options);
+    if (!result.ok())
+        return result;
     if (options.firmwarePartition) {
         const HelperAnswer answer = firmware->restore(partitionPath, backupFolder);
         if (!answer.ok())

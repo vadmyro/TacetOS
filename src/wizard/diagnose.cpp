@@ -3,6 +3,7 @@
 
 #include "diagnose.h"
 
+#include "package.h"
 #include "wizardconstants.h"
 #include "wizarderrors.h"
 
@@ -19,21 +20,6 @@ namespace {
 QString tr(const char *text)
 {
     return QCoreApplication::translate("tacetos::wizard::Diagnose", text);
-}
-
-// "92 GB", "4.5 GB", "40 MB": decimal units, as the systems show free space.
-QString sizeText(qint64 bytes)
-{
-    const auto unit = [bytes](double size, const char *name) {
-        const double value = static_cast<double>(bytes) / size;
-        return QString::number(value, 'f', value < 10 ? 1 : 0) + QLatin1Char(' ') +
-               QLatin1String(name);
-    };
-    if (bytes >= 1000LL * 1000 * 1000)
-        return unit(1e9, "GB");
-    if (bytes >= 1000LL * 1000)
-        return unit(1e6, "MB");
-    return unit(1e3, "KB");
 }
 
 Check make(const char *id, Side side, bool blocking)
@@ -201,8 +187,11 @@ QList<Check> ipodChecks(const DiagnoseInput &in, bool helperOk)
     case Filesystem::Fat32:
         break;
     case Filesystem::HfsPlus:
-        // Section 2.2 rule 2: a Mac iPod only takes the clean install.
-        if (install && in.path == InstallPath::Keep)
+        // Section 2.2 rule 2: a Mac iPod only takes the clean install, and
+        // an iPod Classic none yet (section 6.4).
+        if (install && classic)
+            fail(format, macClassicRefusal());
+        else if (install && in.path == InstallPath::Keep)
             fail(format, tr("This iPod is formatted for Mac. TacetOS needs a Windows format, "
                             "which erases the iPod"));
         else if (install)
@@ -270,6 +259,27 @@ QList<Check> ipodChecks(const DiagnoseInput &in, bool helperOk)
 }
 
 } // namespace
+
+// "92 GB", "4.5 GB", "40 MB": decimal units, as the systems show free space.
+QString sizeText(qint64 bytes)
+{
+    const auto unit = [bytes](double size, const char *name) {
+        const double value = static_cast<double>(bytes) / size;
+        return QString::number(value, 'f', value < 10 ? 1 : 0) + QLatin1Char(' ') +
+               QLatin1String(name);
+    };
+    if (bytes >= 1000LL * 1000 * 1000)
+        return unit(1e9, "GB");
+    if (bytes >= 1000LL * 1000)
+        return unit(1e6, "MB");
+    return unit(1e3, "KB");
+}
+
+QString macClassicRefusal()
+{
+    return tr("This iPod Classic is formatted for Mac, which TacetOS cannot change yet. "
+              "Restore it with Apple's software on a Windows computer first");
+}
 
 QList<Check> diagnose(const DiagnoseInput &input)
 {
@@ -407,7 +417,8 @@ StepOutcome DiagnoseStep::run(StepContext &context)
     in.path = shape.path;
     in.ipod = m_sources.ipod();
     if (shape.kind == FlowKind::Install) {
-        in.package = m_sources.package(context.packageManifest());
+        in.package =
+            sameAsFlow(m_sources.package(context.packageManifest()), context.packageSha256());
         in.firmwareNeedBytes = m_sources.firmwareNeedBytes(in.package);
     }
 

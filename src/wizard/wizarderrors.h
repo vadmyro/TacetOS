@@ -26,5 +26,17 @@ inline constexpr QLatin1String sourceChanged("source-changed");
 inline constexpr QLatin1String backupNameRefused("backup-name-refused");
 inline constexpr QLatin1String backupNotVerified("backup-not-verified");
 inline constexpr QLatin1String backupDamaged("backup-damaged");
+inline constexpr QLatin1String restoreWriteFailed("restore-write-failed");
+inline constexpr QLatin1String volumeNotBack("volume-not-back");
+inline constexpr QLatin1String eraseFailed("erase-failed");
+inline constexpr QLatin1String ipodNotBack("ipod-not-back");
+inline constexpr QLatin1String verifyFailed("verify-failed");
+inline constexpr QLatin1String packageFormat("package-format");
+inline constexpr QLatin1String packageWrongModel("package-wrong-model");
+inline constexpr QLatin1String packageIncomplete("package-incomplete");
+inline constexpr QLatin1String packageDamaged("package-damaged");
+inline constexpr QLatin1String packageChanged("package-changed");
+inline constexpr QLatin1String firmwareNoRoom("firmware-no-room");
+inline constexpr QLatin1String firmwareWriteFailed("firmware-write-failed");
 
 } // namespace tacetos::wizard::error

@@ -4,6 +4,7 @@
 #pragma once
 
 #include "filefault.h"
+#include "helpercalls.h"
 #include "step.h"
 
 #include <QDateTime>
@@ -13,10 +14,6 @@
 #include <QStringList>
 #include <functional>
 #include <optional>
-
-namespace tacetos::helper {
-class HelperClient;
-}
 
 // The backups of the wizard and their restore (docs/specs/install-wizard.md
 // section 5).
@@ -76,6 +73,9 @@ struct ManifestRead
 // Reads `manifest.json` of a backup folder.
 ManifestRead readManifest(const QString &backupFolder);
 
+// The sha256 of a file, in lowercase hexadecimal. Empty when it cannot be read.
+QString fileSha256(const QString &path);
+
 // Section 5.1: the names of the folders of a backup.
 QString serialFolderName(const QString &serial);
 QString dateFolderName(const QDateTime &local);
@@ -98,22 +98,40 @@ struct BackupPlan
 
 BackupPlan planBackup(const QString &volumeRoot, BackupKind kind);
 
+// Section 5.2: the bytes a backup needs on the computer: the used space of the
+// volume for `full`, the size of the files to copy for the others, plus the
+// firmware partition of an older iPod (0 for a Classic), plus `kBackupMargin`.
+qint64 backupSpaceNeeded(BackupKind kind, qint64 volumeUsed, qint64 fileBytes,
+                         qint64 partitionBytes);
+
+// Section 2.2 rules 1 and 2: the paths the first screen offers. A path that
+// cannot be taken is greyed with its reason.
+struct PathOffer
+{
+    bool clean = true;
+    bool keep = true;
+    QString cleanWhy;
+    QString keepWhy;
+    // The path chosen when the screen opens: `None` when neither can be taken.
+    InstallPath chosen = InstallPath::Clean;
+};
+
+// `free` is the free space of the backup folder, -1 when it is not known.
+PathOffer offerPaths(Family family, bool macFormat, qint64 cleanNeed, qint64 keepNeed, qint64 free);
+
 // Section 5.4: a verified backup. The sha256 are not read again.
 bool isVerifiedBackup(const QString &backupFolder, const QString &serial, QString *why = nullptr);
+
+// Sections 2.2 rule 3 and 6.1: nothing is erased unless the backup of the flow
+// is a verified `full` backup of this serial, holding the firmware partition on
+// an older iPod.
+bool isVerifiedFullBackup(const QString &backupFolder, const QString &serial, Family family,
+                          QString *why = nullptr);
 
 // Section 5.6: the path of the copy of the firmware partition of a verified
 // backup of this serial, its sha256 read again. Empty when there is none.
 QString checkedFirmwarePartition(const QString &backupFolder, const QString &serial,
                                  QString *why = nullptr);
-
-// The answer of the helper to one command.
-struct HelperAnswer
-{
-    QString code;
-    QString detail;
-    QJsonObject data;
-    bool ok() const { return code.isEmpty(); }
-};
 
 // Section 5.3 rule 1: the firmware partition is copied, and written back, by
 // the helper only. An interface, so that the tests give their own.
@@ -139,12 +157,7 @@ public:
     HelperAnswer restore(const QString &file, const QString &dataDir) override;
 
 private:
-    HelperAnswer call(const QString &cmd, const QJsonObject &args);
-    HelperAnswer scanToken(QString *token);
-
-    helper::HelperClient &m_client;
-    QJsonObject m_target;
-    QString m_port;
+    ClientHelperCommands m_commands;
 };
 
 // What a backup step is made from. The app gives the real ones, the tests
@@ -199,13 +212,15 @@ private:
     BackupReport m_report;
 };
 
-// Section 5.7: restore in one click, for `keep` and `settings` backups.
+// Section 5.7: restore in one click.
 struct RestoreOptions
 {
     // Write the firmware partition back too (`restore-backup`).
     bool firmwarePartition = false;
     installer::FileFault fault;
     std::function<bool()> stop;
+    // Bytes done and total, while a `full` backup is put back.
+    std::function<void(qint64, qint64)> progress;
 };
 
 struct RestoreResult
@@ -213,9 +228,15 @@ struct RestoreResult
     QString code;
     QString detail;
     int restored = 0;
+    // Files of a `full` backup already on the iPod, with the same sha256.
+    int skipped = 0;
     bool ok() const { return code.isEmpty(); }
 };
 
+// A `keep` or `settings` backup has every sha256 checked before anything is
+// written. A `full` backup ("Put my music back") is put back file by file,
+// each one checked before it takes its name on the iPod; the firmware folder of
+// the backup is left out when the volume already has one.
 RestoreResult restoreFromBackup(const QString &backupFolder, const QString &volumeRoot,
                                 const QString &serial, FirmwarePartition *firmware,
                                 const RestoreOptions &options = RestoreOptions());

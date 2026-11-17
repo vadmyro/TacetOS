@@ -65,4 +65,40 @@ inline constexpr qint64 kBackupMargin = qint64(1) << 30;
 // Section 5.5: a copy reads and writes by pieces of this size.
 inline constexpr qint64 kCopyPiece = qint64(1) << 20;
 
+// Section 5.5: the time left is computed from the speed of this last span.
+inline constexpr qint64 kSpeedWindowMs = 10 * 1000;
+
+// Section 7.1: the manifest of a package of the firmware.
+inline constexpr int kPackageFormat = 1;
+inline constexpr qint64 kPackageManifestMax = 64 * 1024;
+
+// Section 7.6: what the zip of a firmware may hold at most.
+inline constexpr int kZipEntryMax = 65536;
+inline constexpr qint64 kZipUnpackMax = qint64(1) << 30;
+
+// Section 7.2: the room kept free on the music volume by an install.
+inline constexpr qint64 kVolumeMargin = qint64(64) << 20;
+
+// Section 7.4: the folders next to the firmware folder during an install.
+inline constexpr QLatin1String kNewSuffix(".tacetos-new");
+inline constexpr QLatin1String kOldSuffix(".tacetos-old");
+
+// Section 6.2: a FAT32 label, and the one given when the old label is not one.
+inline constexpr int kFat32LabelMax = 11;
+inline constexpr QLatin1String kDefaultVolumeLabel("IPOD");
+
+// Section 6.3: how long the music volume has to come back after a format.
+inline constexpr qint64 kVolumeReturnMs = 30 * 1000;
+
+// Sections 8.1 and 9.2: how long an iPod that restarts has to come back
+// (device-state.md section 4).
+inline constexpr qint64 kRestartWindowMs = 60 * 1000;
+
+// Section 6.3: what the systems make on a volume they mount, which leaves it
+// empty all the same: Windows, macOS, and the trash of the Linux desktops.
+inline constexpr const char *kSystemMadeNames[] = {
+    "System Volume Information", ".fseventsd", ".Spotlight-V100", ".Trashes", ".TemporaryItems",
+};
+inline constexpr QLatin1String kLinuxTrashPrefix(".Trash-");
+
 } // namespace tacetos::wizard
