@@ -242,9 +242,10 @@ void WizardRunner::work(bool resuming)
         if (!runOne(i, cut && i == first, true))
             return;
     }
+    const QJsonObject summary = m_progress.facts.value(QString(step::finish)).toObject();
     m_store.remove(m_progress.serial);
     release();
-    post([this] { emit flowFinished(); });
+    post([this, summary] { emit flowFinished(summary); });
 }
 
 bool WizardRunner::runOne(int index, bool resume, bool writeProgress)

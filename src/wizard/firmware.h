@@ -44,4 +44,11 @@ private:
     const FirmwareSources &m_sources;
 };
 
+// Section 11.1: the part of the check of section 7.4 step 6 that needs no
+// memory of the install. Every file of the firmware zip is in the firmware
+// folder of `volumeRoot` with its size and CRC-32, and the info file names
+// `target`. Empty when it all matches, else what differs.
+QString firmwareFolderDifference(const QString &volumeRoot, const QString &firmwareZip,
+                                 const QString &target);
+
 } // namespace tacetos::wizard

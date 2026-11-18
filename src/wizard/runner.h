@@ -75,8 +75,9 @@ signals:
     void stepWaiting(const QString &name, tacetos::wizard::WaitKind kind, const QJsonObject &info);
     void stepDone(int index, const QString &name);
     void stepFailed(int index, const QString &name, const QString &code, const QString &detail);
-    // Every step is done: the progress file is deleted.
-    void flowFinished();
+    // Every step is done: the progress file is deleted. `summary` is the facts
+    // of `finish` (section 11.2), for the last screen.
+    void flowFinished(const QJsonObject &summary);
     // The flow stopped on a failure or a cancel. The progress file stays.
     void flowStopped(const QString &code);
 

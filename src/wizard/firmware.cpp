@@ -102,6 +102,36 @@ struct Kept
     QString sha256;
 };
 
+// Section 7.4 step 6: every file of the zip is in the firmware folder of the
+// volume, with its size and CRC-32. Empty when they all match.
+QString zipDifference(const archive::ZipReader &zip, const QString &root)
+{
+    const QDir folder(QDir(root).filePath(QString(device::kFirmwareFolder)));
+    for (const archive::ZipEntry &entry : zip.entries()) {
+        const QString path = insidePath(entry);
+        if (path.isEmpty() || entry.folder)
+            continue;
+        qint64 size = 0;
+        if (fileCrc(folder.filePath(path), &size) != entry.crc || size != entry.size)
+            return QStringLiteral("a file of the firmware is missing or different");
+    }
+    return QString();
+}
+
+// Section 7.4 step 6: the info file of the firmware names the model of the
+// iPod. Empty when it does.
+QString infoDifference(const QString &root, const QString &target)
+{
+    const device::MarkerRead info =
+        device::readMarkerFile(root, QString(device::kFirmwareFolder) + QLatin1Char('/') +
+                                         QString(device::kFirmwareInfoFile));
+    const device::InfoFile parsed =
+        device::parseInfoFile(info.text, QString(device::kDistributionKey));
+    if (parsed.target.compare(target, Qt::CaseInsensitive) != 0)
+        return QStringLiteral("the info file of the firmware is not for this model");
+    return QString();
+}
+
 // The kept files of a firmware folder, less those of the folders of section
 // 7.3 that the package has itself (its file wins).
 QList<Kept> keptFiles(const QString &folder, const QSet<QString> &packagePaths)
@@ -402,25 +432,16 @@ StepOutcome Install::checkAfter(const QList<Kept> &kept)
     };
     const QDir folder(m_folder);
     m_context.progress(kStageCheck, 0, 0);
-    for (const archive::ZipEntry &entry : m_zip->entries()) {
-        const QString path = insidePath(entry);
-        if (path.isEmpty() || entry.folder)
-            continue;
-        qint64 size = 0;
-        if (fileCrc(folder.filePath(path), &size) != entry.crc || size != entry.size)
-            return failed(QStringLiteral("a file of the firmware is missing or different"));
-    }
+    QString differs = zipDifference(*m_zip, m_root.path());
+    if (!differs.isEmpty())
+        return failed(differs);
     for (const Kept &file : kept) {
         if (fileSha256(folder.filePath(file.path)) != file.sha256)
             return failed(QStringLiteral("a kept file is missing or different"));
     }
-    const device::MarkerRead info =
-        device::readMarkerFile(m_root.path(), QString(device::kFirmwareFolder) + QLatin1Char('/') +
-                                                  QString(device::kFirmwareInfoFile));
-    const device::InfoFile parsed =
-        device::parseInfoFile(info.text, QString(device::kDistributionKey));
-    if (parsed.target.compare(m_sources.target(), Qt::CaseInsensitive) != 0)
-        return failed(QStringLiteral("the info file of the firmware is not for this model"));
+    differs = infoDifference(m_root.path(), m_sources.target());
+    if (!differs.isEmpty())
+        return failed(differs);
     syncVolume(m_root.path());
     return StepOutcome::done();
 }
@@ -431,6 +452,16 @@ StepOutcome FirmwareStep::run(StepContext &context)
 {
     Install install(m_sources, context);
     return install.run();
+}
+
+QString firmwareFolderDifference(const QString &volumeRoot, const QString &firmwareZip,
+                                 const QString &target)
+{
+    archive::ZipReader zip(firmwareZip);
+    if (!zip.open({kZipEntryMax, kZipUnpackMax}))
+        return QStringLiteral("the zip of the firmware cannot be read: ") + zip.error();
+    const QString differs = zipDifference(zip, volumeRoot);
+    return differs.isEmpty() ? infoDifference(volumeRoot, target) : differs;
 }
 
 } // namespace tacetos::wizard

@@ -26,11 +26,17 @@ qt_add_library(tacet_wizard STATIC
     progress.h
     runner.cpp
     runner.h
+    sources.cpp
+    sources.h
+    stepfactory.cpp
+    stepfactory.h
     step.h
     timeleft.cpp
     timeleft.h
     uninstall.cpp
     uninstall.h
+    verify.cpp
+    verify.h
     wizardconstants.h
     wizarderrors.h
 )
