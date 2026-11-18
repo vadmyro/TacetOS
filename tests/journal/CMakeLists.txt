@@ -5,3 +5,8 @@ qt_add_executable(tst_journal tst_journal.cpp)
 target_link_libraries(tst_journal PRIVATE tacet_journal Qt6::Test)
 
 add_test(NAME tst_journal COMMAND tst_journal)
+
+qt_add_executable(tst_journal_report tst_journal_report.cpp)
+target_link_libraries(tst_journal_report PRIVATE tacet_journal Qt6::Test)
+
+add_test(NAME tst_journal_report COMMAND tst_journal_report)
