@@ -5,5 +5,6 @@ What the app saw and did, kept so that a problem can be explained afterwards. Qt
 - `Journal`: adds an entry (`add(level, domain, port, text)`), keeps the last 1000 in a ring (`entries()`), announces each one once (`entryAdded`), and writes it to a file when one is attached (`attachFile(folder)`).
 - `JournalFile`: one line per entry, flushed at once, rotated at 1 MiB over 3 files. The caller gives the data folder, the code never looks for it.
 - `cleanText()`, `cleanPort()` and `formatEntry()`: pure functions. The text is made one line, the home folder becomes `~`, and the account name as a path component becomes `<user>`.
+- `buildReport()` (`report.h`): the anonymised report of `docs/specs/install-wizard.md` section 12, in two forms: a summary of at most 2000 characters and the full text. It sends nothing. `ReportScrubber` takes out serial numbers (named `ipod-` and 8 hexadecimal digits of an HMAC with the key in `report-key`), the home folder and account name, volume labels, the backup folder and the host name, in one pass.
 
 The journal never stops the app: when the folder or the file fails, one warning goes to the ring and everything goes on in memory.

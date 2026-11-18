@@ -29,4 +29,15 @@ inline constexpr int kJournalFiles = 3;
 // Section 3.1: the time of an entry, in UTC.
 inline constexpr QLatin1String kJournalTimeFormat("yyyy-MM-ddTHH:mm:ss.zzzZ");
 
+// Wizard section 12.3: the summary of the report fits in one Discord message.
+inline constexpr int kReportSummaryMax = 2000;
+
+// Wizard section 12.1: entries of the journal kept before the last flow.
+inline constexpr int kReportContext = 200;
+
+// Wizard section 12.2: the key of the serial names, in the data folder of the
+// app, and its size in bytes.
+inline constexpr QLatin1String kReportKeyFile("report-key");
+inline constexpr int kReportKeyBytes = 16;
+
 } // namespace tacetos::journal
