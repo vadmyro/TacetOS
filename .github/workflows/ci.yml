@@ -40,7 +40,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-2025, macos-15]
+        # Intel Macs: since November 2026 the Apple Silicon runners are often not given to
+        # the job at all, and it is cancelled after 15 minutes in the queue.
+        os: [ubuntu-24.04, windows-2025, macos-15-intel]
         preset: [debug, release]
     steps:
       - uses: actions/checkout@v7
