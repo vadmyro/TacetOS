@@ -49,7 +49,7 @@
 | Foundations | Firmware base, model database, specs | ✅ 7/7 |
 | **v0.1** | Device detection and live state | ✅ 7/7 |
 | Test devices | Disk image test devices, privileged helper | ✅ 6/6 |
-| **v0.2** | Install and reset wizard | ⏳ 1/12 |
+| **v0.2** | Install and reset wizard | ⏳ 2/12 |
 | **v0.3** | TacetOS firmware | ⏳ 0/10 |
 | **v0.4** | Music library and sync | ⏳ 0/11 |
 | **v0.5** | Settings, fonts, menus | ⏳ 0/7 |
@@ -67,7 +67,7 @@
 - [ ] Automatic backup of settings, themes, playlists and the firmware partition
 - [ ] Format or convert (Mac to FAT32) with a strong confirmation
 - [x] Firmware install that keeps your settings
-- [ ] Bootloader install on older iPods
+- [x] Bootloader install on older iPods
 - [ ] Built-in DFU guide: buttons to hold, countdown, carries on by itself
 - [ ] Bootloader install on the iPod Classic, dual boot
 - [ ] Uninstall: back to 100 % Apple software
