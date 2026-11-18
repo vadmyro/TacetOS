@@ -603,6 +603,7 @@ The wizard has its own codes, and passes on the codes of the helper (`helper.md`
 | `ipod-not-back` | Sections 8.1, 9.4 | Section 9.4 |
 | `disk-mode-instead`, `bootloader-not-taken`, `back-in-dfu`, `wrong-mode` | Section 9.4 | Section 9.4 |
 | `still-tacetos` | Section 10 | "The iPod still starts TacetOS. Try again" |
+| `nothing-to-do` | Section 10 | "This iPod has no TacetOS. There is nothing to remove". Not a failure of the iPod: the flow stops and nothing was written |
 | `verify-failed` | Sections 8.2, 11.1 | What differs, and the way out of that step |
 
 ## 14. Constants at a glance
