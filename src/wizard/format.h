@@ -9,6 +9,7 @@
 #include "wizardconstants.h"
 
 #include <QHash>
+#include <QList>
 #include <QMutex>
 #include <QObject>
 #include <QString>
@@ -80,6 +81,53 @@ private:
     QWaitCondition m_changed;
     // By serial: the volume of each iPod shown ready.
     QHash<QString, MusicVolume> m_ready;
+};
+
+// Section 9.2 steps 4 and 5: what detection says of an iPod, one thing at a
+// time, in the order it said it.
+struct IpodSight
+{
+    // `Seen` is an iPod added or changed, `Gone` one removed.
+    enum class Kind { Seen, Gone };
+    Kind kind = Kind::Seen;
+    device::DetectedIpod ipod;
+    // The port path of what went away (`Gone`).
+    QString portPath;
+};
+
+class IpodSightWatch
+{
+public:
+    virtual ~IpodSightWatch() = default;
+    // What was said so far no longer counts.
+    virtual void clear() = 0;
+    // The next thing detection says, for at most `ms`. Empty when nothing came,
+    // or once `stop` says so.
+    virtual std::optional<IpodSight> next(qint64 ms, const std::function<bool()> &stop) = 0;
+};
+
+// The real one: fed by the signals of detection in the thread of the screen,
+// waited for in the thread of the runner.
+class DetectionSightWatch : public QObject, public IpodSightWatch
+{
+    Q_OBJECT
+
+public:
+    explicit DetectionSightWatch(QObject *parent = nullptr) : QObject(parent) {}
+
+    void clear() override;
+    std::optional<IpodSight> next(qint64 ms, const std::function<bool()> &stop) override;
+
+public slots:
+    // Connected to `LiveTracker::ipodAdded` and `LiveTracker::ipodChanged`.
+    void seen(const tacetos::device::DetectedIpod &ipod);
+    // Connected to `LiveTracker::ipodRemoved`.
+    void gone(const QString &portPath);
+
+private:
+    QMutex m_mutex;
+    QWaitCondition m_changed;
+    QList<IpodSight> m_queue;
 };
 
 // What the steps are made from. The app gives the real ones, the tests their own.

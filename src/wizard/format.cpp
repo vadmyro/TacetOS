@@ -106,6 +106,45 @@ void DetectionVolumeWatch::seen(const device::DetectedIpod &ipod)
     m_changed.wakeAll();
 }
 
+void DetectionSightWatch::clear()
+{
+    QMutexLocker locker(&m_mutex);
+    m_queue.clear();
+}
+
+std::optional<IpodSight> DetectionSightWatch::next(qint64 ms, const std::function<bool()> &stop)
+{
+    const QDeadlineTimer deadline(ms);
+    QMutexLocker locker(&m_mutex);
+    while (m_queue.isEmpty()) {
+        if ((stop && stop()) || deadline.hasExpired())
+            return std::nullopt;
+        m_changed.wait(&m_mutex, QDeadlineTimer(std::min(kStopLookMs, deadline.remainingTime())));
+    }
+    return m_queue.takeFirst();
+}
+
+void DetectionSightWatch::seen(const device::DetectedIpod &ipod)
+{
+    QMutexLocker locker(&m_mutex);
+    IpodSight sight;
+    sight.kind = IpodSight::Kind::Seen;
+    sight.ipod = ipod;
+    sight.portPath = ipod.portPath;
+    m_queue.append(sight);
+    m_changed.wakeAll();
+}
+
+void DetectionSightWatch::gone(const QString &portPath)
+{
+    QMutexLocker locker(&m_mutex);
+    IpodSight sight;
+    sight.kind = IpodSight::Kind::Gone;
+    sight.portPath = portPath;
+    m_queue.append(sight);
+    m_changed.wakeAll();
+}
+
 StepOutcome FormatStep::run(StepContext &context)
 {
     const FlowShape shape = context.shape();

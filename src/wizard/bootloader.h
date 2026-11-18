@@ -44,7 +44,11 @@ private:
 
 // Section 8.2: installs the bootloader of the package on a clean iPod, or
 // updates it on an installed one. Facts: `record`, the path of the install
-// record, or `recordMessage`, why it could not be written.
+// record, or `recordMessage`, why it could not be written. After a failed
+// write, `next` is what the helper said to do (`offer-retry`, `restored`,
+// `restore-failed`...). After a cut (`isResume`): `installed` is done, `clean`
+// runs again, `inconsistent` offers the backup (`WaitKind::Offer`, with `offer`
+// = `restore-backup` and the `backup`), written back only after the yes.
 class BootloaderStep : public Step
 {
 public:
@@ -52,6 +56,10 @@ public:
     StepOutcome run(StepContext &context) override;
 
 private:
+    StepOutcome offerRestore(StepContext &context, const QString &folder, const QString &failure);
+    StepOutcome failedWrite(StepContext &context, const QString &folder,
+                            const HelperAnswer &result);
+
     const BootloaderSources &m_sources;
 };
 

@@ -1,0 +1,70 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 vadmyro
+
+#pragma once
+
+#include "diagnose.h"
+#include "format.h"
+#include "helpercalls.h"
+#include "package.h"
+#include "step.h"
+#include "wizardconstants.h"
+
+#include <QString>
+#include <QStringList>
+
+// The step `classic-bootloader`: the bootloader of the iPod Classic over DFU
+// mode (docs/specs/install-wizard.md section 9).
+
+namespace tacetos::wizard {
+
+// Section 9.3: what `stateBefore` of `classic-dfu` is, from the install records
+// of this serial (`present`, `absent` or `unknown`). `files` are the paths of
+// `install-record.json` files; the last record of the serial decides.
+QString classicStateBefore(const QStringList &files, const QString &serial);
+
+// What the step is made from. The app gives the real ones, the tests their own.
+class ClassicDfuSources
+{
+public:
+    virtual ~ClassicDfuSources() = default;
+    virtual HelperCommands &helper() const = 0;
+    virtual IpodSightWatch &sight() const = 0;
+    // Section 9.1: what the conditions of `bootloader-classic.md` section 3 are
+    // checked from.
+    virtual const DiagnoseSources &diagnose() const = 0;
+    // The `bootloader_target` of the model of the iPod in `models.toml`.
+    virtual QString target() const = 0;
+    // The mount point of the music volume, where the firmware was copied.
+    virtual QString volumeRoot() const = 0;
+    // Section 9.2 step 3: the data folder of the app (not the backup).
+    virtual QString dataDir() const = 0;
+    // The port of the iPod in detection. Empty: every iPod seen counts.
+    virtual QString portPath() const { return QString(); }
+    // Section 9.2 step 2: the `install-record.json` files of the Classics.
+    virtual QStringList installRecords() const { return {}; }
+    // Section 9.2 step 4: how long the iPod has to come back after the transfer.
+    virtual qint64 returnMs() const { return kRestartWindowMs; }
+};
+
+// Section 9. It waits for the user (`WaitKind::ReadyForDfu`, with the `model`
+// and a `reason`: empty the first time, then `disk-mode-instead` or
+// `dfu-failed` with the `hint`), sends `classic-dfu` and relays its `progress`.
+// The stage `dfu-detected` is given once detection shows the iPod in DFU mode.
+// Then it waits for the iPod to come back. Facts: `record`, the install
+// record, and `notTaken`, how many times the iPod came back unchanged.
+class ClassicDfuStep : public Step
+{
+public:
+    explicit ClassicDfuStep(const ClassicDfuSources &sources) : m_sources(sources) {}
+    StepOutcome run(StepContext &context) override;
+
+private:
+    std::optional<StepOutcome> conditions(StepContext &context) const;
+    StepOutcome comeBack(StepContext &context, QList<IpodSight> &pending);
+    bool writeRecord(StepContext &context, const PackageFiles &files) const;
+
+    const ClassicDfuSources &m_sources;
+};
+
+} // namespace tacetos::wizard

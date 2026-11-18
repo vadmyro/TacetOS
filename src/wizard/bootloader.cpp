@@ -14,11 +14,15 @@ namespace {
 
 const QString kClean = QStringLiteral("clean");
 const QString kInstalled = QStringLiteral("installed");
+const QString kInconsistent = QStringLiteral("inconsistent");
 
 QString stateOf(const HelperAnswer &answer)
 {
     return answer.data.value(QStringLiteral("state")).toString();
 }
+
+const QString kNext = QStringLiteral("next");
+const QString kOfferRestore = QStringLiteral("offer-restore");
 
 } // namespace
 
@@ -37,6 +41,62 @@ StepOutcome DiskModeStep::run(StepContext &context)
     if (!volume)
         return StepOutcome::failed(QString(error::ipodNotBack));
     return StepOutcome::done();
+}
+
+// Section 8.2, last paragraph: the offer to write the backup back, and only
+// after the user's yes the command (bootloader-legacy.md section 19). The
+// iPod is then as it was before the bootloader: the step stops there, and the
+// user presses Resume to try again.
+StepOutcome BootloaderStep::offerRestore(StepContext &context, const QString &folder,
+                                         const QString &failure)
+{
+    const QString file = checkedFirmwarePartition(folder, context.serial());
+    if (file.isEmpty())
+        return StepOutcome::failed(QString(error::backupNotVerified));
+    QJsonObject info;
+    info.insert(QStringLiteral("offer"), QStringLiteral("restore-backup"));
+    info.insert(QStringLiteral("backup"), file);
+    const UserAnswer answer = context.waitForUser(WaitKind::Offer, info);
+    if (answer.cancelled)
+        return StepOutcome::cancelled();
+    if (!answer.yes)
+        return StepOutcome::failed(QString(helper::err::checkFailed),
+                                   failure.isEmpty()
+                                       ? QStringLiteral("the state of the iPod is ") + kInconsistent
+                                       : failure);
+    QJsonObject args;
+    args.insert(QStringLiteral("backupFile"), file);
+    args.insert(QStringLiteral("dataDir"), folder);
+    HelperWatch watch;
+    watch.progress = [&context](const QJsonObject &event) {
+        context.progress(event.value(QStringLiteral("stage")).toString(),
+                         qint64(event.value(QStringLiteral("done")).toDouble()),
+                         qint64(event.value(QStringLiteral("total")).toDouble()));
+    };
+    const HelperAnswer result =
+        m_sources.helper().callWithToken(QString(helper::cmd::restoreBackup), args, watch);
+    if (!result.ok()) {
+        context.setFact(kNext, QStringLiteral("restore-failed"));
+        return StepOutcome::failed(result.code, result.detail);
+    }
+    context.setFact(kNext, QStringLiteral("restored"));
+    return StepOutcome::failed(QString(error::bootloaderRestored));
+}
+
+// Section 8.2, last paragraph: a failure after the first write, from the
+// `next` of the helper (bootloader-legacy.md section 19). The screen reads it
+// in the facts of the step.
+StepOutcome BootloaderStep::failedWrite(StepContext &context, const QString &folder,
+                                        const HelperAnswer &result)
+{
+    const QString next = result.data.value(kNext).toString();
+    if (next == kOfferRestore)
+        return offerRestore(context, folder, result.detail);
+    // `offer-retry`, `report-state`, `restored`, `restore-failed`: the
+    // helper did what it had to, the step says it and stops.
+    if (!next.isEmpty() && next != QLatin1String("none"))
+        context.setFact(kNext, next);
+    return StepOutcome::failed(result.code, result.detail);
 }
 
 StepOutcome BootloaderStep::run(StepContext &context)
@@ -60,6 +120,16 @@ StepOutcome BootloaderStep::run(StepContext &context)
     if (!state.ok())
         return StepOutcome::failed(state.code, state.detail);
     const QString before = stateOf(state);
+    if (context.isResume()) {
+        // Section 3.3: after a cut, the state says how far the step went.
+        if (before == kInstalled) {
+            context.setFact(QStringLiteral("recordMessage"),
+                            QStringLiteral("the record was not seen before the cut"));
+            return StepOutcome::done();
+        }
+        if (before == kInconsistent)
+            return offerRestore(context, folder, QString());
+    }
     if (before != kClean && before != kInstalled)
         return StepOutcome::failed(QString(helper::err::checkFailed),
                                    QStringLiteral("the state of the iPod is ") + before);
@@ -84,7 +154,7 @@ StepOutcome BootloaderStep::run(StepContext &context)
     if (result.code == helper::err::cancelled)
         return StepOutcome::cancelled();
     if (!result.ok())
-        return StepOutcome::failed(result.code, result.detail);
+        return failedWrite(context, folder, result);
 
     // Step 5: where the install record is, or why there is none.
     const QString record = result.data.value(QStringLiteral("record")).toString();

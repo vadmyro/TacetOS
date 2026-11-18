@@ -8,6 +8,8 @@ qt_add_library(tacet_wizard STATIC
     backup.h
     bootloader.cpp
     bootloader.h
+    classicdfu.cpp
+    classicdfu.h
     diagnose.cpp
     diagnose.h
     firmware.cpp

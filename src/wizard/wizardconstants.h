@@ -94,6 +94,10 @@ inline constexpr qint64 kVolumeReturnMs = 30 * 1000;
 // (device-state.md section 4).
 inline constexpr qint64 kRestartWindowMs = 60 * 1000;
 
+// Section 9.3: the install record of the Classic, in the backup of the flow.
+inline constexpr QLatin1String kInstallRecordFile("install-record.json");
+inline constexpr int kInstallRecordFormat = 1;
+
 // Section 6.3: what the systems make on a volume they mount, which leaves it
 // empty all the same: Windows, macOS, and the trash of the Linux desktops.
 inline constexpr const char *kSystemMadeNames[] = {
