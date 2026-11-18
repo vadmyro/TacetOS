@@ -72,3 +72,19 @@ target_link_libraries(tst_wizard_classicdfu PRIVATE
     tacet_wizard tacet_helper_core tacet_installer_testing Qt6::Test)
 target_include_directories(tst_wizard_classicdfu PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../device)
 add_test(NAME tst_wizard_classicdfu COMMAND tst_wizard_classicdfu)
+
+# The uninstall (section 10): older iPods on images with the helper program,
+# the Classic with `classic-dfu` run in this process on the fake system layer.
+qt_add_executable(tst_wizard_uninstall tst_wizard_uninstall.cpp)
+target_link_libraries(tst_wizard_uninstall PRIVATE
+    tacet_wizard tacet_fakepod tacet_helper_core tacet_installer_testing Qt6::Test)
+target_include_directories(tst_wizard_uninstall PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../device)
+target_compile_definitions(tst_wizard_uninstall PRIVATE
+    TACETOS_HELPER_PROGRAM="$<TARGET_FILE:tacet-helper>")
+add_dependencies(tst_wizard_uninstall tacet-helper)
+if(UNIX)
+    target_compile_definitions(tst_wizard_uninstall PRIVATE
+        TACETOS_HELPER_KILLTEST_PROGRAM="$<TARGET_FILE:tacet-helper-killtest>")
+    add_dependencies(tst_wizard_uninstall tacet-helper-killtest)
+endif()
+add_test(NAME tst_wizard_uninstall COMMAND tst_wizard_uninstall)
