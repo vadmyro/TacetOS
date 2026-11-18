@@ -57,4 +57,18 @@ target_link_libraries(tst_wizard_bootloader PRIVATE tacet_wizard tacet_fakepod Q
 target_compile_definitions(tst_wizard_bootloader PRIVATE
     TACETOS_HELPER_PROGRAM="$<TARGET_FILE:tacet-helper>")
 add_dependencies(tst_wizard_bootloader tacet-helper)
+if(UNIX)
+    target_compile_definitions(tst_wizard_bootloader PRIVATE
+        TACETOS_HELPER_KILLTEST_PROGRAM="$<TARGET_FILE:tacet-helper-killtest>")
+    add_dependencies(tst_wizard_bootloader tacet-helper-killtest)
+endif()
 add_test(NAME tst_wizard_bootloader COMMAND tst_wizard_bootloader)
+
+# The bootloader of the iPod Classic (section 9): the runner, `classic-dfu` run
+# in this process on the fake system layer and the fake iPod in DFU mode of the
+# installer tests, and recorded detection events.
+qt_add_executable(tst_wizard_classicdfu tst_wizard_classicdfu.cpp testpackage.h testzip.h)
+target_link_libraries(tst_wizard_classicdfu PRIVATE
+    tacet_wizard tacet_helper_core tacet_installer_testing Qt6::Test)
+target_include_directories(tst_wizard_classicdfu PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../device)
+add_test(NAME tst_wizard_classicdfu COMMAND tst_wizard_classicdfu)
