@@ -147,7 +147,7 @@ It is written **before each step starts** (the step is `running`), **when a step
 | `facts` | object | What a step found and a later step needs, by step name (below) |
 | `started`, `updated` | text | UTC, ISO 8601 |
 
-The `facts` are few, and each one is named here: `diagnose` keeps the state read by the helper (`clean`, `installed`, `inconsistent`) for an older iPod; `backup-*` keep the path of the manifest; `bootloader` keeps the path of the install record of the helper, and after a failed write the `next` of the helper (`offer-retry`, `restored`, `restore-failed`) or `restored` after the user's yes to the backup; `classic-bootloader` and `classic-remove` keep the `stateBefore` they sent. Nothing else goes in the file: no file name of the music, no text for the user.
+The `facts` are few, and each one is named here: `diagnose` keeps the state read by the helper (`clean`, `installed`, `inconsistent`) for an older iPod; `backup-*` keep the path of the manifest; `bootloader` keeps the path of the install record of the helper, and after a failed write the `next` of the helper (`offer-retry`, `restored`, `restore-failed`) or `restored` after the user's yes to the backup; `classic-bootloader` and `classic-remove` keep the `stateBefore` they sent; `finish` keeps what the last screen shows (section 11.2). Nothing else goes in the file: no file name of the music, no text for the user.
 
 ### 3.3 The resume
 
@@ -537,6 +537,8 @@ The last screen. It says:
 - **Install**: "TacetOS is installed", the version of the package, and how to start each firmware: for the Classic, `bootloader-classic.md` section 13.3 (from Apple's firmware to TacetOS, and back); for an older iPod, the text of its model file. The app asks to eject the iPod before unplugging it (`bootloader-legacy.md` section 18), with the eject of the home screen.
 - **Uninstall**: "Apple software only", and where the settings were saved.
 - The backup of the flow: its folder, with a button that opens it.
+
+`finish` keeps these as facts: `backup` (the backup folder of the flow), `version` (the package, after an install) and `settings` (the folder of the settings backup, after an uninstall). The runner gives them to the screen with the end of the flow, since the progress file that held them is then gone.
 
 Then the progress file is deleted, the lock is released, and the journal gets the end of the flow.
 
