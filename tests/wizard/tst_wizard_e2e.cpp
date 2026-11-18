@@ -425,8 +425,10 @@ private:
         ipod.variant.key = QStringLiteral("e2e");
         ipod.state = device::IpodState::Ready;
         if (withVolume) {
+            // The volume is a folder on the disk of the test, so the room checks read
+            // these figures: 1 GB with 100 MB used.
             ipod.volume = device::VolumeInfo{r.volume, QStringLiteral("vfat"),
-                                             QStringLiteral("IPOD"), 4000000, 3000000};
+                                             QStringLiteral("IPOD"), 1000000000, 900000000};
         }
         return ipod;
     }

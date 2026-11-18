@@ -205,7 +205,7 @@ private:
             return nullptr;
         r->firmware = bytesAt(r->image, r->pod.firmwareStart, r->pod.firmwareBytes);
         useHelper(*r, program, kill);
-        r->watch = std::make_unique<DetectionVolumeWatch>([this, raw = r.get()](const QString &) {
+        r->watch = std::make_unique<DetectionVolumeWatch>([raw = r.get()](const QString &) {
             const int n = ++raw->mounts;
             // Detection runs in the thread of the screen: the events come there.
             QMetaObject::invokeMethod(

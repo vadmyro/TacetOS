@@ -254,6 +254,32 @@ private slots:
         QCOMPARE(failed.readError, QStringLiteral("unavailable"));
     }
 
+    // A volume that is a folder on another disk, as in the tests: the system
+    // figures are those of that disk, so the sizes come from detection.
+    void aVolumeFolderTakesTheSizesOfDetection()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        QVERIFY(QDir(dir.path()).mkpath(QStringLiteral("volume")));
+        device::DetectedIpod ipod = detected(QStringLiteral("S1"), QStringLiteral("1-2"),
+                                             dir.filePath(QStringLiteral("volume")));
+        ipod.volume->totalBytes = 4000000;
+        ipod.volume->freeBytes = 3000000;
+        IpodView view(QStringLiteral("S1"));
+        view.seen(ipod);
+
+        helper::HelperClient client;
+        FakeCommands commands;
+        LinuxDiagnoseSources sources(
+            configFor(Family::Dfu, QStringLiteral("S1"), dir.filePath(QStringLiteral("backups"))),
+            view, commands, client);
+
+        const IpodFacts facts = sources.ipod();
+        QCOMPARE(facts.volumeSize, qint64(4000000));
+        QCOMPARE(facts.volumeFree, qint64(3000000));
+        QCOMPARE(sources.backupNeedBytes(InstallPath::Clean), qint64(1000000) + kBackupMargin);
+    }
+
     void classicReadsTheAppleVersion()
     {
         helper::HelperClient client;
