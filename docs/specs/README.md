@@ -9,5 +9,6 @@ Precise rules the code must follow (library sorting, install flow...), written b
 - [bootloader-legacy.md](bootloader-legacy.md): the bootloader of the older iPods
 - [bootloader-classic.md](bootloader-classic.md): the bootloader of the iPod Classic
 - [install-wizard.md](install-wizard.md): the steps of an install and an uninstall, the backups, the resume after a cut, the report
+- [install-screens.md](install-screens.md): the screens of the wizard: the window, the paths, the checks, the erase, the DFU guide, the report
 - [library-rules.md](library-rules.md): how music is sorted and copied
 - [theme-format.md](theme-format.md): how a theme is written
