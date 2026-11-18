@@ -147,7 +147,7 @@ It is written **before each step starts** (the step is `running`), **when a step
 | `facts` | object | What a step found and a later step needs, by step name (below) |
 | `started`, `updated` | text | UTC, ISO 8601 |
 
-The `facts` are few, and each one is named here: `diagnose` keeps the state read by the helper (`clean`, `installed`, `inconsistent`) for an older iPod; `backup-*` keep the path of the manifest; `bootloader` keeps the path of the install record of the helper; `classic-bootloader` and `classic-remove` keep the `stateBefore` they sent. Nothing else goes in the file: no file name of the music, no text for the user.
+The `facts` are few, and each one is named here: `diagnose` keeps the state read by the helper (`clean`, `installed`, `inconsistent`) for an older iPod; `backup-*` keep the path of the manifest; `bootloader` keeps the path of the install record of the helper, and after a failed write the `next` of the helper (`offer-retry`, `restored`, `restore-failed`) or `restored` after the user's yes to the backup; `classic-bootloader` and `classic-remove` keep the `stateBefore` they sent. Nothing else goes in the file: no file name of the music, no text for the user.
 
 ### 3.3 The resume
 
@@ -599,6 +599,7 @@ The wizard has its own codes, and passes on the codes of the helper (`helper.md`
 | `package-format`, `package-wrong-model`, `package-incomplete`, `package-damaged`, `package-changed` | Section 7.1 | The message of the check, "Choose another package" |
 | `firmware-no-room` | Section 7.2 | "Not enough space on the iPod for TacetOS", the space needed |
 | `firmware-write-failed` | Section 7.4 | "The firmware could not be written to the iPod. Press Resume": section 7.5 cleans up |
+| `bootloader-restored` | Section 8.2 | "The backup was written back: the iPod is as it was before the bootloader. Press Resume to try again" |
 | `ipod-not-back` | Sections 8.1, 9.4 | Section 9.4 |
 | `disk-mode-instead`, `bootloader-not-taken`, `back-in-dfu`, `wrong-mode` | Section 9.4 | Section 9.4 |
 | `still-tacetos` | Section 10 | "The iPod still starts TacetOS. Try again" |
