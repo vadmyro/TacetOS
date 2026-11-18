@@ -32,12 +32,22 @@ QString mountOf(const device::DetectedIpod &ipod)
     return ipod.volume ? ipod.volume->mountPoint : QString();
 }
 
+// The system describes the file system that holds a folder. That is the iPod
+// only when the folder is where the iPod is mounted, not a folder on another
+// disk.
+bool describesVolume(const QStorageInfo &storage, const QString &mountPoint)
+{
+    return !mountPoint.isEmpty() && storage.isValid() && storage.bytesTotal() > 0 &&
+           QDir::cleanPath(QDir::fromNativeSeparators(storage.rootPath())) ==
+               QDir::cleanPath(QDir::fromNativeSeparators(mountPoint));
+}
+
 // The used bytes of a mounted volume, from the system first, then from what
 // detection read.
 qint64 usedBytes(const device::DetectedIpod &ipod)
 {
     const QStorageInfo storage(mountOf(ipod));
-    if (!mountOf(ipod).isEmpty() && storage.isValid() && storage.bytesTotal() > 0)
+    if (describesVolume(storage, mountOf(ipod)))
         return storage.bytesTotal() - storage.bytesFree();
     if (ipod.volume)
         return qMax<qint64>(0, ipod.volume->totalBytes - ipod.volume->freeBytes);
@@ -301,7 +311,7 @@ IpodFacts LinuxDiagnoseSources::ipod() const
     facts.filesystem = filesystemOf(ipod);
     if (ipod.volume) {
         const QStorageInfo storage(ipod.volume->mountPoint);
-        const bool valid = storage.isValid() && storage.bytesTotal() > 0;
+        const bool valid = describesVolume(storage, ipod.volume->mountPoint);
         facts.volumeSize = valid ? storage.bytesTotal() : ipod.volume->totalBytes;
         facts.volumeFree = valid ? storage.bytesAvailable() : ipod.volume->freeBytes;
     }
