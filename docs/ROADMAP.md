@@ -134,7 +134,7 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 - [ ] Windows: DFU
 - [ ] macOS: detection, DFU, helper, Mac-formatted iPods
 - [ ] Tests on Windows and macOS with a real iPod
-- [ ] CI on more systems: older Ubuntu, Fedora, Arch, Debian, ARM64, Intel Macs
+- [ ] CI on more systems: older Ubuntu, Fedora, Arch, Debian, ARM64, Apple Silicon Macs (the CI runs on Intel Macs for now)
 
 ## Beta
 
