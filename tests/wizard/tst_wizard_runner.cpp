@@ -176,6 +176,7 @@ class TstWizardRunner : public QObject
 
 private slots:
     void runsEveryStep();
+    void finishFactsReachTheEnd();
     void progressWrittenBeforeEachStep();
     void cutAtEachStep_data();
     void cutAtEachStep();
@@ -212,6 +213,23 @@ void TstWizardRunner::runsEveryStep()
     const ProgressStore store(dir.path());
     QVERIFY(!QFile::exists(store.filePath(kSerial)));
     QVERIFY(!QFile::exists(store.lockPath(kSerial)));
+}
+
+// Section 11.2: the facts of `finish` come with the end of the flow, after the
+// progress file that held them is gone.
+void TstWizardRunner::finishFactsReachTheEnd()
+{
+    QTemporaryDir dir;
+    auto script = std::make_shared<Script>();
+    script->acts.insert(QStringLiteral("finish"), Act::SetFacts);
+    WizardRunner runner(dir.path(), factoryFor(script, dir.path()));
+    QSignalSpy finished(&runner, &WizardRunner::flowFinished);
+
+    QCOMPARE(runner.start(startOf(kClassicKeep)), QString());
+    QVERIFY(finished.wait(5000));
+    const QJsonObject summary = finished.at(0).at(0).toJsonObject();
+    QCOMPARE(summary.value(QStringLiteral("manifest")).toString(), QStringLiteral("m.json"));
+    QVERIFY(!QFile::exists(ProgressStore(dir.path()).filePath(kSerial)));
 }
 
 void TstWizardRunner::progressWrittenBeforeEachStep()
