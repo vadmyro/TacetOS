@@ -44,5 +44,7 @@ inline constexpr QLatin1String dfuFailed("dfu-failed");
 inline constexpr QLatin1String bootloaderNotTaken("bootloader-not-taken");
 inline constexpr QLatin1String backInDfu("back-in-dfu");
 inline constexpr QLatin1String wrongMode("wrong-mode");
+inline constexpr QLatin1String stillTacetos("still-tacetos");
+inline constexpr QLatin1String nothingToDo("nothing-to-do");
 
 } // namespace tacetos::wizard::error

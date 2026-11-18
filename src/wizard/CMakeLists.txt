@@ -29,6 +29,8 @@ qt_add_library(tacet_wizard STATIC
     step.h
     timeleft.cpp
     timeleft.h
+    uninstall.cpp
+    uninstall.h
     wizardconstants.h
     wizarderrors.h
 )

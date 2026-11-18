@@ -47,16 +47,28 @@ public:
     virtual qint64 returnMs() const { return kRestartWindowMs; }
 };
 
+// Section 10 step 3: the same steps run to remove the bootloader. The package
+// is not looked at, and the end is the iPod back with Apple's firmware.
+enum class ClassicOperation { Install, Uninstall };
+
 // Section 9. It waits for the user (`WaitKind::ReadyForDfu`, with the `model`
 // and a `reason`: empty the first time, then `disk-mode-instead` or
 // `dfu-failed` with the `hint`), sends `classic-dfu` and relays its `progress`.
 // The stage `dfu-detected` is given once detection shows the iPod in DFU mode.
 // Then it waits for the iPod to come back. Facts: `record`, the install
-// record, and `notTaken`, how many times the iPod came back unchanged.
+// record, and `notTaken`, how many times the iPod came back unchanged. For an
+// uninstall (section 10) there is no record, and the fact is `notRemoved`: how
+// many times the iPod came back with TacetOS (`still-tacetos`). When there is no
+// firmware folder and no install record, it first asks (`WaitKind::Offer`, with
+// `offer` = `remove-anyway`), and the flow stops if the answer is no.
 class ClassicDfuStep : public Step
 {
 public:
-    explicit ClassicDfuStep(const ClassicDfuSources &sources) : m_sources(sources) {}
+    explicit ClassicDfuStep(const ClassicDfuSources &sources,
+                            ClassicOperation operation = ClassicOperation::Install)
+        : m_sources(sources), m_operation(operation)
+    {
+    }
     StepOutcome run(StepContext &context) override;
 
 private:
@@ -65,6 +77,7 @@ private:
     bool writeRecord(StepContext &context, const PackageFiles &files) const;
 
     const ClassicDfuSources &m_sources;
+    ClassicOperation m_operation;
 };
 
 } // namespace tacetos::wizard

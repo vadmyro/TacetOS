@@ -28,6 +28,7 @@ const QString kStageResume = QStringLiteral("resume");
 const QString kStageDfuDetected = QStringLiteral("dfu-detected");
 const QString kStageDiskModeInstead = QStringLiteral("disk-mode-instead");
 const QString kNotTaken = QStringLiteral("notTaken");
+const QString kNotRemoved = QStringLiteral("notRemoved");
 
 // Section 9.1: the conditions of `bootloader-classic.md` section 3 that the
 // diagnosis checks. Condition 4, the firmware, is `firmwareCopied`.
@@ -107,7 +108,8 @@ std::optional<StepOutcome> ClassicDfuStep::conditions(StepContext &context) cons
             return StepOutcome::failed(QString(error::checkBlocking), check.id);
         }
     }
-    if (!firmwareCopied(m_sources.volumeRoot(), m_sources.target()))
+    if (m_operation == ClassicOperation::Install &&
+        !firmwareCopied(m_sources.volumeRoot(), m_sources.target()))
         return StepOutcome::failed(QString(error::firmwareWriteFailed),
                                    QStringLiteral("the firmware is not on the music volume"));
     return std::nullopt;
@@ -194,8 +196,17 @@ StepOutcome ClassicDfuStep::comeBack(StepContext &context, QList<IpodSight> &pen
         }
         switch (sight->ipod.running) {
         case device::RunningFirmware::Other:
+            if (m_operation == ClassicOperation::Uninstall) {
+                // Section 10 step 3: TacetOS still starts.
+                const int times =
+                    context.fact(QString(step::classicRemove), kNotRemoved).toInt() + 1;
+                context.setFact(kNotRemoved, times);
+                return StepOutcome::failed(QString(error::stillTacetos), QString::number(times));
+            }
             return StepOutcome::done();
         case device::RunningFirmware::Apple: {
+            if (m_operation == ClassicOperation::Uninstall)
+                return StepOutcome::done();
             const int times = context.fact(QString(step::classicBootloader), kNotTaken).toInt() + 1;
             context.setFact(kNotTaken, times);
             return StepOutcome::failed(QString(error::bootloaderNotTaken), QString::number(times));
@@ -210,17 +221,29 @@ StepOutcome ClassicDfuStep::comeBack(StepContext &context, QList<IpodSight> &pen
 StepOutcome ClassicDfuStep::run(StepContext &context)
 {
     // Section 9.1: the package again, the conditions, the firmware.
+    const bool uninstall = m_operation == ClassicOperation::Uninstall;
     PackageFiles files;
-    const PackageCheck package =
-        sameAsFlow(checkPackage(context.packageManifest(), m_sources.target(), &files),
-                   context.packageSha256());
-    if (!package.code.isEmpty())
-        return StepOutcome::failed(package.code, package.message);
+    if (!uninstall) {
+        const PackageCheck package =
+            sameAsFlow(checkPackage(context.packageManifest(), m_sources.target(), &files),
+                       context.packageSha256());
+        if (!package.code.isEmpty())
+            return StepOutcome::failed(package.code, package.message);
+    }
     if (const auto refused = conditions(context))
         return *refused;
 
     // Section 9.2 step 2.
     const QString before = classicStateBefore(m_sources.installRecords(), context.serial());
+    if (uninstall && before != QLatin1String("present") &&
+        !QDir(m_sources.volumeRoot()).exists(QString(device::kFirmwareFolder))) {
+        // Section 10, "Nothing to do": the state of the NOR cannot be read.
+        QJsonObject info;
+        info.insert(QStringLiteral("offer"), QStringLiteral("remove-anyway"));
+        const UserAnswer answer = context.waitForUser(WaitKind::Offer, info);
+        if (answer.cancelled || !answer.yes)
+            return StepOutcome::cancelled();
+    }
     const QString port = m_sources.portPath();
     IpodSightWatch &sight = m_sources.sight();
     QString reason;
@@ -237,8 +260,10 @@ StepOutcome ClassicDfuStep::run(StepContext &context)
 
         // Step 3.
         QJsonObject args;
-        args.insert(QStringLiteral("operation"), QStringLiteral("install"));
-        args.insert(QStringLiteral("bootloaderFile"), files.bootloader);
+        args.insert(QStringLiteral("operation"),
+                    uninstall ? QStringLiteral("uninstall") : QStringLiteral("install"));
+        if (!uninstall)
+            args.insert(QStringLiteral("bootloaderFile"), files.bootloader);
         args.insert(QStringLiteral("stateBefore"), before);
         args.insert(QStringLiteral("dataDir"), m_sources.dataDir());
 
@@ -304,7 +329,7 @@ StepOutcome ClassicDfuStep::run(StepContext &context)
 
         // Steps 4 and 5.
         const StepOutcome outcome = comeBack(context, pending);
-        if (outcome.kind == StepOutcome::Kind::Done)
+        if (outcome.kind == StepOutcome::Kind::Done && !uninstall)
             writeRecord(context, files);
         return outcome;
     }
