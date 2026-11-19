@@ -8,6 +8,9 @@ add_test(NAME tst_wizard_flow COMMAND tst_wizard_flow)
 qt_add_executable(tst_wizard_runner tst_wizard_runner.cpp)
 target_link_libraries(tst_wizard_runner PRIVATE tacet_wizard Qt6::Test)
 add_test(NAME tst_wizard_runner COMMAND tst_wizard_runner)
+# Alone: it waits 5 seconds at most for small files, and the disk image tests that run
+# at the same time can hold the disk longer than that.
+set_tests_properties(tst_wizard_runner PROPERTIES RUN_SERIAL TRUE)
 
 qt_add_executable(tst_wizard_diagnose tst_wizard_diagnose.cpp)
 target_link_libraries(tst_wizard_diagnose PRIVATE tacet_wizard Qt6::Test)
