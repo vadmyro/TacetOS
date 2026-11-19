@@ -36,3 +36,24 @@ target_link_libraries(tst_home_wiring PRIVATE tacetos_ui Qt6::Test)
 
 add_test(NAME tst_home_wiring COMMAND tst_home_wiring)
 set_tests_properties(tst_home_wiring PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The window of the install wizard, with a runner whose steps are made by the test.
+qt_add_executable(tst_wizardwindow tst_wizardwindow.cpp)
+target_link_libraries(tst_wizardwindow PRIVATE tacetos_ui Qt6::Test)
+
+add_test(NAME tst_wizardwindow COMMAND tst_wizardwindow)
+set_tests_properties(tst_wizardwindow PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The page of the checks, with a runner whose step reads fake sources.
+qt_add_executable(tst_diagnosepage tst_diagnosepage.cpp)
+target_link_libraries(tst_diagnosepage PRIVATE tacetos_ui Qt6::Test)
+
+add_test(NAME tst_diagnosepage COMMAND tst_diagnosepage)
+set_tests_properties(tst_diagnosepage PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The pages of the backup and of the restore, with a runner whose steps are made by the test.
+qt_add_executable(tst_backuppage tst_backuppage.cpp)
+target_link_libraries(tst_backuppage PRIVATE tacetos_ui Qt6::Test)
+
+add_test(NAME tst_backuppage COMMAND tst_backuppage)
+set_tests_properties(tst_backuppage PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
