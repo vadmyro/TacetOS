@@ -155,6 +155,7 @@ private:
         qint64 clock = 0;
         QString stepName;
         bool classic;
+        int seen = 0;
         std::unique_ptr<WizardRunner> runner;
         std::unique_ptr<UninstallPage> page;
 
@@ -175,6 +176,10 @@ private:
             page->setRestartWindowMs(60 * 1000);
             page->setIpod(modelName, QStringLiteral("iPod Test 80 GB"));
             page->show();
+            const auto count = [this] { ++seen; };
+            QObject::connect(runner.get(), &WizardRunner::stepProgress, page.get(), count);
+            QObject::connect(runner.get(), &WizardRunner::stepFirstWrite, page.get(), count);
+            QObject::connect(runner.get(), &WizardRunner::stepWaiting, page.get(), count);
         }
 
         ~Fixture()
@@ -197,19 +202,22 @@ private:
             QCOMPARE(runner->start(s), QString());
         }
 
-        // The step plays the next event, and the page has read it.
+        // The step plays the next event, and the page has read it: the signals of the runner
+        // reach the page first, then `seen`, in the thread of the test.
         void next()
         {
-            const int target = script.played + 1;
-            script.allowed = target;
-            QTRY_VERIFY_WITH_TIMEOUT(script.played >= target, 5000);
-            QTest::qWait(30);
+            const int target = seen + 1;
+            script.allowed = script.played + 1;
+            QTRY_VERIFY_WITH_TIMEOUT(seen >= target, 5000);
         }
 
-        // The step runs to its end.
+        // The flow runs to its end, and the page has read every signal of it. Waiting for one
+        // state of the page is not enough: a step before this one may have left it done.
         void finish()
         {
             script.allowed = 1000;
+            QVERIFY(runner->waitFinished(5000));
+            QCoreApplication::processEvents();
             QTRY_VERIFY_WITH_TIMEOUT(page->isDone() || page->isFailed() || page->isStopped(), 5000);
         }
 
