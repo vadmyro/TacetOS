@@ -119,12 +119,32 @@ find_file(TACETOS_FONT_FILE ${TACETOS_FONT_NAME}
     NO_DEFAULT_PATH)
 if(NOT TACETOS_FONT_FILE AND TACETOS_FETCH_FONT)
     set(TACETOS_FONT_DOWNLOAD "${CMAKE_BINARY_DIR}/fonts/${TACETOS_FONT_NAME}")
-    if(NOT EXISTS "${TACETOS_FONT_DOWNLOAD}")
+    # The network of a CI machine fails now and then: three tries, then the app builds with the
+    # font of the system, as it does when the option is off.
+    set(TACETOS_FONT_SHA256 8381c33b9a44f066f2b99dba3d416a2342891e28c956a35dfd8d16ee2987e6d4)
+    foreach(try RANGE 1 3)
+        if(EXISTS "${TACETOS_FONT_DOWNLOAD}")
+            break()
+        endif()
         file(DOWNLOAD
             https://raw.githubusercontent.com/GNOME/adwaita-fonts/50.0/sans/${TACETOS_FONT_NAME}
-            "${TACETOS_FONT_DOWNLOAD}"
-            EXPECTED_HASH SHA256=8381c33b9a44f066f2b99dba3d416a2342891e28c956a35dfd8d16ee2987e6d4)
-    endif()
+            "${TACETOS_FONT_DOWNLOAD}.part"
+            STATUS TACETOS_FONT_STATUS)
+        list(GET TACETOS_FONT_STATUS 0 TACETOS_FONT_CODE)
+        if(TACETOS_FONT_CODE EQUAL 0)
+            file(SHA256 "${TACETOS_FONT_DOWNLOAD}.part" TACETOS_FONT_SUM)
+            if(TACETOS_FONT_SUM STREQUAL TACETOS_FONT_SHA256)
+                file(RENAME "${TACETOS_FONT_DOWNLOAD}.part" "${TACETOS_FONT_DOWNLOAD}")
+                break()
+            endif()
+            set(TACETOS_FONT_STATUS "wrong sha256 ${TACETOS_FONT_SUM}")
+        endif()
+        file(REMOVE "${TACETOS_FONT_DOWNLOAD}.part")
+        message(WARNING "Font download, try ${try} of 3: ${TACETOS_FONT_STATUS}")
+        if(try LESS 3)
+            execute_process(COMMAND ${CMAKE_COMMAND} -E sleep 5)
+        endif()
+    endforeach()
     if(EXISTS "${TACETOS_FONT_DOWNLOAD}")
         set(TACETOS_FONT_FILE "${TACETOS_FONT_DOWNLOAD}")
     endif()
