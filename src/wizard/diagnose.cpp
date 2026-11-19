@@ -424,6 +424,7 @@ StepOutcome DiagnoseStep::run(StepContext &context)
 
     for (;;) {
         m_checks = diagnose(in);
+        context.reportChecks(m_checks);
         const Check *blocking = firstBlocking(m_checks);
         if (blocking && blocking->result == CheckResult::Ask && blocking->id == "battery") {
             const UserAnswer answer = context.waitForUser(WaitKind::Battery);

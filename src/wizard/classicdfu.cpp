@@ -278,6 +278,8 @@ StepOutcome ClassicDfuStep::run(StepContext &context)
         HelperWatch watch;
         watch.progress = [&](const QJsonObject &event) {
             stage = event.value(QStringLiteral("stage")).toString();
+            if (!event.value(QStringLiteral("cancellable")).toBool(true))
+                context.firstWrite();
             context.progress(stage, qint64(event.value(QStringLiteral("done")).toDouble()),
                              qint64(event.value(QStringLiteral("total")).toDouble()));
         };

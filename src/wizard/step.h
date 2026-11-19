@@ -7,6 +7,7 @@
 
 #include <QJsonObject>
 #include <QJsonValue>
+#include <QList>
 #include <QMetaType>
 #include <QString>
 #include <functional>
@@ -16,6 +17,8 @@
 // (docs/specs/install-wizard.md section 2.4).
 
 namespace tacetos::wizard {
+
+struct Check;
 
 // Section 2.4 rule 3: what a step can wait for.
 enum class WaitKind { DiskMode, TypedName, ReadyForDfu, Battery, Offer };
@@ -54,6 +57,11 @@ public:
     virtual QString model() const = 0;
     virtual FlowShape shape() const = 0;
 
+    // Screens section 1.2: the step is about to make its first write to the iPod, or the helper
+    // said its command is no longer `cancellable`. It may be called again: only the first call
+    // of a step counts.
+    virtual void firstWrite() {}
+
     // Section 3.3: true when the step was running, waiting or failed when the
     // flow stopped, and runs again now with its rule of resume.
     virtual bool isResume() const = 0;
@@ -65,6 +73,10 @@ public:
     // Progress inside the step: bytes or seconds, done and total (0 when not
     // known), and a short stage name.
     virtual void progress(const QString &stage, qint64 done, qint64 total) = 0;
+
+    // Screens section 3: the checks of this run of the diagnosis, for the screen. Only the step
+    // `diagnose` calls it, each time it runs the checks.
+    virtual void reportChecks(const QList<Check> &) {}
 
     // Section 2.4 rule 3: blocks until the user answers.
     virtual UserAnswer waitForUser(WaitKind kind, const QJsonObject &info = QJsonObject()) = 0;

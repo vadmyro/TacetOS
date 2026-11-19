@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "diagnose.h"
 #include "progress.h"
 #include "step.h"
 
@@ -72,7 +73,12 @@ public:
 signals:
     void stepStarted(int index, const QString &name);
     void stepProgress(const QString &name, const QString &stage, qint64 done, qint64 total);
+    // Screens section 1.2: the step made its first write to the iPod, so it can no longer be
+    // cancelled. Once per step.
+    void stepFirstWrite(const QString &name);
     void stepWaiting(const QString &name, tacetos::wizard::WaitKind kind, const QJsonObject &info);
+    // Screens section 3: the checks of the step `diagnose`, each time it runs them.
+    void checksReported(const QList<tacetos::wizard::Check> &checks);
     void stepDone(int index, const QString &name);
     void stepFailed(int index, const QString &name, const QString &code, const QString &detail);
     // Every step is done: the progress file is deleted. `summary` is the facts

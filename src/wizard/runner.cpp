@@ -51,6 +51,19 @@ public:
         });
     }
 
+    void firstWrite() override
+    {
+        if (m_wrote.exchange(true))
+            return;
+        const QString name = m_name;
+        m_runner->post([runner = m_runner, name] { emit runner->stepFirstWrite(name); });
+    }
+
+    void reportChecks(const QList<Check> &checks) override
+    {
+        m_runner->post([runner = m_runner, checks] { emit runner->checksReported(checks); });
+    }
+
     UserAnswer waitForUser(WaitKind kind, const QJsonObject &info) override
     {
         const bool write = m_writeProgress;
@@ -99,6 +112,7 @@ private:
     QString m_name;
     bool m_resume;
     bool m_writeProgress;
+    std::atomic<bool> m_wrote{false};
 };
 
 WizardRunner::WizardRunner(const QString &dataDir, StepFactory factory, QObject *parent)

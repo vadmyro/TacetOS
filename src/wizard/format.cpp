@@ -193,6 +193,8 @@ StepOutcome FormatStep::run(StepContext &context)
         args.insert(QStringLiteral("dataDir"), folder);
     HelperWatch watch;
     watch.progress = [&context](const QJsonObject &event) {
+        if (!event.value(QStringLiteral("cancellable")).toBool(true))
+            context.firstWrite();
         context.progress(event.value(QStringLiteral("stage")).toString(),
                          qint64(event.value(QStringLiteral("done")).toDouble()),
                          qint64(event.value(QStringLiteral("total")).toDouble()));

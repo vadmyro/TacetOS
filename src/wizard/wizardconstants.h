@@ -105,4 +105,8 @@ inline constexpr const char *kSystemMadeNames[] = {
 };
 inline constexpr QLatin1String kLinuxTrashPrefix(".Trash-");
 
+// Screens section 2.1: bytes a second that the first screen counts on to say how long a copy
+// takes, until the real install measures it. About an hour for a full 120 GB iPod.
+inline constexpr qint64 kCopySpeedGuess = 30 * 1000 * 1000;
+
 } // namespace tacetos::wizard

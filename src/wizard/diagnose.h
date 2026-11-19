@@ -7,6 +7,7 @@
 #include "step.h"
 
 #include <QList>
+#include <QMetaType>
 #include <QString>
 #include <QStringList>
 #include <optional>
@@ -182,3 +183,5 @@ private:
 };
 
 } // namespace tacetos::wizard
+
+Q_DECLARE_METATYPE(tacetos::wizard::Check)

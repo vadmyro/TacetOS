@@ -300,6 +300,7 @@ std::optional<StepOutcome> Install::unpack()
         QDir(m_new).removeRecursively();
         return std::optional<StepOutcome>(outcome);
     };
+    m_context.firstWrite();
     if (!QDir().mkpath(m_new))
         return give(writeFailed(QStringLiteral("the new folder cannot be made")));
     const qint64 total = m_zip->unpackedSize();
