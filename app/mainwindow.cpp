@@ -5,7 +5,9 @@
 
 #include "home/homescreen.h"
 
+#include <QCloseEvent>
 #include <QDesktopServices>
+#include <QMessageBox>
 #include <QStandardPaths>
 #include <QSysInfo>
 #include <QUrl>
@@ -93,6 +95,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), open_(openFolderI
     if (UdevMonitor::attach(driver_.get()))
         MountWatcher::attach(driver_.get());
 #endif
+    WizardLauncher::Config wizard;
+    wizard.dataDir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) +
+                     QStringLiteral("/TacetOS");
+    wizard.appVersion = QStringLiteral(TACETOS_VERSION);
+    wizard.models = models_;
+    attachWizard(wizard);
     driver_->start();
 #else
     // Detection is not there yet on this system: a plain message, no error.
@@ -113,6 +121,45 @@ MainWindow::~MainWindow()
 {
     if (driver_)
         driver_->stop();
+}
+
+void MainWindow::attachWizard(const WizardLauncher::Config &config)
+{
+    if (launcher_ || !tracker_)
+        return;
+    launcher_ = std::make_unique<WizardLauncher>(config, *tracker_, journal_.get());
+    connect(launcher_.get(), &WizardLauncher::stateChanged, this, &MainWindow::showWizardState);
+    // The buttons of a card are those of the first screen: the progress files that wait are
+    // known at once.
+    showEntries();
+}
+
+QString MainWindow::quitRefusal() const
+{
+    return launcher_ ? launcher_->manager().quitRefusal() : QString();
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    const QString refusal = quitRefusal();
+    if (!refusal.isEmpty()) {
+        QMessageBox::information(this, QString(), refusal);
+        event->ignore();
+        return;
+    }
+    QMainWindow::closeEvent(event);
+}
+
+// Screens section 1.1: a card shows "Resume" when a progress file waits and "Show" when the
+// window is open.
+void MainWindow::showWizardState(const QString &port)
+{
+    const auto entry = model_ ? model_->entry(port) : std::nullopt;
+    if (!entry || !entry->ipod || !launcher_)
+        return;
+    const QString serial = entry->ipod->serial;
+    home_->setWizardState(port, launcher_->manager().hasProgress(serial),
+                          launcher_->manager().windowFor(serial) != nullptr);
 }
 
 void MainWindow::setup()
@@ -170,7 +217,10 @@ void MainWindow::wire(DeviceSource *source, const Clock *clock, DiskActions *act
 
 void MainWindow::showEntries()
 {
-    home_->setEntries(model_->entries(), models_);
+    const QList<ScreenEntry> entries = model_->entries();
+    home_->setEntries(entries, models_);
+    for (const ScreenEntry &entry : entries)
+        showWizardState(entry.portPath);
 }
 
 void MainWindow::onAction(const QString &port, HomeAction action)
@@ -196,7 +246,8 @@ void MainWindow::onAction(const QString &port, HomeAction action)
     case HomeAction::UninstallWizard:
     case HomeAction::ResumeWizard:
     case HomeAction::ShowWizard:
-        // The window of the wizard is opened by the manager that listens to this signal.
+        if (launcher_)
+            launcher_->open(port, action);
         emit wizardRequested(port, action);
         break;
     }

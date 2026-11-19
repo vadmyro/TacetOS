@@ -16,10 +16,20 @@ qt_add_library(tacetos_ui STATIC
     wizard/diagnosepage.h
     wizard/dfututorial.cpp
     wizard/dfututorial.h
+    wizard/donepage.cpp
+    wizard/donepage.h
     wizard/formatpage.cpp
     wizard/formatpage.h
+    wizard/installpage.cpp
+    wizard/installpage.h
+    wizard/reportpage.cpp
+    wizard/reportpage.h
     wizard/restorepage.cpp
     wizard/restorepage.h
+    wizard/uninstallpage.cpp
+    wizard/uninstallpage.h
+    wizard/wizardlauncher.cpp
+    wizard/wizardlauncher.h
     wizard/wizardmanager.cpp
     wizard/wizardmanager.h
     wizard/wizardwindow.cpp

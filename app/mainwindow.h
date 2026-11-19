@@ -10,6 +10,7 @@
 #include "models.h"
 #include "operations.h"
 #include "screenstate.h"
+#include "wizard/wizardlauncher.h"
 
 #include <QHash>
 #include <QList>
@@ -17,6 +18,8 @@
 #include <QString>
 #include <functional>
 #include <memory>
+
+class QCloseEvent;
 
 namespace tacetos {
 
@@ -55,10 +58,22 @@ public:
     device::DeviceStateModel *stateModel() const { return model_.get(); }
     journal::Journal *journal() const { return journal_.get(); }
 
+    // Wires the window of the install wizard to the home screen (docs/specs/install-screens.md
+    // section 1): the buttons of a card open it, and the app refuses to quit while a step is
+    // writing. The real app calls this itself; a test calls it with its own folders.
+    void attachWizard(const WizardLauncher::Config &config);
+    WizardLauncher *wizard() const { return launcher_.get(); }
+    // Section 1.3: why the app cannot quit now, empty when it can.
+    QString quitRefusal() const;
+
 signals:
     void wizardRequested(const QString &port, tacetos::HomeAction action);
 
+protected:
+    void closeEvent(QCloseEvent *event) override;
+
 private:
+    void showWizardState(const QString &port);
     // Builds the screen and the journal, then the device part when there is a source.
     void setup();
     void wire(device::DeviceSource *source, const device::Clock *clock,
@@ -85,6 +100,8 @@ private:
     // Mount and mount read only open the mount point when they end well: the id of the
     // operation that asked, by port.
     QHash<QString, quint64> openAfter_;
+    // Last: it holds references to the tracker and the journal, and its windows go first.
+    std::unique_ptr<WizardLauncher> launcher_;
 };
 
 } // namespace tacetos
