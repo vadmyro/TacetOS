@@ -48,6 +48,10 @@ public:
     // the watches from the signals of detection, and gives the volume watch
     // the mounter. Call it from the thread of the screen.
     void connectDetection(device::LiveTracker &tracker);
+    // What the signals of detection do for one iPod that is already seen: the
+    // app gives the iPods it has when a flow starts, as the signals only tell
+    // what changes later.
+    void feed(const device::DetectedIpod &ipod);
 
     IpodView &view() { return *m_view; }
     DetectionVolumeWatch &volumes() { return *m_volumes; }

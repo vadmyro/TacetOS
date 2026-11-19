@@ -114,6 +114,14 @@ std::unique_ptr<Step> LinuxStepFactory::make(const QString &name)
     return nullptr;
 }
 
+void LinuxStepFactory::feed(const device::DetectedIpod &ipod)
+{
+    m_mounter->seen(ipod);
+    m_view->seen(ipod);
+    m_volumes->seen(ipod);
+    m_sight->seen(ipod);
+}
+
 void LinuxStepFactory::connectDetection(device::LiveTracker &tracker)
 {
     const std::shared_ptr<UdisksMounter> mounter = m_mounter;
