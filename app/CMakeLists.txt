@@ -14,6 +14,10 @@ qt_add_library(tacetos_ui STATIC
     wizard/backuppage.h
     wizard/diagnosepage.cpp
     wizard/diagnosepage.h
+    wizard/dfututorial.cpp
+    wizard/dfututorial.h
+    wizard/formatpage.cpp
+    wizard/formatpage.h
     wizard/restorepage.cpp
     wizard/restorepage.h
     wizard/wizardmanager.cpp
@@ -49,6 +53,13 @@ qt_add_resources(tacetos_ui drawings
         resources/models/mini-2g.svg
         resources/models/nano-1g.svg
         resources/models/nano-2g.svg
+)
+
+# The drawing of the wheel for the DFU guide, read as :/dfu/wheel.svg (screens section 6.1).
+qt_add_resources(tacetos_ui dfudrawing
+    PREFIX /dfu
+    BASE resources/dfu
+    FILES resources/dfu/wheel.svg
 )
 
 # The list of the models, read as :/data/models.toml: the app never looks in the source tree.
