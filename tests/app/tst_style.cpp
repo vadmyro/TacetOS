@@ -118,6 +118,7 @@ void TestStyle::checkContrast(const Palette &p)
         {"danger/card", p.danger, p.card},
         {"buttonText/button", p.buttonText, p.button},
         {"buttonText/buttonHover", p.buttonText, p.buttonHover},
+        {"buttonText/danger", p.buttonText, p.danger},
     };
     for (const Pair &pair : pairs) {
         const double ratio = contrast(pair.text, pair.background);

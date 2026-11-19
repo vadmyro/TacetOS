@@ -57,3 +57,17 @@ target_link_libraries(tst_backuppage PRIVATE tacetos_ui Qt6::Test)
 
 add_test(NAME tst_backuppage COMMAND tst_backuppage)
 set_tests_properties(tst_backuppage PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The page of the erase, with a runner whose steps are made by the test.
+qt_add_executable(tst_formatpage tst_formatpage.cpp)
+target_link_libraries(tst_formatpage PRIVATE tacetos_ui Qt6::Test)
+
+add_test(NAME tst_formatpage COMMAND tst_formatpage)
+set_tests_properties(tst_formatpage PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The DFU guide, with a runner whose step plays recorded events and a fake clock.
+qt_add_executable(tst_dfututorial tst_dfututorial.cpp)
+target_link_libraries(tst_dfututorial PRIVATE tacetos_ui Qt6::Test)
+
+add_test(NAME tst_dfututorial COMMAND tst_dfututorial)
+set_tests_properties(tst_dfututorial PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
