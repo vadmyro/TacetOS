@@ -462,7 +462,7 @@ The home screen shows nothing of it: a development build only matters once the u
 | Check again, battery yes | `checkAgain`, `batteryYes` |
 | Progress bar, its text, the file line | `stepProgress`, `stepProgressText`, `stepCurrentFile` |
 | Open folder | `openBackupFolder` |
-| Name to type, its field | `typedNameExpected`, `typedNameField` |
+| Name to type, its field, the button | `typedNameExpected`, `typedNameField`, `typedNameConfirm` |
 | The DFU drawing, the countdown | `dfuDrawing`, `dfuCountdown` |
 | Disk Mode button | `diskModeDone` |
 | Offer, yes and no | `offerYes`, `offerNo` |
