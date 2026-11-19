@@ -33,7 +33,8 @@ struct Palette
 // The style sheet of the app, built from the roles of the palette only.
 // Widgets pick their look with a dynamic property "role":
 //   QFrame      card, header, banner-done, banner-failed, dot-accent, dot-secondary, dot-danger
-//   QPushButton primary, secondary (the default look of a button is the secondary one)
+//   QPushButton primary, secondary (the default look of a button is the secondary one), danger
+//               (the fill is `danger`, only for "Erase the iPod")
 //   QLabel      secondary, danger
 // and with the object names spaceBar and busyBar for the two progress bars.
 QString styleSheet(const Palette &palette);

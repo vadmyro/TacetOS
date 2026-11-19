@@ -128,7 +128,15 @@ QPushButton[role="primary"]:hover {
     background: %10;
     border-color: %10;
 }
-QPushButton:disabled, QPushButton[role="primary"]:disabled {
+QPushButton[role="danger"] {
+    background: %7;
+    color: %9;
+    border: 1px solid %7;
+}
+QPushButton[role="danger"]:hover {
+    border: 1px solid %3;
+}
+QPushButton:disabled, QPushButton[role="primary"]:disabled, QPushButton[role="danger"]:disabled {
     background: transparent;
     color: %4;
     border: 1px solid %5;
