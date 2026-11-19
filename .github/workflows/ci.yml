@@ -5,6 +5,18 @@ name: CI
 
 on:
   push:
+    # A push that only changes text files does not start the CI. Order matters: a later
+    # pattern wins, so the folders below always start it, notes in them included. The
+    # logo of the app is read by the build, so it stays in too.
+    paths:
+      - '**'
+      - '!docs/**'
+      - '!**.md'
+      - 'docs/assets/**'
+      - '.github/**'
+      - 'firmware/**'
+      - 'tests/**'
+      - '**/CMakeLists.txt'
   workflow_dispatch:
 
 permissions:
@@ -137,10 +149,11 @@ jobs:
 
       - name: Test
         # Without a console (Windows runners), Qt sends its messages to the debugger,
-        # and a test that stops on a fatal error shows nothing in the log.
+        # and a test that stops on a fatal error shows nothing in the log. The runners have
+        # 4 cores: the tests share them (a test that needs to be alone says so with RUN_SERIAL).
         env:
           QT_FORCE_STDERR_LOGGING: 1
-        run: ctest --preset ${{ matrix.preset }}
+        run: ctest --preset ${{ matrix.preset }} --parallel 4
 
   firmware:
     # The firmware package of the iPod Classic (firmware/README.md, "Package"). The other
