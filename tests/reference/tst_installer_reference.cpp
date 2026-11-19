@@ -214,10 +214,15 @@ bool TstInstallerReference::referenceStep(const Image &img, const QStringList &a
         return false;
     const Run r =
         run(QStringLiteral("sudo"), QStringList{QStringLiteral("-n"), m_tool, device} + args);
+    // The tool's writes may still sit in the cache of the loop disk when it exits (udev opens
+    // the disk after a write, so the tool's close is not the last one): flush them into the
+    // image file before it is read.
+    const Run flush = run(QStringLiteral("sudo"), {QStringLiteral("-n"), QStringLiteral("blockdev"),
+                                                   QStringLiteral("--flushbufs"), device});
     const Run detach = run(QStringLiteral("sudo"), {QStringLiteral("-n"), QStringLiteral("losetup"),
                                                     QStringLiteral("-d"), device});
-    *output = r.output + detach.output;
-    return r.started && r.exitCode == 0 && detach.exitCode == 0;
+    *output = r.output + flush.output + detach.output;
+    return r.started && r.exitCode == 0 && flush.exitCode == 0 && detach.exitCode == 0;
 #else
     return false;
 #endif

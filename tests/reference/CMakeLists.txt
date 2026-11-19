@@ -21,6 +21,10 @@ target_compile_definitions(tst_installer_reference PRIVATE
 
 add_test(NAME tst_installer_reference COMMAND tst_installer_reference)
 
+# Both go through loop disks with sudo on the CI: never at the same time under ctest --parallel.
+set_tests_properties(tst_reference_partition tst_installer_reference PROPERTIES
+    RESOURCE_LOCK loop_disk)
+
 # The generated parts of the Classic DFU image and the reference tool that builds
 # images from the same programs (tests/reference/build-dfu-parts.sh). The same
 # variable as src/installer. Without it the Classic comparison is skipped.
