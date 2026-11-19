@@ -71,3 +71,24 @@ target_link_libraries(tst_dfututorial PRIVATE tacetos_ui Qt6::Test)
 
 add_test(NAME tst_dfututorial COMMAND tst_dfututorial)
 set_tests_properties(tst_dfututorial PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The install pages and the end page, with a runner whose steps are made by the test.
+qt_add_executable(tst_installpage tst_installpage.cpp)
+target_link_libraries(tst_installpage PRIVATE tacetos_ui Qt6::Test)
+
+add_test(NAME tst_installpage COMMAND tst_installpage)
+set_tests_properties(tst_installpage PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The uninstall pages, with a runner whose steps are made by the test.
+qt_add_executable(tst_uninstallpage tst_uninstallpage.cpp)
+target_link_libraries(tst_uninstallpage PRIVATE tacetos_ui Qt6::Test)
+
+add_test(NAME tst_uninstallpage COMMAND tst_uninstallpage)
+set_tests_properties(tst_uninstallpage PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The report page: the summary, Copy, Save and the journal, with a clipboard and a dialog made by the test.
+qt_add_executable(tst_reportpage tst_reportpage.cpp)
+target_link_libraries(tst_reportpage PRIVATE tacetos_ui Qt6::Test)
+
+add_test(NAME tst_reportpage COMMAND tst_reportpage)
+set_tests_properties(tst_reportpage PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
