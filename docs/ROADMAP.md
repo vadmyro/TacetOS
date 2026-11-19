@@ -10,7 +10,7 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 | Foundations | Firmware base, model database, library rules, specs of the install formats and protocols | 7/7 | ✅ done |
 | **v0.1** | Device detection and live state (plug, unplug, disk mode, DFU) | 7/7 | ✅ done |
 | Test devices | Disk image test devices + privileged helper | 6/6 | ✅ done |
-| **v0.2** | Install and reset wizard: backup, format, firmware, bootloader, guided DFU, uninstall | 2/12 | ⏳ |
+| **v0.2** | Install and reset wizard: backup, format, firmware, bootloader, guided DFU, uninstall | 6/12 | ⏳ |
 | **v0.3** | Our own firmware build: name, custom boot logo, update channel, health page | 0/10 | ⏳ |
 | **v0.4** | Music library and sync: tags, cover art, sorting rules, playlists, conversion, import folder | 0/11 | ⏳ |
 | **v0.5** | Settings editor, fonts, menu order, listening recap | 0/7 | ⏳ |
@@ -59,15 +59,15 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 ## v0.2 · Install and reset wizard
 
 - [ ] Early checks of DFU on Windows and disk writes on macOS
-- [ ] Wizard flow that resumes after an interruption
+- [x] Wizard flow that resumes after an interruption
 - [ ] Diagnostic screen with blocking checks before any write, and a clear message when something is missing on the computer
-- [ ] Automatic backup of settings, themes, playlists and the firmware partition
+- [x] Automatic backup of settings, themes, playlists and the firmware partition
 - [ ] Format or convert (Mac to FAT32) with a strong confirmation
 - [x] Firmware install that keeps your settings
 - [x] Bootloader install on older iPods
 - [ ] Built-in DFU guide: buttons to hold, countdown, carries on by itself
-- [ ] Bootloader install on the iPod Classic, dual boot
-- [ ] Uninstall: back to 100 % Apple software
+- [x] Bootloader install on the iPod Classic, dual boot
+- [x] Uninstall: back to 100 % Apple software
 - [ ] Real-device test: uninstall, reinstall, check
 - [ ] Log and a "copy report" button for Discord
 
