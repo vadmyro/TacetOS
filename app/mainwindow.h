@@ -55,6 +55,9 @@ public:
     device::DeviceStateModel *stateModel() const { return model_.get(); }
     journal::Journal *journal() const { return journal_.get(); }
 
+signals:
+    void wizardRequested(const QString &port, tacetos::HomeAction action);
+
 private:
     // Builds the screen and the journal, then the device part when there is a source.
     void setup();

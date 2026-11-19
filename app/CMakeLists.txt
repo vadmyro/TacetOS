@@ -10,6 +10,16 @@ qt_add_library(tacetos_ui STATIC
     home/homescreen.h
     home/ipodcard.cpp
     home/ipodcard.h
+    wizard/backuppage.cpp
+    wizard/backuppage.h
+    wizard/diagnosepage.cpp
+    wizard/diagnosepage.h
+    wizard/restorepage.cpp
+    wizard/restorepage.h
+    wizard/wizardmanager.cpp
+    wizard/wizardmanager.h
+    wizard/wizardwindow.cpp
+    wizard/wizardwindow.h
     style/appfont.cpp
     style/appfont.h
     style/appicon.cpp
@@ -21,7 +31,7 @@ qt_add_library(tacetos_ui STATIC
 )
 target_include_directories(tacetos_ui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(tacetos_ui PUBLIC TACETOS_VERSION="${PROJECT_VERSION}")
-target_link_libraries(tacetos_ui PUBLIC Qt6::Widgets Qt6::Svg tacet_device tacet_journal)
+target_link_libraries(tacetos_ui PUBLIC Qt6::Widgets Qt6::Svg tacet_device tacet_journal tacet_wizard)
 
 # The drawings of the models, read as :/models/<id>.svg (resources/models/README.md).
 qt_add_resources(tacetos_ui drawings

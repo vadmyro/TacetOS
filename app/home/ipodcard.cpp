@@ -269,12 +269,27 @@ IpodCard::IpodCard(QWidget *parent) : QFrame(parent)
     open_->setProperty("role", QStringLiteral("primary"));
     open_->setFont(fontFor(TextStyle::Button));
     open_->setFocusPolicy(Qt::StrongFocus);
+    uninstall_ = new QPushButton(htr("Uninstall"), this);
+    uninstall_->setObjectName(QStringLiteral("uninstallButton"));
+    uninstall_->setProperty("role", QStringLiteral("secondary"));
+    uninstall_->setFont(fontFor(TextStyle::Button));
+    uninstall_->hide();
+    wizard_ = new QPushButton(htr("Install TacetOS"), this);
+    wizard_->setObjectName(QStringLiteral("wizardButton"));
+    wizard_->setProperty("role", QStringLiteral("primary"));
+    wizard_->setFont(fontFor(TextStyle::Button));
+    wizard_->hide();
     buttons->addWidget(eject_);
     buttons->addWidget(open_);
+    buttons->addWidget(uninstall_);
+    buttons->addWidget(wizard_);
     content->addLayout(buttons);
 
     connect(eject_, &QPushButton::clicked, this,
             [this] { emit actionRequested(HomeAction::Eject); });
+    connect(uninstall_, &QPushButton::clicked, this,
+            [this] { emit actionRequested(HomeAction::UninstallWizard); });
+    connect(wizard_, &QPushButton::clicked, this, [this] { emit actionRequested(wizardAction_); });
     connect(open_, &QPushButton::clicked, this, [this] { emit actionRequested(openAction_); });
 
     setEntry(ScreenEntry(), {});
@@ -352,6 +367,19 @@ void IpodCard::setEntry(const ScreenEntry &entry, const QList<Model> &models, Ho
     open_->setText(buttons.openText.isEmpty() ? htr("Open") : buttons.openText);
     eject_->setEnabled(!busy);
     open_->setEnabled(!busy);
+    wizardShown_ = !busy &&
+                   (kind == ScreenKind::Ready || kind == ScreenKind::NotMounted ||
+                    kind == ScreenKind::Attention) &&
+                   entry.ipod.has_value();
+    if (entry.ipod) {
+        const FirmwareKind line = entry.ipod->firmwareLine.kind;
+        firmwareIsOurs_ = line == FirmwareKind::Tacetos || line == FirmwareKind::Custom;
+        isClassic_ = false;
+        for (const Model &m : models)
+            if (m.id == entry.ipod->model && m.family == QLatin1String("classic"))
+                isClassic_ = true;
+    }
+    updateWizardButtons();
     updateButtonNames();
 
     setAccessibleName(message.isEmpty() ? name_ : QStringLiteral("%1, %2").arg(name_, message));
@@ -359,6 +387,46 @@ void IpodCard::setEntry(const ScreenEntry &entry, const QList<Model> &models, Ho
     drawingId_ = drawingIdOf(entry.ipod);
     drawing_->setProperty("drawingId", drawingId_);
     drawModel();
+}
+
+void IpodCard::setWizardState(bool hasProgress, bool windowOpen)
+{
+    hasProgress_ = hasProgress;
+    windowOpen_ = windowOpen;
+    updateWizardButtons();
+    updateButtonNames();
+}
+
+// Section 1.1: the table of the buttons the wizard adds, and "Show the wizard" while its window
+// is open (the card then shows the iPod as held, with that one button).
+void IpodCard::updateWizardButtons()
+{
+    if (windowOpen_) {
+        eject_->hide();
+        open_->hide();
+        uninstall_->hide();
+        wizard_->setText(htr("Show the wizard"));
+        wizardAction_ = HomeAction::ShowWizard;
+        wizard_->setVisible(true);
+        wizard_->setEnabled(true);
+        return;
+    }
+    wizard_->setVisible(wizardShown_);
+    uninstall_->setVisible(wizardShown_ && !hasProgress_ && !firmwareIsOurs_ && isClassic_);
+    if (!wizardShown_)
+        return;
+    if (hasProgress_) {
+        wizard_->setText(htr("Resume"));
+        wizardAction_ = HomeAction::ResumeWizard;
+    } else if (firmwareIsOurs_) {
+        wizard_->setText(htr("Uninstall"));
+        wizardAction_ = HomeAction::UninstallWizard;
+    } else {
+        wizard_->setText(htr("Install TacetOS"));
+        wizardAction_ = HomeAction::InstallWizard;
+    }
+    // With the wizard's main button, Show files and Open become secondary.
+    setRole(open_, "secondary");
 }
 
 void IpodCard::setNameInButtons(bool on)
@@ -375,6 +443,8 @@ void IpodCard::updateButtonNames()
     };
     eject_->setAccessibleName(named(eject_->text()));
     open_->setAccessibleName(named(open_->text()));
+    uninstall_->setAccessibleName(named(uninstall_->text()));
+    wizard_->setAccessibleName(named(wizard_->text()));
 }
 
 void IpodCard::drawModel()

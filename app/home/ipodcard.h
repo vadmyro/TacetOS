@@ -32,7 +32,12 @@ public:
     // With several iPods the buttons say which one ("Eject iPod Classic 120 GB").
     void setNameInButtons(bool on);
 
+    // Screens section 1.1: a progress file exists for the iPod, and a wizard window is open.
+    void setWizardState(bool hasProgress, bool windowOpen);
+
     QString portPath() const { return portPath_; }
+    QPushButton *wizardButton() const { return wizard_; }
+    QPushButton *uninstallButton() const { return uninstall_; }
     QPushButton *ejectButton() const { return eject_; }
     QPushButton *openButton() const { return open_; }
 
@@ -45,6 +50,7 @@ protected:
 private:
     void drawModel();
     void updateButtonNames();
+    void updateWizardButtons();
 
     QString portPath_;
     QString name_;
@@ -65,6 +71,15 @@ private:
     QLabel *bannerText_;
     QPushButton *eject_;
     QPushButton *open_;
+    QPushButton *uninstall_;
+    QPushButton *wizard_;
+    // What the state of the card lets the wizard offer.
+    bool wizardShown_ = false;
+    bool firmwareIsOurs_ = false;
+    bool isClassic_ = false;
+    bool hasProgress_ = false;
+    bool windowOpen_ = false;
+    HomeAction wizardAction_ = HomeAction::InstallWizard;
 };
 
 } // namespace tacetos

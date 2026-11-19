@@ -185,6 +185,8 @@ void HomeScreen::setEntries(const QList<ScreenEntry> &entries, const QList<Model
             });
         }
         card->setEntry(entry, models, host);
+        const auto flags = wizardState_.value(entry.portPath);
+        card->setWizardState(flags.first, flags.second);
         card->setNameInButtons(entries.size() > 1);
         kept.append(card);
     }
@@ -209,6 +211,14 @@ void HomeScreen::setEntries(const QList<ScreenEntry> &entries, const QList<Model
     updateTabOrder();
 }
 
+void HomeScreen::setWizardState(const QString &port, bool hasProgress, bool windowOpen)
+{
+    wizardState_.insert(port, {hasProgress, windowOpen});
+    for (IpodCard *card : std::as_const(cards_))
+        if (card->portPath() == port)
+            card->setWizardState(hasProgress, windowOpen);
+}
+
 void HomeScreen::updateTabOrder()
 {
     // Section 9: Refresh, then each card from top to bottom, left to right.
@@ -216,7 +226,9 @@ void HomeScreen::updateTabOrder()
     for (IpodCard *card : std::as_const(cards_)) {
         setTabOrder(previous, card->ejectButton());
         setTabOrder(card->ejectButton(), card->openButton());
-        previous = card->openButton();
+        setTabOrder(card->openButton(), card->uninstallButton());
+        setTabOrder(card->uninstallButton(), card->wizardButton());
+        previous = card->wizardButton();
     }
 }
 

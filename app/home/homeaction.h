@@ -19,6 +19,11 @@ enum class HomeAction {
     // Open read only: starts `mount-ro`.
     MountReadOnly,
     Eject,
+    // Screens section 1.1: the buttons that open the install wizard.
+    InstallWizard,
+    UninstallWizard,
+    ResumeWizard,
+    ShowWizard,
 };
 
 // Sets the "role" property that the style sheet looks at (style/palette.h) and

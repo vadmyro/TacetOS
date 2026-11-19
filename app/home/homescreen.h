@@ -8,7 +8,9 @@
 #include "messages.h"
 #include "screenstate.h"
 
+#include <QHash>
 #include <QList>
+#include <QPair>
 #include <QWidget>
 
 class QBoxLayout;
@@ -38,6 +40,9 @@ public:
     // The cards, top to bottom.
     QList<IpodCard *> cards() const { return cards_; }
 
+    // Screens section 1.1: which iPods have a progress file, and which have a wizard window.
+    void setWizardState(const QString &port, bool hasProgress, bool windowOpen);
+
 signals:
     void actionRequested(const QString &port, tacetos::HomeAction action);
     void refreshRequested();
@@ -59,6 +64,7 @@ private:
     QWidget *column_;
     QBoxLayout *columnLayout_;
     QList<IpodCard *> cards_;
+    QHash<QString, QPair<bool, bool>> wizardState_;
     bool detectionAvailable_ = true;
 };
 

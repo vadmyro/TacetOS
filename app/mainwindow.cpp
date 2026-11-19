@@ -192,6 +192,13 @@ void MainWindow::onAction(const QString &port, HomeAction action)
     case HomeAction::Eject:
         model_->startOperation(OperationKind::Eject, port);
         break;
+    case HomeAction::InstallWizard:
+    case HomeAction::UninstallWizard:
+    case HomeAction::ResumeWizard:
+    case HomeAction::ShowWizard:
+        // The window of the wizard is opened by the manager that listens to this signal.
+        emit wizardRequested(port, action);
+        break;
     }
 }
 
