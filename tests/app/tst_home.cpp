@@ -467,9 +467,12 @@ void TestHome::columnIsCentredAndCapped()
     const int left = column->mapTo(&screen, QPoint(0, 0)).x();
     QVERIFY(qAbs(left - (1400 - 720) / 2) <= 1);
 
-    // On a narrow window the column shrinks with the margins of 24 px.
+    // On a narrow window the column shrinks with the margins of 24 px. The window may stop above
+    // 500 px (its minimum width depends on the fonts, wider on Windows offscreen), so the column
+    // is compared with the width the window really has.
     screen.resize(500, 700);
-    QTRY_COMPARE(column->width(), 500 - 48);
+    QTRY_VERIFY(screen.width() < 720 + 48);
+    QTRY_COMPARE(column->width(), screen.width() - 48);
     // The card sits at the top of the body, not in the middle.
     IpodCard *card = screen.cards().first();
     QVERIFY(card->mapTo(&screen, QPoint(0, 0)).y() <= 56 + 24 + 1);
