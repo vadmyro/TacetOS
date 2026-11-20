@@ -92,3 +92,14 @@ target_link_libraries(tst_reportpage PRIVATE tacetos_ui Qt6::Test)
 
 add_test(NAME tst_reportpage COMMAND tst_reportpage)
 set_tests_properties(tst_reportpage PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The window of the wizard over the real factory of steps: the Classic on the fake system layer
+# and the fake iPod in DFU mode, the user is a test that clicks the pages.
+qt_add_executable(tst_wizardwindow_e2e tst_wizardwindow_e2e.cpp
+    ../wizard/testpackage.h ../wizard/testzip.h)
+target_link_libraries(tst_wizardwindow_e2e PRIVATE
+    tacetos_ui tacet_helper_core tacet_installer_testing Qt6::Test)
+target_include_directories(tst_wizardwindow_e2e PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../device)
+
+add_test(NAME tst_wizardwindow_e2e COMMAND tst_wizardwindow_e2e)
+set_tests_properties(tst_wizardwindow_e2e PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
