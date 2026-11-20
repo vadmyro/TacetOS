@@ -172,6 +172,7 @@ private:
         QString stepName;
         std::unique_ptr<WizardRunner> runner;
         std::unique_ptr<DfuTutorialPage> page;
+        std::unique_ptr<QSignalSpy> waiting;
 
         explicit Fixture(const QList<Event> &events, bool uninstall = false)
             : stepName(uninstall ? QStringLiteral("classic-remove")
@@ -188,6 +189,8 @@ private:
             page->setClock([this] { return clock; });
             page->setReducedMotion(false);
             page->show();
+            // Made after the page: when it counts a wait, the page has read it too.
+            waiting = std::make_unique<QSignalSpy>(runner.get(), &WizardRunner::stepWaiting);
             FlowShape shape;
             shape.kind = uninstall ? FlowKind::Uninstall : FlowKind::Install;
             shape.path = uninstall ? InstallPath::None : InstallPath::Clean;
@@ -217,6 +220,9 @@ private:
 
         // The page has read the events played so far.
         void settle() { QTest::qWait(30); }
+
+        // The step waits for the answer number `count`: a click now is not lost.
+        void waits(int count) { QTRY_COMPARE_WITH_TIMEOUT(int(waiting->count()), count, 5000); }
     };
 
 private slots:
@@ -414,7 +420,7 @@ private slots:
 
         // The step waits again; the page says the same.
         f.next();
-        f.settle();
+        f.waits(2);
         QCOMPARE(f.page->titleText(), QStringLiteral("The iPod started in Disk Mode"));
         QCOMPARE(int(f.script.answers), 1);
 
