@@ -153,6 +153,9 @@ private slots:
     void everythingPasses()
     {
         Fixture f;
+        // Long enough that the pause cannot end while QTRY_VERIFY waits below, even on a slow
+        // runner: the test checks that the signal has not been sent yet.
+        f.page->setPause(1000);
         QSignalSpy canGo(f.page.get(), &DiagnosePage::canGoOnChanged);
         QSignalSpy ready(f.page.get(), &DiagnosePage::readyToGoOn);
         f.start();
