@@ -5,8 +5,10 @@
 
 #include "flow.h"
 #include "progress.h"
+#include "report.h"
 #include "step.h"
 
+#include <QHash>
 #include <QJsonObject>
 #include <QString>
 #include <QStringList>
@@ -20,6 +22,17 @@ class QProgressBar;
 class QPushButton;
 class QRadioButton;
 class QStackedWidget;
+
+namespace tacetos {
+class BackupPage;
+class DfuTutorialPage;
+class DiagnosePage;
+class DonePage;
+class FormatPage;
+class InstallPage;
+class ReportPage;
+class UninstallPage;
+} // namespace tacetos
 
 namespace tacetos::wizard {
 class WizardRunner;
@@ -55,6 +68,15 @@ struct WizardOptions
     bool realWrites = false;
     // The free space of a folder, -1 when not known. Empty: asks the system.
     std::function<qint64(const QString &)> freeBytes;
+    // What the action `install-udev-rule` of the checks does (DiagnosePage::UdevInstaller).
+    // Empty: the checks show the commands to type only.
+    std::function<QString()> udevInstaller;
+    // What the report holds beside the facts of the window: the versions, the ring of the
+    // journal, the serials and the names to take out. Empty: a report of the window's facts only.
+    std::function<journal::ReportInput()> reportInput;
+    // What Eject does on the last page (home section 6); true when the iPod was ejected. Empty:
+    // the pages do not eject.
+    std::function<bool()> ejecter;
 };
 
 // What opened the window (screens section 1.1).
@@ -74,8 +96,26 @@ public:
     const WizardTarget &target() const { return target_; }
     wizard::WizardRunner *runner() const { return runner_; }
 
-    // The page that shows: `install`, `uninstall`, `resume`, `step`, `offer` or `stopped`.
+    // The page that shows: `install`, `uninstall`, `resume`, `step`, `offer`, or the page of a
+    // step: `diagnose`, `backup`, `format`, `dfu`, `write` (firmware, bootloader, Disk Mode and the
+    // restart of the Classic), `remove` (the steps of an uninstall), `done`, and `report` over
+    // them.
     QString pageName() const;
+
+    // The pages of the steps, for the tests.
+    DiagnosePage *diagnosePage() const { return diagnose_; }
+    BackupPage *backupPage() const { return backup_; }
+    FormatPage *formatPage() const { return format_; }
+    DfuTutorialPage *dfuPage() const { return dfu_; }
+    InstallPage *installPage() const { return install_; }
+    UninstallPage *uninstallPage() const { return uninstall_page_; }
+    DonePage *donePage() const { return done_; }
+    ReportPage *reportPage() const { return report_page_; }
+    // The report page shows over the page of the step.
+    bool isReportOpen() const { return reportOpen_; }
+    // The Report button of the footer, and its Back.
+    void openReport();
+    void closeReport();
 
     // Section 1.3: a step is past its first write. The window and the app cannot be closed.
     bool isWriting() const { return writing_; }
@@ -118,7 +158,14 @@ private:
     QWidget *buildStepPage();
     QWidget *buildOfferPage();
     void connectRunner();
+    void addPage(const QString &name, QWidget *page);
     void showPage(const QString &name);
+    bool isFlowPage(const QString &name) const;
+    void showStepPage(const QString &name);
+    void onPageReady();
+    QString currentFlowPage() const;
+    void retry();
+    QString backupFolder() const;
     void refreshFirst();
     void refreshFooter();
     void setItems(const QStringList &steps, int done);
@@ -127,7 +174,7 @@ private:
     void onProgress(qint64 done, qint64 total);
     void onWaiting(const QString &name, wizard::WaitKind kind, const QJsonObject &info);
     void onDone(int index);
-    void onFailed(int index, const QString &code);
+    void onFailed(int index, const QString &name, const QString &code, const QString &detail);
     void onStopped();
     void onMain();
     void onCancel();
@@ -164,12 +211,31 @@ private:
     bool writing_ = false;
     bool waiting_ = false;
     bool stopped_ = false;
+    // The Classic restarts: the page of the step is the one of the restart, not the DFU guide.
+    bool restartSeen_ = false;
+    QString currentStep_;
+    bool reportOpen_ = false;
+    QString beforeReport_;
+    QList<journal::ReportFailure> failures_;
 
     QWidget *banner_ = nullptr;
     QLabel *title_ = nullptr;
     QLabel *subtitle_ = nullptr;
     QListWidget *list_ = nullptr;
     QStackedWidget *pages_ = nullptr;
+    QHash<QString, QWidget *> pageOf_;
+    // Screens section 3 and 4.1: a page that ended well shows its end line for a pause; the page
+    // of the next step waits for it.
+    bool holding_ = false;
+    QString pending_;
+    DiagnosePage *diagnose_ = nullptr;
+    BackupPage *backup_ = nullptr;
+    FormatPage *format_ = nullptr;
+    DfuTutorialPage *dfu_ = nullptr;
+    InstallPage *install_ = nullptr;
+    UninstallPage *uninstall_page_ = nullptr;
+    DonePage *done_ = nullptr;
+    ReportPage *report_page_ = nullptr;
     QPushButton *main_button_ = nullptr;
     QPushButton *cancel_ = nullptr;
     QPushButton *report_ = nullptr;
@@ -189,6 +255,7 @@ private:
     QLabel *stepTitle_ = nullptr;
     QLabel *stepText_ = nullptr;
     QLabel *failure_ = nullptr;
+    QPushButton *failureReport_ = nullptr;
     QProgressBar *bar_ = nullptr;
     QLabel *barText_ = nullptr;
     QLabel *offerTitle_ = nullptr;

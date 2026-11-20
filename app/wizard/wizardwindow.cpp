@@ -8,6 +8,14 @@
 #include "home/homeaction.h"
 #include "package.h"
 #include "runner.h"
+#include "wizard/backuppage.h"
+#include "wizard/dfututorial.h"
+#include "wizard/diagnosepage.h"
+#include "wizard/donepage.h"
+#include "wizard/formatpage.h"
+#include "wizard/installpage.h"
+#include "wizard/reportpage.h"
+#include "wizard/uninstallpage.h"
 #include "wizardconstants.h"
 #include "wizarderrors.h"
 
@@ -237,7 +245,7 @@ void WizardWindow::build()
 
     pages_ = new QStackedWidget;
     pages_->setObjectName(QStringLiteral("wizardPages"));
-    pages_->addWidget(buildFirstPage());
+    addPage(QStringLiteral("install"), buildFirstPage());
     auto *uninstall = new QWidget;
     auto *uninstallLayout = new QVBoxLayout(uninstall);
     auto *uninstallText = new QLabel(
@@ -245,10 +253,51 @@ void WizardWindow::build()
     uninstallText->setWordWrap(true);
     uninstallLayout->addWidget(uninstallText);
     uninstallLayout->addStretch();
-    pages_->addWidget(uninstall);
-    pages_->addWidget(buildResumePage());
-    pages_->addWidget(buildStepPage());
-    pages_->addWidget(buildOfferPage());
+    addPage(QStringLiteral("uninstall"), uninstall);
+    addPage(QStringLiteral("resume"), buildResumePage());
+    addPage(QStringLiteral("step"), buildStepPage());
+    addPage(QStringLiteral("offer"), buildOfferPage());
+
+    // The pages of the steps (sections 3 to 5). Each one follows the runner by itself; the
+    // window only chooses which one shows.
+    diagnose_ = new DiagnosePage(runner_, target_.serial, target_.model, target_.family);
+    if (options_.udevInstaller)
+        diagnose_->setUdevInstaller(options_.udevInstaller);
+    connect(diagnose_, &DiagnosePage::readyToGoOn, this, &WizardWindow::onPageReady);
+    addPage(QStringLiteral("diagnose"), diagnose_);
+    backup_ = new BackupPage(runner_);
+    connect(backup_, &BackupPage::readyToGoOn, this, &WizardWindow::onPageReady);
+    addPage(QStringLiteral("backup"), backup_);
+    format_ = new FormatPage(runner_);
+    addPage(QStringLiteral("format"), format_);
+    // The pages of the last steps (sections 6 to 9). Same rule: each follows the runner.
+    dfu_ = new DfuTutorialPage(runner_);
+    connect(dfu_, &DfuTutorialPage::retryRequested, this, &WizardWindow::retry);
+    addPage(QStringLiteral("dfu"), dfu_);
+    install_ = new InstallPage(runner_);
+    install_->setBackupFolder(QString());
+    connect(install_, &InstallPage::retryRequested, this, &WizardWindow::retry);
+    connect(install_, &InstallPage::closeRequested, this, &QWidget::close);
+    addPage(QStringLiteral("write"), install_);
+    uninstall_page_ = new UninstallPage(runner_);
+    uninstall_page_->setIpod(target_.model, target_.name);
+    uninstall_page_->setUninstall(shape_.kind == FlowKind::Uninstall);
+    uninstall_page_->setBackupFolder(options_.backupRoot);
+    connect(uninstall_page_, &UninstallPage::retryRequested, this, &WizardWindow::retry);
+    connect(uninstall_page_, &UninstallPage::closeRequested, this, &QWidget::close);
+    addPage(QStringLiteral("remove"), uninstall_page_);
+    done_ = new DonePage(runner_);
+    done_->setIpod(target_.model, target_.name);
+    done_->setClassic(target_.family == Family::Dfu);
+    connect(done_, &DonePage::closeRequested, this, &QWidget::close);
+    addPage(QStringLiteral("done"), done_);
+    if (options_.ejecter) {
+        done_->setEjecter(options_.ejecter);
+        uninstall_page_->setEjecter(options_.ejecter);
+    }
+    report_page_ = new ReportPage;
+    connect(report_page_, &ReportPage::backRequested, this, &WizardWindow::closeReport);
+    addPage(QStringLiteral("report"), report_page_);
     auto *scroll = new QScrollArea(this);
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
@@ -271,6 +320,7 @@ void WizardWindow::build()
     root->addWidget(footer);
     report_->hide();
 
+    connect(report_, &QPushButton::clicked, this, &WizardWindow::openReport);
     connect(main_button_, &QPushButton::clicked, this, &WizardWindow::onMain);
     connect(cancel_, &QPushButton::clicked, this, &WizardWindow::onCancel);
     auto *escape = new QShortcut(QKeySequence(Qt::Key_Escape), this);
@@ -366,6 +416,9 @@ QWidget *WizardWindow::buildStepPage()
     failure_ = label("stepFailure", page);
     failure_->setProperty("role", QStringLiteral("danger"));
     failure_->hide();
+    failureReport_ = ReportPage::failureButton(page);
+    failureReport_->hide();
+    connect(failureReport_, &QPushButton::clicked, this, &WizardWindow::openReport);
     stepTitle_ = label("stepTitle", page);
     stepTitle_->setProperty("role", QStringLiteral("title"));
     stepText_ = label("stepText", page);
@@ -375,6 +428,7 @@ QWidget *WizardWindow::buildStepPage()
     bar_->setRange(0, 1000);
     barText_ = label("stepProgressText", page);
     layout->addWidget(failure_);
+    layout->addWidget(failureReport_, 0, Qt::AlignLeft);
     layout->addWidget(stepTitle_);
     layout->addWidget(stepText_);
     layout->addWidget(bar_);
@@ -421,8 +475,14 @@ void WizardWindow::connectRunner()
     connect(runner_, &WizardRunner::stepStarted, this,
             [this](int index, const QString &name) { onStarted(index, name); });
     connect(runner_, &WizardRunner::stepProgress, this,
-            [this](const QString &, const QString &, qint64 done, qint64 total) {
+            [this](const QString &name, const QString &stage, qint64 done, qint64 total) {
                 onProgress(done, total);
+                // The restart of the Classic is the page of the step after the DFU guide.
+                if (stage == QLatin1String("resume") && !restartSeen_ &&
+                    (name == step::classicBootloader || name == step::classicRemove)) {
+                    restartSeen_ = true;
+                    showStepPage(name);
+                }
             });
     connect(runner_, &WizardRunner::stepFirstWrite, this, [this](const QString &) {
         writing_ = true;
@@ -432,18 +492,35 @@ void WizardWindow::connectRunner()
             [this](const QString &name, WaitKind kind, const QJsonObject &info) {
                 onWaiting(name, kind, info);
             });
-    connect(runner_, &WizardRunner::stepDone, this,
-            [this](int index, const QString &) { onDone(index); });
+    connect(runner_, &WizardRunner::stepDone, this, [this](int index, const QString &name) {
+        onDone(index);
+        // Sections 3 and 4.1: the end line shows for a pause before the next page.
+        if (name == step::diagnose || name == step::backupFull || name == step::backupKeep ||
+            name == step::backupSettings)
+            holding_ = true;
+        if (name == step::backupFull || name == step::backupKeep || name == step::backupSettings) {
+            const QString folder = backupFolder();
+            backup_->setBackupFolder(folder);
+            format_->setBackupFolder(folder);
+            install_->setBackupFolder(folder);
+        }
+    });
     connect(runner_, &WizardRunner::stepFailed, this,
-            [this](int index, const QString &, const QString &code, const QString &) {
-                onFailed(index, code);
+            [this](int index, const QString &name, const QString &code, const QString &detail) {
+                onFailed(index, name, code, detail);
             });
     connect(runner_, &WizardRunner::flowFinished, this, [this](const QJsonObject &) {
         active_ = writing_ = waiting_ = false;
+        holding_ = false;
+        pending_.clear();
         for (int i = 0; i < states_.size(); ++i)
             setItemState(i, QStringLiteral("done"));
         stepTitle_->setText(wtr("Done"));
-        showPage(QStringLiteral("step"));
+        const QString last = currentFlowPage();
+        if (last == QLatin1String("done") || last == QLatin1String("remove"))
+            showPage(last);
+        else
+            showPage(QStringLiteral("step"));
         main_ = Main::Close;
         refreshFooter();
         emit flowEnded();
@@ -451,20 +528,85 @@ void WizardWindow::connectRunner()
     connect(runner_, &WizardRunner::flowStopped, this, [this](const QString &) { onStopped(); });
 }
 
+void WizardWindow::addPage(const QString &name, QWidget *page)
+{
+    pageOf_.insert(name, page);
+    pages_->addWidget(page);
+}
+
 QString WizardWindow::pageName() const
 {
-    static const QStringList names = {QStringLiteral("install"), QStringLiteral("uninstall"),
-                                      QStringLiteral("resume"), QStringLiteral("step"),
-                                      QStringLiteral("offer")};
-    return names.value(pages_->currentIndex());
+    return pageOf_.key(pages_->currentWidget());
+}
+
+// The pages a flow shows once it has started.
+bool WizardWindow::isFlowPage(const QString &name) const
+{
+    return name == QLatin1String("step") || name == QLatin1String("offer") ||
+           name == QLatin1String("diagnose") || name == QLatin1String("backup") ||
+           name == QLatin1String("format") || name == QLatin1String("dfu") ||
+           name == QLatin1String("write") || name == QLatin1String("remove") ||
+           name == QLatin1String("done");
+}
+
+// The page of the step, also while the report shows over it.
+QString WizardWindow::currentFlowPage() const
+{
+    return reportOpen_ ? beforeReport_ : pageName();
+}
+
+// The page of a step of the runner (wizard section 2.3): its own page when it has one, else the
+// page with a bar.
+void WizardWindow::showStepPage(const QString &name)
+{
+    QString page = QStringLiteral("step");
+    if (name == step::diagnose)
+        page = QStringLiteral("diagnose");
+    else if (name == step::backupFull || name == step::backupKeep || name == step::backupSettings)
+        page = QStringLiteral("backup");
+    else if (name == step::format || name == step::convert)
+        page = QStringLiteral("format");
+    else if (name == step::classicBootloader || name == step::classicRemove)
+        page = restartSeen_ ? (name == step::classicBootloader ? QStringLiteral("write")
+                                                               : QStringLiteral("remove"))
+                            : QStringLiteral("dfu");
+    else if (name == step::firmware || name == step::bootloader || name == step::diskMode)
+        page = QStringLiteral("write");
+    else if (name == step::removeBootloader || name == step::removeFirmware)
+        page = QStringLiteral("remove");
+    else if (name == step::verify || name == step::finish)
+        page =
+            shape_.kind == FlowKind::Uninstall ? QStringLiteral("remove") : QStringLiteral("done");
+    if (holding_) {
+        pending_ = page;
+        return;
+    }
+    showPage(page);
+}
+
+// The end line of the checks or of the backup has shown for its pause: the next page comes.
+void WizardWindow::onPageReady()
+{
+    holding_ = false;
+    if (!pending_.isEmpty())
+        showPage(pending_);
+    pending_.clear();
+}
+
+// The dated folder of the backup of this flow (the progress file keeps it), empty before.
+QString WizardWindow::backupFolder() const
+{
+    const ProgressRead read = ProgressStore(options_.dataDir).load(target_.serial);
+    return read.outcome == ProgressRead::Outcome::Ok ? read.progress.backup : QString();
 }
 
 void WizardWindow::showPage(const QString &name)
 {
-    static const QStringList names = {QStringLiteral("install"), QStringLiteral("uninstall"),
-                                      QStringLiteral("resume"), QStringLiteral("step"),
-                                      QStringLiteral("offer")};
-    pages_->setCurrentIndex(names.indexOf(name));
+    // The report stays over the page of the step; Back finds the new page.
+    if (reportOpen_)
+        beforeReport_ = name;
+    else
+        pages_->setCurrentWidget(pageOf_.value(name));
     if (name == QLatin1String("install") || name == QLatin1String("uninstall"))
         main_ = Main::Start;
     else if (name == QLatin1String("resume") || name == QLatin1String("offer"))
@@ -478,7 +620,7 @@ void WizardWindow::showPage(const QString &name)
 
 void WizardWindow::refreshFooter()
 {
-    const bool onPage = pageName() == QLatin1String("step") || pageName() == QLatin1String("offer");
+    const bool onPage = isFlowPage(currentFlowPage());
     main_button_->setVisible(main_ != Main::None);
     if (main_ == Main::Start) {
         main_button_->setText(entry_ == WizardEntry::Uninstall ? wtr("Uninstall") : wtr("Start"));
@@ -489,7 +631,7 @@ void WizardWindow::refreshFooter()
         main_button_->setEnabled(true);
     }
     main_button_->setAccessibleName(main_button_->text());
-    report_->setVisible(active_ || (onPage && !active_));
+    report_->setVisible(!reportOpen_ && (active_ || onPage));
 
     // Section 1.2: on while a step waits, and before the first write.
     const bool canStop = !onPage || !active_ || waiting_ || !writing_;
@@ -664,12 +806,15 @@ void WizardWindow::setItemState(int item, const QString &state)
     it->setFont(f);
 }
 
-void WizardWindow::onStarted(int index, const QString &)
+void WizardWindow::onStarted(int index, const QString &name)
 {
     writing_ = waiting_ = false;
     stopped_ = false;
     active_ = true;
+    restartSeen_ = false;
+    currentStep_ = name;
     failure_->hide();
+    failureReport_->hide();
     for (int i = 0; i < index && i < itemOfStep_.size(); ++i)
         setItemState(itemOfStep_.at(i), QStringLiteral("done"));
     if (index < itemOfStep_.size()) {
@@ -679,7 +824,7 @@ void WizardWindow::onStarted(int index, const QString &)
     stepText_->clear();
     bar_->setRange(0, 0);
     barText_->clear();
-    showPage(QStringLiteral("step"));
+    showStepPage(name);
 }
 
 void WizardWindow::onProgress(qint64 done, qint64 total)
@@ -699,14 +844,21 @@ void WizardWindow::onWaiting(const QString &name, WaitKind kind, const QJsonObje
     const int index = steps_.indexOf(name);
     if (index >= 0)
         setItemState(itemOfStep_.at(index), QStringLiteral("waiting"));
-    if (kind == WaitKind::Offer) {
+    const bool ownPage = name == step::firmware || name == step::bootloader ||
+                         name == step::diskMode || name == step::classicBootloader ||
+                         name == step::classicRemove || name == step::removeBootloader ||
+                         name == step::removeFirmware;
+    if (kind == WaitKind::Offer && !ownPage) {
         // Section 1.4: a page of its own, the yes as the main button.
         offerTitle_->setText(info.value(QStringLiteral("question")).toString(wtr("Go on?")));
         offerText_->setText(info.value(QStringLiteral("text")).toString());
         showPage(QStringLiteral("offer"));
     } else {
-        // The pages of the other waits come with their own tasks.
-        refreshFooter();
+        // The page of the step asks by itself (the battery on the checks, the typed name on the
+        // erase). It shows at once, even during the pause of the page before.
+        holding_ = false;
+        pending_.clear();
+        showStepPage(name);
     }
 }
 
@@ -720,15 +872,28 @@ void WizardWindow::onDone(int index)
         setItemState(item, QStringLiteral("done"));
 }
 
-void WizardWindow::onFailed(int index, const QString &code)
+void WizardWindow::onFailed(int index, const QString &name, const QString &code,
+                            const QString &detail)
 {
     if (index < itemOfStep_.size())
         setItemState(itemOfStep_.at(index), QStringLiteral("failed"));
-    failure_->setText(message(code));
+    // The detail (the check that blocks, the file that failed) stays with the code.
+    const QString text = detail.isEmpty()
+                             ? message(code)
+                             : message(code) + QStringLiteral(" (") + detail + QLatin1Char(')');
+    failure_->setText(text);
     failure_->show();
+    failureReport_->show();
+    failures_.append({code, detail});
     // The accessible event of section 12.
-    failure_->setAccessibleName(message(code));
+    failure_->setAccessibleName(text);
     stopped_ = code == QString(error::cancelled);
+    // A page of its own shows the failure in its own way (section 1.4). A cancel ends on the
+    // page with the bar, which says "Stopped" (section 1.2).
+    holding_ = false;
+    pending_.clear();
+    if (!stopped_)
+        showStepPage(name);
 }
 
 void WizardWindow::onStopped()
@@ -736,9 +901,17 @@ void WizardWindow::onStopped()
     active_ = writing_ = waiting_ = false;
     if (stopped_) {
         failure_->hide();
+        failureReport_->hide();
         stepText_->setText(wtr("Stopped. Resume from the card when you want"));
     }
-    showPage(QStringLiteral("step"));
+    holding_ = false;
+    pending_.clear();
+    restartSeen_ = false;
+    // The page of a step keeps its failed or stopped state; the others go back to the bar.
+    const QString page = currentFlowPage();
+    showPage(!stopped_ && isFlowPage(page) && page != QLatin1String("offer")
+                 ? page
+                 : QStringLiteral("step"));
     emit flowEnded();
 }
 
@@ -802,6 +975,8 @@ void WizardWindow::start()
         firstError_->show();
         return;
     }
+    failures_.clear();
+    uninstall_page_->setUninstall(shape_.kind == FlowKind::Uninstall);
     active_ = true;
     stepTitle_->setText(wtr("Starting"));
     showPage(QStringLiteral("step"));
@@ -814,9 +989,61 @@ void WizardWindow::resume()
         resumeDates_->setText(message(code));
         return;
     }
+    failures_.clear();
+    uninstall_page_->setUninstall(shape_.kind == FlowKind::Uninstall);
     active_ = true;
     stepTitle_->setText(wtr("Resuming"));
     showPage(QStringLiteral("step"));
+}
+
+// "Try again" of a page: the flow goes on from its progress file, at the step that failed. The
+// page of the step shows again when the runner says the step starts.
+void WizardWindow::retry()
+{
+    const QString code = runner_->resume(target_.serial, target_.model, target_.family);
+    if (!code.isEmpty()) {
+        failure_->setText(message(code));
+        failure_->show();
+        return;
+    }
+    active_ = true;
+}
+
+// Section 10: the report over the page of the step. It holds the facts of the window and what
+// the app gives (versions, journal).
+void WizardWindow::openReport()
+{
+    if (reportOpen_)
+        return;
+    journal::ReportInput in =
+        options_.reportInput ? options_.reportInput() : journal::ReportInput();
+    in.model = target_.model;
+    in.family = target_.family == Family::Dfu ? QStringLiteral("dfu") : QStringLiteral("partition");
+    in.serial = target_.serial;
+    in.flow = shape_.kind == FlowKind::Uninstall ? QStringLiteral("uninstall")
+                                                 : QStringLiteral("install");
+    in.path = path_ == InstallPath::Keep    ? QStringLiteral("keep")
+              : path_ == InstallPath::Clean ? QStringLiteral("clean")
+                                            : QString();
+    in.step = currentStep_;
+    in.failures = failures_;
+    in.backupFolder = backupFolder();
+    if (in.dataFolder.isEmpty())
+        in.dataFolder = options_.dataDir;
+    report_page_->setInput(in);
+    beforeReport_ = pageName();
+    reportOpen_ = true;
+    pages_->setCurrentWidget(report_page_);
+    refreshFooter();
+}
+
+void WizardWindow::closeReport()
+{
+    if (!reportOpen_)
+        return;
+    reportOpen_ = false;
+    pages_->setCurrentWidget(pageOf_.value(beforeReport_));
+    refreshFooter();
 }
 
 void WizardWindow::startAgain()
@@ -849,18 +1076,27 @@ void WizardWindow::closeEvent(QCloseEvent *event)
         event->accept();
         return;
     }
-    event->ignore();
-    if (writing_ && !waiting_) {
+    const QString formatRefusal = format_->closeRefusal();
+    if ((writing_ && !waiting_) || !formatRefusal.isEmpty()) {
+        event->ignore();
         if (notify_)
-            notify_(wtr("TacetOS is writing to the iPod. Wait for the end of this step, then "
-                        "close"));
+            notify_(!formatRefusal.isEmpty()
+                        ? formatRefusal
+                        : wtr("TacetOS is writing to the iPod. Wait for the end of this step, "
+                              "then close"));
         return;
     }
-    // Section 1.3: closing a window while a flow runs is a Cancel, with its question.
+    // Section 1.3: out of a write, the cross closes the window like Close, after the question
+    // of a Cancel. The progress file stays, so the card offers Resume.
     if (confirm(wtr("Stop here?"),
                 wtr("Stop here? Nothing has been written to the iPod in this step. You can "
-                    "resume later from the card")))
+                    "resume later from the card"))) {
+        active_ = false;
         runner_->cancel();
+        event->accept();
+        return;
+    }
+    event->ignore();
 }
 
 } // namespace tacetos

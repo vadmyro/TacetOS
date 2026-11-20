@@ -5,6 +5,7 @@
 
 #include "backup.h"
 #include "checks.h"
+#include "diagnose.h"
 #include "helpercalls.h"
 #include "helperclient.h"
 #include "journal.h"
@@ -17,6 +18,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QPointer>
+#include <QSysInfo>
 
 namespace tacetos {
 
@@ -59,6 +61,23 @@ QJsonObject diskTarget(const device::DetectedIpod &ipod)
     target.insert(QStringLiteral("serial"), ipod.serial);
     target.insert(QStringLiteral("port"), ipod.portPath);
     return target;
+}
+
+QString resultWord(CheckResult result)
+{
+    switch (result) {
+    case CheckResult::Pass:
+        return QStringLiteral("pass");
+    case CheckResult::Warn:
+        return QStringLiteral("warn");
+    case CheckResult::Fail:
+        return QStringLiteral("fail");
+    case CheckResult::Ask:
+        return QStringLiteral("ask");
+    case CheckResult::Skipped:
+        break;
+    }
+    return QStringLiteral("skipped");
 }
 
 } // namespace
@@ -171,10 +190,28 @@ WizardWindow *WizardLauncher::open(const QString &port, HomeAction action)
             0, need - backupSpaceNeeded(BackupKind::Keep, 0, 0, target.partitionBytes));
     }
 
+    helper::HelperClient *client = client_.get();
     WizardOptions options;
     options.dataDir = config_.dataDir;
     options.backupRoot = config_.backupRoot;
     options.realWrites = realWrites();
+    // Helper section 6.11: the rule of the Classic in DFU mode, asked through the helper.
+    options.udevInstaller = [client] {
+        return callHelper(*client, QStringLiteral("install-udev-rule"), QJsonObject()).code;
+    };
+
+    // What the report holds beside the facts of the window (screens section 10).
+    options.reportInput = [this] {
+        journal::ReportInput in;
+        in.appVersion = config_.appVersion;
+        in.system = QSysInfo::prettyProductName();
+        in.dataFolder = config_.dataDir;
+        in.home = QDir::homePath();
+        in.hostName = QSysInfo::machineHostName();
+        if (journal_)
+            in.entries = journal_->entries();
+        return in;
+    };
 
     const WizardEntry entry = action == HomeAction::UninstallWizard ? WizardEntry::Uninstall
                               : action == HomeAction::ResumeWizard  ? WizardEntry::Resume
@@ -194,6 +231,35 @@ WizardWindow *WizardLauncher::open(const QString &port, HomeAction action)
                       QStringLiteral("wizard opened: model %1, real writes %2")
                           .arg(ipod.model,
                                options.realWrites ? QStringLiteral("on") : QStringLiteral("off")));
+    if (journal_) {
+        // What the checks found and why a step stopped, so that a report says it without the
+        // screen.
+        connect(session->runner.get(), &WizardRunner::checksReported, this,
+                [this, port](const QList<Check> &checks) {
+                    for (const Check &check : checks) {
+                        if (check.result == CheckResult::Pass)
+                            continue;
+                        journal_->add(journal::Level::Info, journal::Domain::App, port,
+                                      QStringLiteral("check %1: %2, %3")
+                                          .arg(check.id, resultWord(check.result), check.message));
+                    }
+                    int passed = 0;
+                    for (const Check &check : checks)
+                        passed += check.result == CheckResult::Pass ? 1 : 0;
+                    journal_->add(
+                        journal::Level::Info, journal::Domain::App, port,
+                        QStringLiteral("checks: %1 of %2 passed").arg(passed).arg(checks.size()));
+                });
+        connect(session->runner.get(), &WizardRunner::stepFailed, this,
+                [this, port](int, const QString &name, const QString &code, const QString &detail) {
+                    journal_->add(journal::Level::Warning, journal::Domain::App, port,
+                                  QStringLiteral("step %1 failed: %2%3")
+                                      .arg(name, code,
+                                           detail.isEmpty()
+                                               ? QString()
+                                               : QStringLiteral(" (") + detail + QLatin1Char(')')));
+                });
+    }
     window->show();
     emit stateChanged(port);
     return window;
