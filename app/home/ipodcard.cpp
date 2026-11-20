@@ -362,8 +362,10 @@ void IpodCard::setEntry(const ScreenEntry &entry, const QList<Model> &models, Ho
     // The buttons (section 6).
     const Buttons buttons = buttonsFor(entry, host);
     openAction_ = buttons.openAction;
-    eject_->setVisible(buttons.eject);
-    open_->setVisible(buttons.open);
+    ejectShown_ = buttons.eject;
+    openShown_ = buttons.open;
+    eject_->setVisible(ejectShown_);
+    open_->setVisible(openShown_);
     open_->setText(buttons.openText.isEmpty() ? htr("Open") : buttons.openText);
     eject_->setEnabled(!busy);
     open_->setEnabled(!busy);
@@ -411,6 +413,9 @@ void IpodCard::updateWizardButtons()
         wizard_->setEnabled(true);
         return;
     }
+    // The window is closed: Eject and Open come back with the card's own table.
+    eject_->setVisible(ejectShown_);
+    open_->setVisible(openShown_);
     wizard_->setVisible(wizardShown_);
     uninstall_->setVisible(wizardShown_ && !hasProgress_ && !firmwareIsOurs_ && isClassic_);
     if (!wizardShown_)

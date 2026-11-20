@@ -79,6 +79,8 @@ private:
     bool isClassic_ = false;
     bool hasProgress_ = false;
     bool windowOpen_ = false;
+    bool ejectShown_ = false;
+    bool openShown_ = false;
     HomeAction wizardAction_ = HomeAction::InstallWizard;
 };
 
