@@ -476,11 +476,18 @@ private:
             s.shape.path = kind == BackupKind::Full ? InstallPath::Clean : InstallPath::Keep;
             if (runner.start(s) != QString())
                 return QString();
-            if (!QTest::qWaitFor([&] { return finished.count() + stopped.count() > 0; }, 10000))
+            // A slow runner (Windows, debug, four tests at once) can take more than 10 s.
+            if (!QTest::qWaitFor([&] { return finished.count() + stopped.count() > 0; }, 60000)) {
+                qWarning("backup: still running after 60 s");
                 return QString();
+            }
             if (out)
                 *out = report;
-            return stopped.count() > 0 ? QString() : report.folder;
+            if (stopped.count() > 0) {
+                qWarning("backup: stopped with %s", qPrintable(stopped.first().first().toString()));
+                return QString();
+            }
+            return report.folder;
         }
     };
 
