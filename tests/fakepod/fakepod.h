@@ -4,6 +4,7 @@
 #pragma once
 
 #include <QByteArray>
+#include <QFile>
 #include <QString>
 #include <QStringList>
 #include <cstdint>
@@ -131,5 +132,11 @@ public:
 
 // The byte sum of section 7.2: unsigned 8-bit values, modulo 2^32.
 uint32_t byteSum(const QByteArray &data);
+
+// Sets the length of an open image file, as a sparse file: the bytes never written take no
+// room and cost nothing to read. Linux and macOS do it by themselves. Windows has to be told
+// first, or it writes zeros up to each write far into the file and the tests that build
+// images of hundreds of megabytes take minutes.
+bool resizeSparse(QFile &file, qint64 size);
 
 } // namespace tacetos::fakepod

@@ -7,6 +7,18 @@
 #include <QList>
 #include <utility>
 
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <io.h>
+#include <windows.h>
+#include <winioctl.h>
+#endif
+
 namespace tacetos::fakepod {
 
 namespace {
@@ -261,6 +273,18 @@ uint32_t byteSum(const QByteArray &data)
     return sum;
 }
 
+bool resizeSparse(QFile &file, qint64 size)
+{
+#ifdef Q_OS_WIN
+    // On a file system without sparse files the call fails and the file is simply made longer.
+    const auto handle = reinterpret_cast<HANDLE>(_get_osfhandle(file.handle()));
+    DWORD returned = 0;
+    if (handle != INVALID_HANDLE_VALUE)
+        DeviceIoControl(handle, FSCTL_SET_SPARSE, nullptr, 0, nullptr, 0, &returned, nullptr);
+#endif
+    return file.resize(size);
+}
+
 QStringList FakePod::modelIds()
 {
     QStringList ids;
@@ -322,7 +346,7 @@ FakePodResult buildSinglePartition(const FakePodSpec &spec, const ModelRow &m)
     r.musicBytes = FakePod::kImageBytes - r.musicStart;
 
     QFile f(spec.path);
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate) || !f.resize(r.fileSize)) {
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate) || !resizeSparse(f, r.fileSize)) {
         r.error = QStringLiteral("cannot write %1: %2").arg(spec.path, f.errorString());
         return r;
     }
@@ -346,7 +370,8 @@ FakePodResult buildSinglePartition(const FakePodSpec &spec, const ModelRow &m)
 bool FakePod::growMusic(const QString &path, qint64 musicFirstSector, TableKind table)
 {
     QFile f(path);
-    if (!f.open(QIODevice::ReadWrite) || !f.resize((musicFirstSector + kGrownMusicSectors) * 512))
+    if (!f.open(QIODevice::ReadWrite) ||
+        !resizeSparse(f, (musicFirstSector + kGrownMusicSectors) * 512))
         return false;
     QByteArray count(4, '\0');
     for (int k = 0; k < 4; ++k) {
@@ -473,7 +498,7 @@ FakePodResult FakePod::build(const FakePodSpec &spec)
     }
 
     QFile f(spec.path);
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate) || !f.resize(kImageBytes)) {
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate) || !resizeSparse(f, kImageBytes)) {
         r.error = QStringLiteral("cannot write %1: %2").arg(spec.path, f.errorString());
         return r;
     }
