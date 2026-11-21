@@ -43,9 +43,7 @@ const QString kSerial = QStringLiteral("8K7BOOT");
 
 QByteArray fileHash(const QString &path)
 {
-    QFile f(path);
-    QCryptographicHash hash(QCryptographicHash::Sha256);
-    return f.open(QIODevice::ReadOnly) && hash.addData(&f) ? hash.result() : QByteArray();
+    return tacetos::fakepod::imageHash(path);
 }
 
 bool writeFile(const QString &path, const QByteArray &bytes)

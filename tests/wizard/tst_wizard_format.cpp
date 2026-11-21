@@ -60,9 +60,7 @@ QByteArray bytesAt(const QString &path, qint64 offset, qint64 count)
 
 QByteArray fileHash(const QString &path)
 {
-    QFile f(path);
-    QCryptographicHash hash(QCryptographicHash::Sha256);
-    return f.open(QIODevice::ReadOnly) && hash.addData(&f) ? hash.result() : QByteArray();
+    return tacetos::fakepod::imageHash(path);
 }
 
 // One event of detection about the iPod of the tests.

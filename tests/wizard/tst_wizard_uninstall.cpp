@@ -228,9 +228,7 @@ public:
 
 QByteArray fileHash(const QString &path)
 {
-    QFile f(path);
-    QCryptographicHash hash(QCryptographicHash::Sha256);
-    return f.open(QIODevice::ReadOnly) && hash.addData(&f) ? hash.result() : QByteArray();
+    return tacetos::fakepod::imageHash(path);
 }
 
 class NoopStep : public Step
