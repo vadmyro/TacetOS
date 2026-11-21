@@ -42,7 +42,10 @@ qt_add_executable(tst_wizardwindow tst_wizardwindow.cpp)
 target_link_libraries(tst_wizardwindow PRIVATE tacetos_ui Qt6::Test)
 
 add_test(NAME tst_wizardwindow COMMAND tst_wizardwindow)
-set_tests_properties(tst_wizardwindow PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+# Alone: its waits of a few seconds on the pages fail on the Windows runners when the other
+# window tests share the 4 cores with it.
+set_tests_properties(tst_wizardwindow PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    RUN_SERIAL TRUE)
 
 # The page of the checks, with a runner whose step reads fake sources.
 qt_add_executable(tst_diagnosepage tst_diagnosepage.cpp)
