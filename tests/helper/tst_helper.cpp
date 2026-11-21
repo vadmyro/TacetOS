@@ -27,13 +27,7 @@ namespace {
 
 QByteArray fileHash(const QString &path)
 {
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly))
-        return {};
-    QCryptographicHash h(QCryptographicHash::Sha256);
-    while (!f.atEnd())
-        h.addData(f.read(1 << 20));
-    return h.result();
+    return tacetos::fakepod::imageHash(path);
 }
 
 QByteArray requestLine(qint64 id, const QString &cmd, const QJsonObject &args)

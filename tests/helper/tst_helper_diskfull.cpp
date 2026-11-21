@@ -38,13 +38,7 @@ QString str(const QJsonObject &o, const char *key)
 
 QByteArray fileHash(const QString &path)
 {
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly))
-        return {};
-    QCryptographicHash h(QCryptographicHash::Sha256);
-    while (!f.atEnd())
-        h.addData(f.read(1 << 20));
-    return h.result();
+    return tacetos::fakepod::imageHash(path);
 }
 
 struct Call

@@ -46,13 +46,7 @@ const QString kSerial = QStringLiteral("000A27001A2B3C4D");
 
 QByteArray fileHash(const QString &path)
 {
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly))
-        return {};
-    QCryptographicHash h(QCryptographicHash::Sha256);
-    while (!f.atEnd())
-        h.addData(f.read(1 << 20));
-    return h.result();
+    return tacetos::fakepod::imageHash(path);
 }
 
 bool put(const QString &path, const QByteArray &bytes)
