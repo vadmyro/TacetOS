@@ -339,7 +339,10 @@ private slots:
         });
         WizardRunner runner(m_dir.path(), factory());
         WizardWindow w(target(), options(), &runner, WizardEntry::Uninstall);
-        w.diagnosePage()->setPause(0);
+        // The steps after the checks end at once: with a long pause the flow always ends during
+        // it, so the window stays on the step page (with no pause, the order changes with the
+        // runner).
+        w.diagnosePage()->setPause(60000);
         QSignalSpy ended(&w, &WizardWindow::flowEnded);
         QTest::mouseClick(buttonNamed(&w, "wizardMain"), Qt::LeftButton);
         QTRY_COMPARE(w.pageName(), QStringLiteral("diagnose"));
