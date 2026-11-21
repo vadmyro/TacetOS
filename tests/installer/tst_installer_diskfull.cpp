@@ -28,10 +28,7 @@ namespace {
 
 QByteArray hashOf(const QString &path)
 {
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly))
-        return {};
-    return QCryptographicHash::hash(f.readAll(), QCryptographicHash::Sha256);
+    return tacetos::fakepod::imageHash(path);
 }
 
 QByteArray fileFor(const QString &target, int length)

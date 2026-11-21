@@ -7,6 +7,7 @@
 
 #include "checks.h"
 #include "constants.h"
+#include "fakepod.h"
 #include "faultdevice.h"
 #include "fixtures.h"
 
@@ -30,7 +31,7 @@ QByteArray fileBytes(const QString &path)
 
 QByteArray hashOf(const QString &path)
 {
-    return QCryptographicHash::hash(fileBytes(path), QCryptographicHash::Sha256);
+    return tacetos::fakepod::imageHash(path);
 }
 
 // The good bootloader file of a target.

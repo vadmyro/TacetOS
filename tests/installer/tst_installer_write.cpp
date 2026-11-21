@@ -36,7 +36,7 @@ QByteArray readAll(const QString &path, qint64 offset = 0, qint64 length = -1)
 
 QByteArray hashOf(const QString &path)
 {
-    return QCryptographicHash::hash(readAll(path), QCryptographicHash::Sha256);
+    return tacetos::fakepod::imageHash(path);
 }
 
 QByteArray firmwareOf(const QString &path, const fp::FakePodResult &pod)

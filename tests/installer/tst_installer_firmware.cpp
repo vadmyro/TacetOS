@@ -21,12 +21,6 @@ namespace fp = tacetos::fakepod;
 
 namespace {
 
-QByteArray fileBytes(const QString &path)
-{
-    QFile f(path);
-    return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
-}
-
 const char *name(State s)
 {
     switch (s) {
@@ -312,15 +306,14 @@ void TestFirmware::readingNeverWrites()
     QFETCH(int, id);
     Opened o = open(fp::FixtureId(id));
     QVERIFY(o.dev);
-    const QByteArray before =
-        QCryptographicHash::hash(fileBytes(o.path), QCryptographicHash::Sha256);
+    const QByteArray before = tacetos::fakepod::imageHash(o.path);
     FaultSectorDevice watched(*o.dev);
     const Recognition r = recognise(watched);
     const FirmwareState s = readFirmware(watched, r);
     QVERIFY(s.state != State::NotRead);
     QCOMPARE(watched.writeCount(), 0);
     QCOMPARE(watched.flushCount(), 0);
-    QCOMPARE(QCryptographicHash::hash(fileBytes(o.path), QCryptographicHash::Sha256), before);
+    QCOMPARE(tacetos::fakepod::imageHash(o.path), before);
 }
 
 void TestFirmware::dnanTagIsAccepted()

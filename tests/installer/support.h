@@ -53,7 +53,7 @@ inline QByteArray hashOutside(const QString &path, QList<Range> allowed = {})
             const QByteArray part = f.read(qMin<qint64>(to - at, 4 * 1024 * 1024));
             if (part.isEmpty())
                 break;
-            h.addData(part);
+            tacetos::fakepod::addImageBytes(h, part);
             at += part.size();
         }
     };

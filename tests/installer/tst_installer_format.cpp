@@ -222,7 +222,7 @@ QByteArray hashOf(const QString &path, qint64 length = -1)
         const QByteArray part = f.read(qMin<qint64>(left, 4 * 1024 * 1024));
         if (part.isEmpty())
             break;
-        h.addData(part);
+        tacetos::fakepod::addImageBytes(h, part);
         left -= part.size();
     }
     return h.result();

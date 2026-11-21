@@ -375,8 +375,7 @@ void TestConvert::fullBackupFolderWritesNothing()
     QVERIFY(dir.isValid());
     const Img img = makeImg(dir.path(), "mac.img", "ipod-video", fp::TableKind::Apm);
     QVERIFY(img.ok);
-    const QByteArray before =
-        QCryptographicHash::hash(readAll(img.path), QCryptographicHash::Sha256);
+    const QByteArray before = tacetos::fakepod::imageHash(img.path);
     for (const QString &failing : {QStringLiteral("firmware-"), QStringLiteral("map-")}) {
         FileSectorDevice file(img.path, kSector, FileSectorDevice::Mode::ReadWrite);
         QVERIFY(file.open());
@@ -393,7 +392,7 @@ void TestConvert::fullBackupFolderWritesNothing()
         QCOMPARE(res.message, QStringLiteral("Cannot save a backup in the data folder"));
         QVERIFY(!res.wroteAnything);
         QCOMPARE(dev.writeCount(), 0);
-        QCOMPARE(QCryptographicHash::hash(readAll(img.path), QCryptographicHash::Sha256), before);
+        QCOMPARE(tacetos::fakepod::imageHash(img.path), before);
         // The copy that was cut is gone, not left half written.
         const QStringList left = QDir(backups).entryList(QDir::Files);
         for (const QString &name : left)

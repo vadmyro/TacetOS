@@ -23,12 +23,6 @@ namespace fp = tacetos::fakepod;
 
 namespace {
 
-QByteArray fileBytes(const QString &path)
-{
-    QFile f(path);
-    return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
-}
-
 const char *name(Verdict v)
 {
     switch (v) {
@@ -354,13 +348,12 @@ void TestRecognise::recognisingNeverWrites()
     // The device is opened read-only, but also: a device that counts writes.
     Opened o = open(fp::FixtureId::DosIpodVideo, QStringLiteral("ro.img"));
     QVERIFY(o.dev);
-    const QByteArray before =
-        QCryptographicHash::hash(fileBytes(o.path), QCryptographicHash::Sha256);
+    const QByteArray before = tacetos::fakepod::imageHash(o.path);
     FaultSectorDevice watched(*o.dev);
     QCOMPARE(recognise(watched).verdict, Verdict::Recognised);
     QCOMPARE(watched.writeCount(), 0);
     QCOMPARE(watched.flushCount(), 0);
-    QCOMPARE(QCryptographicHash::hash(fileBytes(o.path), QCryptographicHash::Sha256), before);
+    QCOMPARE(tacetos::fakepod::imageHash(o.path), before);
 }
 
 void TestRecognise::apmUsesBytesWhenTheBlockIsNotTheSector()
