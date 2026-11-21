@@ -93,7 +93,8 @@ private:
     {
         constexpr qint64 kMusicTotal = 600 * 1024 * 2;
         QFile f(path);
-        if (!f.open(QIODevice::ReadWrite) || !f.resize((musicFirst + kMusicTotal) * 512))
+        if (!f.open(QIODevice::ReadWrite) ||
+            !tacetos::fakepod::resizeSparse(f, (musicFirst + kMusicTotal) * 512))
             return false;
         QByteArray count(4, '\0');
         for (int k = 0; k < 4; ++k)

@@ -329,7 +329,8 @@ private:
             return {};
         constexpr qint64 kMusicTotal = 600 * 1024 * 2;
         QFile f(spec.path);
-        if (!f.open(QIODevice::ReadWrite) || !f.resize((r.musicStart / 512 + kMusicTotal) * 512))
+        if (!f.open(QIODevice::ReadWrite) ||
+            !tacetos::fakepod::resizeSparse(f, (r.musicStart / 512 + kMusicTotal) * 512))
             return {};
         QByteArray count(4, '\0');
         for (int k = 0; k < 4; ++k) {
