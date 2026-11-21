@@ -258,7 +258,7 @@ Pod makePod(const QTemporaryDir &dir, const QString &name, const QString &model,
         return p;
     const qint64 end = (musicFirst + musicTotal) * kSector;
     if (f.size() < end)
-        f.resize(end);
+        tacetos::fakepod::resizeSparse(f, end);
     QByteArray entry(8, '\0');
     put32(entry, 0, quint32(musicFirst));
     put32(entry, 4, quint32(musicTotal));
@@ -436,7 +436,7 @@ void TestFormat::readByFsck()
     {
         QFile f(path);
         QVERIFY(f.open(QIODevice::WriteOnly));
-        QVERIFY(f.resize(total * kSector));
+        QVERIFY(tacetos::fakepod::resizeSparse(f, total * kSector));
     }
     FileSectorDevice dev(path, kSector, FileSectorDevice::Mode::ReadWrite);
     QVERIFY(dev.open());

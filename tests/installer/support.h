@@ -102,7 +102,8 @@ inline Img makeImg(const QString &dir, const QString &name, const QString &model
     i.musicFirst = i.info.musicStart / kSector;
     i.musicTotal = kMusicTotal;
     QFile f(i.path);
-    if (!f.open(QIODevice::ReadWrite) || !f.resize((i.musicFirst + i.musicTotal) * kSector))
+    if (!f.open(QIODevice::ReadWrite) ||
+        !tacetos::fakepod::resizeSparse(f, (i.musicFirst + i.musicTotal) * kSector))
         return i;
     QByteArray count(4, '\0');
     if (table == fp::TableKind::Apm) {
