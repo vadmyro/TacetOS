@@ -5,6 +5,7 @@
 
 #include <QFile>
 #include <QList>
+#include <cstring>
 #include <utility>
 
 #ifdef Q_OS_WIN
@@ -283,6 +284,38 @@ bool resizeSparse(QFile &file, qint64 size)
         DeviceIoControl(handle, FSCTL_SET_SPARSE, nullptr, 0, nullptr, 0, &returned, nullptr);
 #endif
     return file.resize(size);
+}
+
+void addImageBytes(QCryptographicHash &hash, QByteArrayView block)
+{
+    static const QByteArray zeros(4 * 1024 * 1024, '\0');
+    bool allZero = true;
+    for (qsizetype at = 0; allZero && at < block.size(); at += zeros.size()) {
+        const qsizetype n = qMin(block.size() - at, zeros.size());
+        allZero = std::memcmp(block.data() + at, zeros.constData(), size_t(n)) == 0;
+    }
+    const qint64 length = block.size();
+    hash.addData(QByteArrayView(allZero ? "z" : "d", 1));
+    hash.addData(QByteArrayView(reinterpret_cast<const char *>(&length), sizeof length));
+    if (!allZero)
+        hash.addData(block);
+}
+
+QByteArray imageHash(const QString &path, qint64 offset, qint64 length)
+{
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly) || !f.seek(offset))
+        return {};
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    qint64 left = length < 0 ? f.size() - offset : length;
+    while (left > 0) {
+        const QByteArray part = f.read(qMin<qint64>(left, 4 * 1024 * 1024));
+        if (part.isEmpty())
+            break;
+        addImageBytes(hash, part);
+        left -= part.size();
+    }
+    return hash.result();
 }
 
 QStringList FakePod::modelIds()

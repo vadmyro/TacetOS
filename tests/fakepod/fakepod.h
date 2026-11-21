@@ -4,6 +4,8 @@
 #pragma once
 
 #include <QByteArray>
+#include <QByteArrayView>
+#include <QCryptographicHash>
 #include <QFile>
 #include <QString>
 #include <QStringList>
@@ -138,5 +140,14 @@ uint32_t byteSum(const QByteArray &data);
 // first, or it writes zeros up to each write far into the file and the tests that build
 // images of hundreds of megabytes take minutes.
 bool resizeSparse(QFile &file, qint64 size);
+
+// For the tests that check that an image did not change: a SHA-256 of the bytes of the file in
+// which each block of zeros counts by its length only, so that the holes of an image of
+// hundreds of megabytes cost nothing to hash. Two files give the same value when they have
+// the same bytes; the value is not the SHA-256 of the file.
+QByteArray imageHash(const QString &path, qint64 offset = 0, qint64 length = -1);
+// Adds one block of an image to such a hash. The blocks are tagged, so that a block of zeros
+// and a block of data never give the same input.
+void addImageBytes(QCryptographicHash &hash, QByteArrayView block);
 
 } // namespace tacetos::fakepod
