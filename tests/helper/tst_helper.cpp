@@ -9,6 +9,7 @@
 #include "helperconstants.h"
 #include "lock.h"
 #include "protocol.h"
+#include "readstate.h"
 
 #include <QCryptographicHash>
 #include <QDir>
@@ -373,6 +374,33 @@ private slots:
                      .value(QStringLiteral("method"))
                      .toString(),
                  QStringLiteral("dfu"));
+    }
+
+    // Section 6.2: the slots of a Classic, in sectors of 4096 bytes. Under TacetOS its
+    // firmware area shows as a slot before the music (seen on a real 120 GB, 2026-11-22).
+    void classicLayouts()
+    {
+        using tacetos::installer::PartitionTable;
+        using tacetos::installer::Slot;
+        using tacetos::installer::TableKind;
+        using tacetos::installer::TableStatus;
+        const auto table = [](const QList<Slot> &entries) {
+            PartitionTable t;
+            t.status = TableStatus::Ok;
+            t.kind = TableKind::Dos;
+            t.slotList = entries;
+            while (t.slotList.size() < 4)
+                t.slotList << Slot();
+            return t;
+        };
+        const Slot music{0x0B, 49278, 29255927};
+        QVERIFY(tacetos::helper::looksLikeClassic(table({music})));
+        QVERIFY(tacetos::helper::looksLikeClassic(table({music, Slot{0x00, 63, 49152}})));
+        // An older iPod: the firmware first, the music after it.
+        QVERIFY(!tacetos::helper::looksLikeClassic(table({Slot{0x00, 63, 49152}, music})));
+        // Something after the start of the music is not the firmware area.
+        QVERIFY(!tacetos::helper::looksLikeClassic(table({music, Slot{0x0B, 49200, 100}})));
+        QVERIFY(!tacetos::helper::looksLikeClassic(table({music, Slot{0x0B, 29305205, 100}})));
     }
 
     void legacyCommandsOnAClassicAreWrongMethod()

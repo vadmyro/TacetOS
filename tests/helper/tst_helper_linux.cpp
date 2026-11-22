@@ -6,6 +6,7 @@
 // reaches udisks2, pkexec or a disk.
 
 #include "diskcmds.h"
+#include "helperconstants.h"
 #include "linuxfacts.h"
 #include "scsisheet.h"
 #include "symlinks.h"
@@ -13,8 +14,15 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QProcess>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTest>
+
+#ifndef Q_OS_WIN
+#include <unistd.h>
+#endif
 
 using namespace tacetos::helper;
 using tacetos::device::UdisksObjects;
@@ -91,15 +99,20 @@ public:
     int calls = 0;
     QString program;
     QStringList arguments;
-    // What a successful pkexec does: puts the rule in place.
+    // What a successful pkexec does: puts the udev rule in place (without its last
+    // line after an exit 4, as the script does).
     QString copyTo;
     int run(const QString &p, const QStringList &a, QString *) override
     {
         ++calls;
         program = p;
         arguments = a;
-        if (exitCode == 0 && !copyTo.isEmpty())
-            QFile::copy(a.last(), copyTo);
+        if ((exitCode == 0 || exitCode == 4) && !copyTo.isEmpty()) {
+            QFile out(copyTo);
+            if (out.open(QIODevice::WriteOnly))
+                out.write(
+                    (exitCode == 4 ? udevRuleTextWithoutPolkitLine() : udevRuleText()).toUtf8());
+        }
         return exitCode;
     }
 };
@@ -114,6 +127,7 @@ private slots:
     void otherDisksAreRefused_data();
     void otherDisksAreRefused();
     void requestMustMatch();
+    void serialWithSpacesMatchesTheDrive();
     void systemMustNotBeOnTheDisk();
     void usbFactsFromTree();
     void realCheckWithFakeService();
@@ -123,6 +137,12 @@ private slots:
     void udevRuleAlreadyThere();
     void udevRuleExitCodes();
     void udevRuleCommandLine();
+    void udevRuleNoPolkitFolder();
+    void udevRuleOldBuildIsMissing();
+    void polkitRuleContent_data();
+    void polkitRuleContent();
+    void udevScriptRuns_data();
+    void udevScriptRuns();
 };
 
 void TestHelperLinux::ipodIsAccepted()
@@ -166,6 +186,22 @@ void TestHelperLinux::otherDisksAreRefused()
     const DiskVerdict v = judgeDisk(r, inputsOf(d, usb));
     QVERIFY(!v.ok);
     QCOMPARE(v.code, code);
+}
+
+// A Classic under TacetOS: the USB serial has spaces, udisks2 shows it as udev does.
+void TestHelperLinux::serialWithSpacesMatchesTheDrive()
+{
+    Disk d;
+    d.serial = QStringLiteral("3_Y8CISJFKS");
+    UsbFacts usb = usbOf("05ac", "1261");
+    usb.serial = QStringLiteral("3           Y8CISJFKS");
+    DiskRequest r = requestOf(d);
+    r.serial = usb.serial;
+    QVERIFY(judgeDisk(r, inputsOf(d, usb)).ok);
+    d.serial = QStringLiteral("3_Y8CISJFKX");
+    QCOMPARE(judgeDisk(r, inputsOf(d, usb)).code, QStringLiteral("disk-changed"));
+    d.serial = QStringLiteral("3___________Y8CISJFKS");
+    QCOMPARE(judgeDisk(r, inputsOf(d, usb)).code, QStringLiteral("disk-changed"));
 }
 
 void TestHelperLinux::requestMustMatch()
@@ -401,6 +437,7 @@ void TestHelperLinux::udevRuleAlreadyThere()
     FakeRunner runner;
     UdevEnv env;
     env.rulesFile = dir.filePath(QStringLiteral("70.rules"));
+    env.polkitRulesFile = dir.filePath(QStringLiteral("polkit/70.rules"));
     env.pkexecPath = QStringLiteral("/usr/bin/pkexec");
     env.runner = &runner;
     env.tempBase = dir.path();
@@ -424,10 +461,12 @@ void TestHelperLinux::udevRuleExitCodes()
     FakeRunner runner;
     UdevEnv env;
     env.rulesFile = dir.filePath(QStringLiteral("70.rules"));
+    env.polkitRulesFile = dir.filePath(QStringLiteral("polkit/70.rules"));
     env.pkexecPath = QStringLiteral("/usr/bin/pkexec");
     env.runner = &runner;
     env.tempBase = dir.path();
     runner.exitCode = 126;
+    QDir().mkpath(dir.filePath(QStringLiteral("polkit")));
     QCOMPARE(installUdevRule(env).code, QStringLiteral("cancelled"));
     runner.exitCode = 127;
     QCOMPARE(installUdevRule(env).code, QStringLiteral("permission-denied"));
@@ -440,6 +479,7 @@ void TestHelperLinux::udevRuleExitCodes()
     const UdevOutcome ok = installUdevRule(env);
     QVERIFY(ok.ok);
     QVERIFY(!ok.alreadyInstalled);
+    QVERIFY(ok.polkit);
     QCOMPARE(runner.program, QStringLiteral("/usr/bin/pkexec"));
     // No pkexec: the app shows the commands instead.
     QFile::remove(env.rulesFile);
@@ -449,16 +489,223 @@ void TestHelperLinux::udevRuleExitCodes()
 
 void TestHelperLinux::udevRuleCommandLine()
 {
-    const QStringList args = pkexecArguments(QStringLiteral("/tmp/x/rule"));
-    QCOMPARE(args.size(), 5);
+    const QStringList args =
+        pkexecArguments(QStringLiteral("/tmp/x/udev"), QStringLiteral("/tmp/x/polkit"));
+    QCOMPARE(args.size(), 6);
     QCOMPARE(args.at(0), QStringLiteral("/bin/sh"));
     QCOMPARE(args.at(1), QStringLiteral("-c"));
-    QCOMPARE(args.last(), QStringLiteral("/tmp/x/rule"));
-    // The script is fixed: the path comes only as "$1".
+    QCOMPARE(args.at(4), QStringLiteral("/tmp/x/udev"));
+    QCOMPARE(args.at(5), QStringLiteral("/tmp/x/polkit"));
+    // The script is fixed: the paths come only as "$1" and "$2".
     QVERIFY(!args.at(2).contains(QStringLiteral("/tmp/x")));
-    QVERIFY(args.at(2).contains(QStringLiteral(
-        "install -m 0644 -o root -g root \"$1\" /etc/udev/rules.d/70-tacetos-dfu.rules")));
+    QVERIFY(args.at(2).contains(QStringLiteral("u=\"/etc/udev/rules.d/70-tacetos-dfu.rules\"")));
+    QVERIFY(
+        args.at(2).contains(QStringLiteral("p=\"/etc/polkit-1/rules.d/70-tacetos-ipod.rules\"")));
+    QVERIFY(args.at(2).contains(QStringLiteral("install -m 0644 -o root -g root \"$1\" \"$u\"")));
+    QVERIFY(args.at(2).contains(QStringLiteral("install -m 0644 -o root -g root \"$2\" \"$p\"")));
     QVERIFY(args.at(2).contains(QStringLiteral("udevadm control --reload-rules")));
+    QVERIFY(args.at(2).contains(QStringLiteral("cmp ")));
+    QVERIFY(args.at(2).contains(QStringLiteral("exit 3")));
+    QVERIFY(args.at(2).contains(QStringLiteral("exit 4")));
+}
+
+void TestHelperLinux::udevRuleNoPolkitFolder()
+{
+    QTemporaryDir dir;
+    FakeRunner runner;
+    UdevEnv env;
+    env.rulesFile = dir.filePath(QStringLiteral("70.rules"));
+    env.polkitRulesFile = dir.filePath(QStringLiteral("no-polkit/70.rules"));
+    env.pkexecPath = QStringLiteral("/usr/bin/pkexec");
+    env.runner = &runner;
+    env.tempBase = dir.path();
+    // The script ends with 4 and puts the udev rule alone: a success, polkit false.
+    runner.exitCode = 4;
+    runner.copyTo = env.rulesFile;
+    const UdevOutcome o = installUdevRule(env);
+    QVERIFY(o.ok);
+    QVERIFY(!o.alreadyInstalled);
+    QVERIFY(!o.polkit);
+    // Exit 4 with nothing in place: the read back catches it.
+    runner.copyTo.clear();
+    QFile::remove(env.rulesFile);
+    QCOMPARE(installUdevRule(env).code, QStringLiteral("udev-failed"));
+    // The next call finds the rule without its last line and asks nothing.
+    QFile f(env.rulesFile);
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write(udevRuleTextWithoutPolkitLine().toUtf8());
+    f.close();
+    runner.calls = 0;
+    const UdevOutcome again = installUdevRule(env);
+    QVERIFY(again.ok);
+    QVERIFY(again.alreadyInstalled);
+    QVERIFY(!again.polkit);
+    QCOMPARE(runner.calls, 0);
+    // Exit 3: a copy differs.
+    QFile::remove(env.rulesFile);
+    runner.exitCode = 3;
+    QCOMPARE(installUdevRule(env).code, QStringLiteral("udev-failed"));
+    // The temporary folder holds the two rules the script was given.
+    QCOMPARE(runner.arguments.size(), 6);
+}
+
+void TestHelperLinux::udevRuleOldBuildIsMissing()
+{
+    QTemporaryDir dir;
+    FakeRunner runner;
+    UdevEnv env;
+    env.rulesFile = dir.filePath(QStringLiteral("70.rules"));
+    env.polkitRulesFile = dir.filePath(QStringLiteral("polkit/70.rules"));
+    QVERIFY(QDir().mkpath(dir.filePath(QStringLiteral("polkit"))));
+    env.pkexecPath = QStringLiteral("/usr/bin/pkexec");
+    env.runner = &runner;
+    env.tempBase = dir.path();
+    // The rule of an older build has no last line that names the polkit file.
+    QFile f(env.rulesFile);
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write(udevRuleTextWithoutPolkitLine().toUtf8());
+    f.close();
+    QVERIFY(!udevRuleText().isEmpty());
+    QVERIFY(
+        udevRuleText().endsWith(QStringLiteral("/etc/polkit-1/rules.d/70-tacetos-ipod.rules\n")));
+    QVERIFY(udevRuleText().startsWith(udevRuleTextWithoutPolkitLine()));
+    QVERIFY(udevRuleTextWithoutPolkitLine().size() < udevRuleText().size());
+    runner.exitCode = 1;
+    const UdevOutcome o = installUdevRule(env);
+    QVERIFY(!o.ok);
+    QCOMPARE(runner.calls, 1);
+    // The text of the rule reads the polkit file's name from the one constant.
+    QVERIFY(udevRuleText().contains(QString(kPolkitRulesFile)));
+}
+
+void TestHelperLinux::polkitRuleContent_data()
+{
+    QTest::addColumn<QString>("needle");
+    QTest::newRow("action") << QStringLiteral(
+        "action.id != \"org.freedesktop.udisks2.open-device\"");
+    QTest::newRow("local") << QStringLiteral("!subject.local");
+    QTest::newRow("active") << QStringLiteral("!subject.active");
+    QTest::newRow("vendor") << QStringLiteral("action.lookup(\"drive.vendor\") != \"Apple\"");
+    QTest::newRow("model") << QStringLiteral("model.indexOf(\"iPod\") != 0");
+    QTest::newRow("removable") << QStringLiteral("action.lookup(\"drive.removable\") != \"true\"");
+    QTest::newRow("bus") << QStringLiteral("action.lookup(\"drive.removable.bus\") != \"usb\"");
+    QTest::newRow("yes") << QStringLiteral("return polkit.Result.YES;");
+}
+
+void TestHelperLinux::polkitRuleContent()
+{
+    QFETCH(QString, needle);
+    const QString text = polkitRuleText();
+    QVERIFY2(text.contains(needle), qPrintable(needle));
+    // One rule, one answer yes, and no other action, no password and no group.
+    QCOMPARE(text.count(QStringLiteral("polkit.addRule")), 1);
+    QCOMPARE(text.count(QStringLiteral("polkit.Result.YES")), 1);
+    QCOMPARE(text.count(QStringLiteral("org.freedesktop.")), 1);
+    QVERIFY(!text.contains(QStringLiteral("open-device-system")));
+    QVERIFY(!text.contains(QStringLiteral("AUTH")));
+    QVERIFY(!text.contains(QStringLiteral("isInGroup")));
+    QVERIFY(text.startsWith(QStringLiteral("// SPDX-License-Identifier: GPL-3.0-or-later\n")));
+}
+
+void TestHelperLinux::udevScriptRuns_data()
+{
+    QTest::addColumn<bool>("polkitFolder");
+    QTest::addColumn<bool>("tamper");
+    QTest::addColumn<int>("exitCode");
+    QTest::newRow("both") << true << false << 0;
+    QTest::newRow("no-polkit-folder") << false << false << 4;
+    QTest::newRow("copy-differs") << true << true << 3;
+}
+
+// The script of `pkexec`, run by `sh` on two temporary folders in place of those of
+// the system, with the commands that need the administrator replaced by stand-ins.
+void TestHelperLinux::udevScriptRuns()
+{
+#ifdef Q_OS_WIN
+    QSKIP("the script is for Linux");
+#else
+    QFETCH(bool, polkitFolder);
+    QFETCH(bool, tamper);
+    QFETCH(int, exitCode);
+    const QString realInstall = QStandardPaths::findExecutable(QStringLiteral("install"));
+    const QString realSed = QStandardPaths::findExecutable(QStringLiteral("sed"));
+    const QString realCmp = QStandardPaths::findExecutable(QStringLiteral("cmp"));
+    if (realInstall.isEmpty() || realSed.isEmpty() || realCmp.isEmpty())
+        QSKIP("install, sed or cmp is missing");
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString udevDir = dir.filePath(QStringLiteral("udev"));
+    const QString polkitDir = dir.filePath(QStringLiteral("polkit"));
+    const QString bin = dir.filePath(QStringLiteral("bin"));
+    const QString work = dir.filePath(QStringLiteral("work"));
+    QVERIFY(QDir().mkpath(udevDir));
+    QVERIFY(QDir().mkpath(bin));
+    QVERIFY(QDir().mkpath(work));
+    if (polkitFolder)
+        QVERIFY(QDir().mkpath(polkitDir));
+
+    const auto writeFile = [](const QString &path, const QByteArray &bytes, bool exec) {
+        QFile f(path);
+        if (!f.open(QIODevice::WriteOnly) || f.write(bytes) != bytes.size())
+            return false;
+        f.close();
+        return !exec || f.setPermissions(f.permissions() | QFileDevice::ExeUser);
+    };
+    // `udevadm` only says that it was called. `install` is the real one, and with
+    // `tamper` it then spoils the polkit file, as a failed copy would.
+    const QString log = dir.filePath(QStringLiteral("udevadm.log"));
+    QVERIFY(writeFile(bin + QStringLiteral("/udevadm"),
+                      ("#!/bin/sh\necho \"$@\" >> '" + log + "'\n").toUtf8(), true));
+    QVERIFY(writeFile(bin + QStringLiteral("/install"),
+                      ("#!/bin/sh\n'" + realInstall +
+                       "' \"$@\" || exit 1\n"
+                       "for last; do :; done\n" +
+                       (tamper ? "case \"$last\" in *polkit*) echo x >> \"$last\";; esac\n" : "") +
+                       "exit 0\n")
+                          .toUtf8(),
+                      true));
+    const QString udevCopy = work + QStringLiteral("/70-tacetos-dfu.rules");
+    const QString polkitCopy = work + QStringLiteral("/70-tacetos-ipod.rules");
+    QVERIFY(writeFile(udevCopy, udevRuleText().toUtf8(), false));
+    QVERIFY(writeFile(polkitCopy, polkitRuleText().toUtf8(), false));
+
+    const QString udevFile = udevDir + QStringLiteral("/70-tacetos-dfu.rules");
+    const QString polkitFile = polkitDir + QStringLiteral("/70-tacetos-ipod.rules");
+    // The owner of the test's user, since `-o root` needs the administrator.
+    const QString owner = QStringLiteral("-o %1 -g %2").arg(getuid()).arg(getgid());
+    QProcess sh;
+    QProcessEnvironment environment;
+    environment.insert(QStringLiteral("PATH"), bin + QLatin1Char(':') + QFileInfo(realSed).path() +
+                                                   QLatin1Char(':') + QFileInfo(realCmp).path());
+    sh.setProcessEnvironment(environment);
+    sh.start(QStringLiteral("/bin/sh"),
+             {QStringLiteral("-c"), udevInstallScriptFor(udevFile, polkitFile, owner),
+              QStringLiteral("tacetos-udev"), udevCopy, polkitCopy});
+    QVERIFY(sh.waitForFinished(20000));
+    QCOMPARE(sh.exitCode(), exitCode);
+
+    const auto read = [](const QString &path) {
+        QFile f(path);
+        return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+    };
+    if (exitCode == 4) {
+        // The udev rule alone, without its last line.
+        QCOMPARE(read(udevFile), udevRuleTextWithoutPolkitLine().toUtf8());
+        QVERIFY(!QFileInfo::exists(polkitFile));
+    } else {
+        QCOMPARE(read(udevFile), udevRuleText().toUtf8());
+        QVERIFY(tamper ? read(polkitFile) != polkitRuleText().toUtf8()
+                       : read(polkitFile) == polkitRuleText().toUtf8());
+    }
+    // The rules are read again once, after the copies and before the comparison.
+    QCOMPARE(read(log).trimmed(), QByteArray("control --reload-rules"));
+    // The mode of the files in place: readable by all, written by the owner alone.
+    QCOMPARE(QFileInfo(udevFile).permissions() &
+                 (QFileDevice::WriteGroup | QFileDevice::WriteOther),
+             QFileDevice::Permissions());
+    QVERIFY(QFileInfo(udevFile).permissions().testFlag(QFileDevice::ReadOther));
+#endif
 }
 
 QTEST_GUILESS_MAIN(TestHelperLinux)
