@@ -71,6 +71,9 @@ struct WizardOptions
     // What the action `install-udev-rule` of the checks does (DiagnosePage::UdevInstaller).
     // Empty: the checks show the commands to type only.
     std::function<QString()> udevInstaller;
+    // What the action `mount-volume` of the checks does (DiagnosePage::VolumeMounter). Empty: no
+    // button, the message only.
+    std::function<QString()> volumeMounter;
     // What the report holds beside the facts of the window: the versions, the ring of the
     // journal, the serials and the names to take out. Empty: a report of the window's facts only.
     std::function<journal::ReportInput()> reportInput;
@@ -213,6 +216,8 @@ private:
     bool stopped_ = false;
     // The Classic restarts: the page of the step is the one of the restart, not the DFU guide.
     bool restartSeen_ = false;
+    // The helper reached the transfer of this try: only then is its `resume` a restart.
+    bool dfuSent_ = false;
     QString currentStep_;
     bool reportOpen_ = false;
     QString beforeReport_;

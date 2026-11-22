@@ -53,6 +53,9 @@ bool WizardManager::adopt(WizardWindow *window)
     if (windowFor(serial))
         return false;
     m_windows.insert(serial, window);
+    // A widget sends `destroyed` before its QPointer is cleared: the window is forgotten here,
+    // before the slots connected after this one (the card) ask for it.
+    connect(window, &QObject::destroyed, this, [this, serial] { m_windows.remove(serial); });
     return true;
 }
 

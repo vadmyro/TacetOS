@@ -420,6 +420,11 @@ void DfuTutorialPage::showAsking(const QString &reason, const QString &hint)
         title = wtr("The iPod started in Disk Mode");
         line = wtr("You held the center button and Play. Hold MENU and the center button instead.");
         way = DfuWay::WrongButtons;
+    } else if (reason == QLatin1String(error::noDisk)) {
+        title = wtr("The iPod did not come back");
+        line = wtr("If its screen is black, it is still in DFU mode: hold MENU and the center "
+                   "button for about 6 seconds, and let go as soon as the screen changes. Wait "
+                   "for its menu, then press Start.");
     } else if (reason == QLatin1String(error::dfuFailed)) {
         title = wtr("The iPod did not appear in DFU mode");
         line = hint;
@@ -468,11 +473,23 @@ void DfuTutorialPage::onProgress(const QString &name, const QString &stage, qint
         return;
     if (stage == QLatin1String("check") || stage == QLatin1String("eject") ||
         stage == QLatin1String("spin-down") || stage == QLatin1String("pause")) {
-        if (stage_ != Stage::Preparing) {
+        // After `wait-disk`, the same stage with its own title: the iPod is back.
+        if (stage_ != Stage::Preparing || !under_->text().isEmpty()) {
             bar_->setRange(0, 0);
             under_->clear();
             setStage(Stage::Preparing, DfuWay::Rest, wtr("Getting the iPod ready"));
         }
+    } else if (stage == QLatin1String("wait-disk")) {
+        // Wizard section 9.4: Start came before the iPod was there as a disk. The step sends
+        // again by itself once it is back.
+        const QString text = wtr("If its screen is black, it is in DFU mode: hold MENU and the "
+                                 "center button for about 6 seconds to leave it. TacetOS goes on "
+                                 "by itself when the iPod is back.");
+        if (stage_ == Stage::Preparing && under_->text() == text)
+            return;
+        bar_->setRange(0, 0);
+        under_->setText(text);
+        setStage(Stage::Preparing, DfuWay::Rest, wtr("Waiting for the iPod"));
     } else if (stage == QLatin1String("wait-device")) {
         if (stage_ == Stage::Hold)
             return;
@@ -502,7 +519,8 @@ void DfuTutorialPage::onProgress(const QString &name, const QString &stage, qint
             bar_->setRange(0, 0);
         }
     } else if (stage == QLatin1String("resume")) {
-        if (stage_ != Stage::Restarting) {
+        // Every try ends with `resume`: the iPod only restarts after a transfer.
+        if (stage_ == Stage::Sending) {
             bar_->setRange(0, 0);
             under_->setText(wtr("Do not unplug the iPod. Wait for it to start."));
             setStage(Stage::Restarting, DfuWay::Release, wtr("The iPod restarts"));

@@ -263,6 +263,8 @@ void WizardWindow::build()
     diagnose_ = new DiagnosePage(runner_, target_.serial, target_.model, target_.family);
     if (options_.udevInstaller)
         diagnose_->setUdevInstaller(options_.udevInstaller);
+    if (options_.volumeMounter)
+        diagnose_->setVolumeMounter(options_.volumeMounter);
     connect(diagnose_, &DiagnosePage::readyToGoOn, this, &WizardWindow::onPageReady);
     addPage(QStringLiteral("diagnose"), diagnose_);
     backup_ = new BackupPage(runner_);
@@ -477,8 +479,14 @@ void WizardWindow::connectRunner()
     connect(runner_, &WizardRunner::stepProgress, this,
             [this](const QString &name, const QString &stage, qint64 done, qint64 total) {
                 onProgress(done, total);
-                // The restart of the Classic is the page of the step after the DFU guide.
-                if (stage == QLatin1String("resume") && !restartSeen_ &&
+                // The restart of the Classic is the page of the step after the DFU guide. The
+                // helper says `resume` at the end of every try, also when nothing was sent: only
+                // a try that reached `send` restarts the iPod.
+                if (stage == QLatin1String("check"))
+                    dfuSent_ = false;
+                else if (stage == QLatin1String("send"))
+                    dfuSent_ = true;
+                if (stage == QLatin1String("resume") && dfuSent_ && !restartSeen_ &&
                     (name == step::classicBootloader || name == step::classicRemove)) {
                     restartSeen_ = true;
                     showStepPage(name);
@@ -811,7 +819,7 @@ void WizardWindow::onStarted(int index, const QString &name)
     writing_ = waiting_ = false;
     stopped_ = false;
     active_ = true;
-    restartSeen_ = false;
+    restartSeen_ = dfuSent_ = false;
     currentStep_ = name;
     failure_->hide();
     failureReport_->hide();
@@ -844,6 +852,9 @@ void WizardWindow::onWaiting(const QString &name, WaitKind kind, const QJsonObje
     const int index = steps_.indexOf(name);
     if (index >= 0)
         setItemState(itemOfStep_.at(index), QStringLiteral("waiting"));
+    // The guide asks for a new try (the iPod came back as a disk, or the transfer failed).
+    if (kind == WaitKind::ReadyForDfu)
+        restartSeen_ = dfuSent_ = false;
     const bool ownPage = name == step::firmware || name == step::bootloader ||
                          name == step::diskMode || name == step::classicBootloader ||
                          name == step::classicRemove || name == step::removeBootloader ||
@@ -906,7 +917,7 @@ void WizardWindow::onStopped()
     }
     holding_ = false;
     pending_.clear();
-    restartSeen_ = false;
+    restartSeen_ = dfuSent_ = false;
     // The page of a step keeps its failed or stopped state; the others go back to the bar.
     const QString page = currentFlowPage();
     showPage(!stopped_ && isFlowPage(page) && page != QLatin1String("offer")

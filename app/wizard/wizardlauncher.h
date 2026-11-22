@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "detected.h"
 #include "home/homeaction.h"
 #include "models.h"
 #include "wizard/wizardmanager.h"
@@ -53,6 +54,9 @@ public:
     ~WizardLauncher() override;
 
     WizardManager &manager() { return *manager_; }
+    // D45: the serial that names the iPod in the app (progress, backups, records, window).
+    // A Classic under TacetOS gives another serial: its install record gives back Apple's.
+    QString flowSerial(const device::DetectedIpod &ipod) const;
     helper::HelperClient &client() { return *client_; }
 
     // Section 1.1: opens the window of the iPod of this port for an action of the home screen,

@@ -469,7 +469,7 @@ void UninstallPage::onStarted(const QString &name)
     failed_ = false;
     stopped_ = false;
     done_ = false;
-    restarting_ = false;
+    restarting_ = sent_ = false;
     checking_ = false;
     plain_ = false;
     offer_ = Offer::None;
@@ -583,7 +583,11 @@ void UninstallPage::onProgress(const QString &name, const QString &stage, qint64
     if (name != step_ || !mine(name))
         return;
     if (name == QLatin1String(step::classicRemove)) {
-        if (stage == QLatin1String("resume") && !restarting_)
+        if (stage == QLatin1String("check"))
+            sent_ = false;
+        else if (stage == QLatin1String("send"))
+            sent_ = true;
+        if (stage == QLatin1String("resume") && sent_ && !restarting_)
             showRestart();
         return;
     }
@@ -614,7 +618,7 @@ void UninstallPage::onDone(const QString &name)
     tick_.stop();
     active_ = false;
     writing_ = false;
-    restarting_ = false;
+    restarting_ = sent_ = false;
     checking_ = false;
     done_ = true;
     bar_->setRange(0, 1000);
@@ -653,7 +657,7 @@ void UninstallPage::onFailed(const QString &name, const QString &code, const QSt
     active_ = false;
     asking_ = false;
     writing_ = false;
-    restarting_ = false;
+    restarting_ = sent_ = false;
     checking_ = false;
     if (code == error::cancelled) {
         stopped_ = true;

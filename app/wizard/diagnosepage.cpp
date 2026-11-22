@@ -280,6 +280,13 @@ void DiagnosePage::addRow(QVBoxLayout *group, const Check &check)
         connect(install, &QPushButton::clicked, this, &DiagnosePage::installRule);
         line->addWidget(install, 0, Qt::AlignTop);
     }
+    if (check.action == QLatin1String("mount-volume") && mounter_) {
+        auto *mount = makeButton(mounting_ ? wtr("Mounting the volume") : wtr("Mount the volume"),
+                                 "secondary", QStringLiteral("action-") + check.id, row);
+        mount->setEnabled(!mounting_ && !installing_);
+        connect(mount, &QPushButton::clicked, this, &DiagnosePage::mountVolume);
+        line->addWidget(mount, 0, Qt::AlignTop);
+    }
     group->addWidget(row);
 
     if (check.action == QLatin1String("install-udev-rule"))
@@ -433,9 +440,40 @@ void DiagnosePage::installRule()
     thread->start();
 }
 
+void DiagnosePage::mountVolume()
+{
+    if (mounting_ || installing_ || !mounter_)
+        return;
+    mounting_ = true;
+    note_->clear();
+    rebuild();
+    refresh();
+
+    auto result = std::make_shared<QString>();
+    QThread *thread = QThread::create([mounter = mounter_, result] { *result = mounter(); });
+    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+    connect(thread, &QThread::finished, this, [this, result] {
+        mounting_ = false;
+        if (result->isEmpty()) {
+            // As for the rule: the checks run again by themselves.
+            note_->clear();
+            rebuild();
+            if (stopped_ && failed_)
+                resumeStep();
+            else
+                again_ = true;
+        } else {
+            note_->setText(wtr("The volume could not be mounted: %1").arg(*result));
+            rebuild();
+        }
+        refresh();
+    });
+    thread->start();
+}
+
 void DiagnosePage::refresh()
 {
-    again_button_->setEnabled(!installing_ && ((stopped_ && failed_) || asking_));
+    again_button_->setEnabled(!installing_ && !mounting_ && ((stopped_ && failed_) || asking_));
     const bool on = canGoOn();
     if (on != lastCanGoOn_) {
         lastCanGoOn_ = on;

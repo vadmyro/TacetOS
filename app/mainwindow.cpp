@@ -157,7 +157,7 @@ void MainWindow::showWizardState(const QString &port)
     const auto entry = model_ ? model_->entry(port) : std::nullopt;
     if (!entry || !entry->ipod || !launcher_)
         return;
-    const QString serial = entry->ipod->serial;
+    const QString serial = launcher_->flowSerial(*entry->ipod);
     home_->setWizardState(port, launcher_->manager().hasProgress(serial),
                           launcher_->manager().windowFor(serial) != nullptr);
 }

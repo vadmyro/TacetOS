@@ -418,7 +418,7 @@ void InstallPage::onStarted(const QString &name)
     failed_ = false;
     stopped_ = false;
     done_ = false;
-    restarting_ = false;
+    restarting_ = sent_ = false;
     reportMain_ = false;
     plain_ = false;
     offer_ = Offer::None;
@@ -549,7 +549,11 @@ void InstallPage::onProgress(const QString &name, const QString &stage, qint64 d
     if (name != step_ || !mine(name))
         return;
     if (name == QLatin1String(step::classicBootloader)) {
-        if (stage == QLatin1String("resume") && !restarting_)
+        if (stage == QLatin1String("check"))
+            sent_ = false;
+        else if (stage == QLatin1String("send"))
+            sent_ = true;
+        if (stage == QLatin1String("resume") && sent_ && !restarting_)
             showRestart();
         return;
     }
@@ -583,7 +587,7 @@ void InstallPage::onDone(const QString &name)
     tick_.stop();
     active_ = false;
     writing_ = false;
-    restarting_ = false;
+    restarting_ = sent_ = false;
     done_ = true;
     bar_->setRange(0, 1000);
     bar_->setValue(1000);
@@ -610,7 +614,7 @@ void InstallPage::onFailed(const QString &name, const QString &code)
     active_ = false;
     asking_ = false;
     writing_ = false;
-    restarting_ = false;
+    restarting_ = sent_ = false;
     offerBlock_->hide();
     endBlock_->hide();
     if (code == error::cancelled) {

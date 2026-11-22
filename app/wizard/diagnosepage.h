@@ -53,6 +53,12 @@ public:
     using UdevInstaller = std::function<QString()>;
     void setUdevInstaller(const UdevInstaller &installer) { installer_ = installer; }
 
+    // What the action `mount-volume` does: mounts the music volume through the disk service,
+    // and returns an empty text, or what went wrong. It runs in a thread of its own too: the
+    // service may ask for a password.
+    using VolumeMounter = std::function<QString()>;
+    void setVolumeMounter(const VolumeMounter &mounter) { mounter_ = mounter; }
+
     // The pause of "Everything is ready" before `readyToGoOn`, 1 s by default.
     void setPause(int ms) { pause_.setInterval(ms); }
 
@@ -75,6 +81,7 @@ private:
     void checkAgain();
     void resumeStep();
     void installRule();
+    void mountVolume();
     void refresh();
     void copy(const QString &id, const QString &text);
 
@@ -83,6 +90,7 @@ private:
     QString model_;
     wizard::Family family_;
     UdevInstaller installer_;
+    VolumeMounter mounter_;
 
     QList<wizard::Check> checks_;
     bool asking_ = false;
@@ -91,6 +99,7 @@ private:
     bool again_ = false;
     bool ready_ = false;
     bool installing_ = false;
+    bool mounting_ = false;
     bool lastCanGoOn_ = false;
     QTimer pause_;
 

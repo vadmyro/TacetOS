@@ -145,6 +145,8 @@ private:
     bool stopped_ = false;
     bool done_ = false;
     bool restarting_ = false;
+    // The helper reached the transfer of this try (its `resume` ends every try).
+    bool sent_ = false;
     bool reportMain_ = false;
     bool plain_ = false;
     bool update_ = false;

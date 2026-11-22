@@ -5,6 +5,7 @@
 
 #include "backup.h"
 #include "checks.h"
+#include "classicdfu.h"
 #include "diagnose.h"
 #include "helpercalls.h"
 #include "helperclient.h"
@@ -15,10 +16,12 @@
 #include "wizard/wizardwindow.h"
 #include "wizardconstants.h"
 
+#include <QDeadlineTimer>
 #include <QDir>
 #include <QFileInfo>
 #include <QPointer>
 #include <QSysInfo>
+#include <QThread>
 
 namespace tacetos {
 
@@ -34,6 +37,9 @@ struct WizardLauncher::Session
 
 namespace {
 
+// How long the action `mount-volume` waits for detection to see the volume it mounted.
+constexpr int kVolumeSeenMs = 10 * 1000;
+
 // The `install-record.json` files of the backups of this serial (install-wizard.md section 9.2
 // step 2).
 QStringList installRecordsOf(const QString &backupRoot, const QString &serial)
@@ -47,6 +53,23 @@ QStringList installRecordsOf(const QString &backupRoot, const QString &serial)
             serialFolder.filePath(date + QLatin1Char('/') + QString(kInstallRecordFile));
         if (QFileInfo(path).isFile())
             found.append(path);
+    }
+    return found;
+}
+
+// Every `install-record.json` of the backups, whatever the serial (D45).
+QStringList allInstallRecords(const QString &backupRoot)
+{
+    QStringList found;
+    const QDir root(backupRoot.isEmpty() ? defaultBackupRoot() : backupRoot);
+    for (const QString &serial : root.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        const QDir serialFolder(root.filePath(serial));
+        for (const QString &date : serialFolder.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+            const QString path =
+                serialFolder.filePath(date + QLatin1Char('/') + QString(kInstallRecordFile));
+            if (QFileInfo(path).isFile())
+                found.append(path);
+        }
     }
     return found;
 }
@@ -100,7 +123,7 @@ WizardLauncher::WizardLauncher(const Config &config, device::LiveTracker &tracke
         manager_->resumePausedAtStart();
     connect(&tracker_, &device::LiveTracker::ipodAdded, this,
             [this](const device::DetectedIpod &ipod) {
-                if (!manager_->proposeResume({ipod.serial}).isEmpty())
+                if (!manager_->proposeResume({flowSerial(ipod)}).isEmpty())
                     emit stateChanged(ipod.portPath);
             });
 }
@@ -140,11 +163,15 @@ WizardWindow *WizardLauncher::open(const QString &port, HomeAction action)
     if (!found || found->serial.isEmpty())
         return nullptr;
     const device::DetectedIpod ipod = *found;
+    // The helper and the mount keep the serial detection sees; the rest the one of the flow.
+    const QString serial = flowSerial(ipod);
 
-    if (manager_->show(ipod.serial))
-        return manager_->windowFor(ipod.serial);
+    if (manager_->show(serial))
+        return manager_->windowFor(serial);
     if (action == HomeAction::ShowWizard)
         return nullptr;
+    // The diagnosis comes first: the hello of the helper is there before its check.
+    client_->ensureStarted();
 
     device::Model model;
     for (const device::Model &candidate : config_.models) {
@@ -155,13 +182,13 @@ WizardWindow *WizardLauncher::open(const QString &port, HomeAction action)
         model.family == QLatin1String("classic") ? Family::Dfu : Family::Partition;
 
     LinuxSourcesConfig sources;
-    sources.serial = ipod.serial;
+    sources.serial = serial;
     sources.model = model;
     sources.family = family;
     sources.backupRoot = config_.backupRoot;
     sources.dataDir = config_.dataDir;
     sources.appVersion = config_.appVersion;
-    sources.installRecords = installRecordsOf(config_.backupRoot, ipod.serial);
+    sources.installRecords = installRecordsOf(config_.backupRoot, serial);
     sources.portPath = ipod.portPath;
 
     auto session = std::make_shared<Session>();
@@ -173,7 +200,7 @@ WizardWindow *WizardLauncher::open(const QString &port, HomeAction action)
     session->runner->setAppVersion(config_.appVersion);
 
     WizardTarget target;
-    target.serial = ipod.serial;
+    target.serial = serial;
     target.model = ipod.model;
     target.name = model.name.isEmpty() ? ipod.model : model.name;
     target.bootloaderTarget = model.bootloaderTarget;
@@ -199,6 +226,27 @@ WizardWindow *WizardLauncher::open(const QString &port, HomeAction action)
     options.udevInstaller = [client] {
         return callHelper(*client, QStringLiteral("install-udev-rule"), QJsonObject()).code;
     };
+    // A volume left unmounted by an eject stays so: the check offers to mount it, then
+    // waits for detection to see it ready, so that the checks that run again find it.
+    const std::weak_ptr<Session> weak = session;
+    options.volumeMounter = [weak, serial = ipod.serial] {
+        device::DiskResult mounted;
+        if (const std::shared_ptr<Session> s = weak.lock())
+            mounted = s->factory->mounter().mount(serial);
+        if (!mounted.ok())
+            return mounted.detail.isEmpty() ? device::diskErrorMessage(mounted.error)
+                                            : mounted.detail;
+        const QDeadlineTimer deadline(kVolumeSeenMs);
+        while (!deadline.hasExpired()) {
+            const std::shared_ptr<Session> s = weak.lock();
+            if (!s)
+                break;
+            if (s->factory->view().current().state == device::IpodState::Ready)
+                break;
+            QThread::msleep(100);
+        }
+        return QString();
+    };
 
     // What the report holds beside the facts of the window (screens section 10).
     options.reportInput = [this] {
@@ -219,7 +267,6 @@ WizardWindow *WizardLauncher::open(const QString &port, HomeAction action)
     auto *window = new WizardWindow(target, options, session->runner.get(), entry);
     window->setAttribute(Qt::WA_DeleteOnClose);
     session->window = window;
-    const QString serial = ipod.serial;
     sessions_.insert(serial, session);
     manager_->adopt(window);
     connect(window, &QObject::destroyed, this, [this, serial, port] {
@@ -250,6 +297,36 @@ WizardWindow *WizardLauncher::open(const QString &port, HomeAction action)
                         journal::Level::Info, journal::Domain::App, port,
                         QStringLiteral("checks: %1 of %2 passed").arg(passed).arg(checks.size()));
                 });
+        // A step that waits again says why (a DFU try that failed, the iPod back as a disk):
+        // the reason and the helper's detail, which the screen alone showed.
+        connect(session->runner.get(), &WizardRunner::stepWaiting, this,
+                [this, port](const QString &name, WaitKind, const QJsonObject &info) {
+                    const QString reason = info.value(QStringLiteral("reason")).toString();
+                    if (reason.isEmpty())
+                        return;
+                    const QString hint = info.value(QStringLiteral("hint")).toString();
+                    const QString usb = info.value(QStringLiteral("usb")).toString();
+                    journal_->add(
+                        journal::Level::Warning, journal::Domain::App, port,
+                        QStringLiteral("step %1 waits again: %2%3%4")
+                            .arg(name, reason,
+                                 hint.isEmpty() ? QString()
+                                                : QStringLiteral(" (") + hint + QLatin1Char(')'),
+                                 usb.isEmpty()
+                                     ? QString()
+                                     : QStringLiteral(" [USB: ") + usb + QLatin1Char(']')));
+                });
+        // Each step says when it starts and when it is done, a success included.
+        connect(session->runner.get(), &WizardRunner::stepStarted, this,
+                [this, port](int, const QString &name) {
+                    journal_->add(journal::Level::Info, journal::Domain::App, port,
+                                  QStringLiteral("step %1 started").arg(name));
+                });
+        connect(session->runner.get(), &WizardRunner::stepDone, this,
+                [this, port](int, const QString &name) {
+                    journal_->add(journal::Level::Info, journal::Domain::App, port,
+                                  QStringLiteral("step %1 done").arg(name));
+                });
         connect(session->runner.get(), &WizardRunner::stepFailed, this,
                 [this, port](int, const QString &name, const QString &code, const QString &detail) {
                     journal_->add(journal::Level::Warning, journal::Domain::App, port,
@@ -266,6 +343,12 @@ WizardWindow *WizardLauncher::open(const QString &port, HomeAction action)
 }
 
 // The window is gone: the runner and the sources go with it, in this order.
+QString WizardLauncher::flowSerial(const device::DetectedIpod &ipod) const
+{
+    const QString apple = appleSerialOf(allInstallRecords(config_.backupRoot), ipod.serial);
+    return apple.isEmpty() ? ipod.serial : apple;
+}
+
 void WizardLauncher::closeSession(const QString &serial)
 {
     const auto it = sessions_.find(serial);
