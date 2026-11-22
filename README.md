@@ -49,31 +49,29 @@
 | Foundations | Firmware base, model database, specs | ✅ 7/7 |
 | **v0.1** | Device detection and live state | ✅ 7/7 |
 | Test devices | Disk image test devices, privileged helper | ✅ 6/6 |
-| **v0.2** | Install and reset wizard | ⏳ 12/13 |
+| **v0.2** | Install and reset wizard | ✅ 12/12 |
 | **v0.3** | TacetOS firmware | ⏳ 0/11 |
 | **v0.4** | Music library and sync | ⏳ 0/12 |
 | **v0.5** | Settings, fonts, menus | ⏳ 0/7 |
 | **v0.6** | Themes | ⏳ 0/11 |
 | **v0.7** | Translations | ⏳ 0/3 |
-| **v0.8** | Windows and macOS | ⏳ 0/5 |
+| **v0.8** | Windows, macOS and Linux | ⏳ 0/6 |
 | **v0.9** | Public beta: packages, one-command install, install guide | ⏳ 0/6 |
 | **v1.0** | Fixes from the beta | ⏳ 0/1 |
 
-### Now: install and reset wizard
+### Now: TacetOS firmware
 
-- [ ] Early checks of DFU on Windows and disk writes on macOS
-- [x] Wizard flow that resumes after an interruption
-- [x] Diagnostic screen with blocking checks before any write, and a clear message when something is missing on the computer
-- [x] Automatic backup of settings, themes, playlists and the firmware partition
-- [x] Format or convert (Mac to FAT32) with a strong confirmation
-- [x] Firmware install that keeps your settings
-- [x] Bootloader install on older iPods
-- [x] Built-in DFU guide: buttons to hold, countdown, carries on by itself
-- [x] Bootloader install on the iPod Classic, dual boot
-- [x] Uninstall: back to 100 % Apple software
-- [x] Real-device test: uninstall, reinstall, check
-- [x] Fixes from the real-device test: one password, automatic mount, clearer messages
-- [x] Log and a "copy report" button for Discord
+- [ ] TacetOS name in the firmware, applied at build time
+- [ ] Custom boot logo read from the iPod (black by default), quiet bootloader
+- [ ] Install progress on the iPod screen and in the app: logo and a progress bar
+- [ ] CI builds for every model, plus simulators
+- [ ] Update channel through GitHub Releases, settings and themes kept
+- [ ] Weekly CI job to follow the base firmware
+- [ ] Real-device test: boot, logo, update from the app
+- [ ] Voice files for the chosen language
+- [ ] Selected fixes from newer firmware development, one tested change at a time
+- [ ] Technical folder name on the iPod Classic
+- [ ] Health page: disk and battery state, with a warning when they wear out
 
 Every task is listed in the [roadmap](docs/ROADMAP.md). News is posted on the [Discord server](https://discord.gg/XfXtZeUFYs).
 
@@ -122,37 +120,6 @@ Only the iPod Classic is tested on real hardware during development. Other model
 - **macOS:**
   - macOS 12 Monterey or later
   - Intel and Apple Silicon
-
-## Building
-
-The app is written in C++17 with Qt 6 (6.8 or newer) and CMake (3.21 or newer). For now it detects a plugged-in iPod and shows its live state; installing and syncing come next. You only need this section to build TacetOS yourself: the packages of the beta will include everything.
-
-**1. Get the tools.** One script checks what you already have and installs only what is missing:
-
-- **Linux** (Fedora, Ubuntu, Debian, Arch...) and **macOS** (with Homebrew):
-
-  ```sh
-  ./scripts/install-deps.sh
-  ```
-
-- **Windows** (x64, in PowerShell):
-
-  ```powershell
-  powershell -ExecutionPolicy Bypass -File scripts\install-deps.ps1
-  ```
-
-Add `--check` (`-Check` on Windows) to only see what is missing. When the Qt of your system is older than 6.8 (Ubuntu 24.04, Debian 12), and always on Windows, the script installs Qt 6.8 for your user only, in `~/Qt`, and prints the path to give to CMake.
-
-**2. Build, test and run.**
-
-```sh
-cmake --preset debug
-cmake --build --preset debug
-ctest --preset debug
-./build/debug/app/tacetos
-```
-
-Use the `release` preset for an optimized build.
 
 ## Community
 
