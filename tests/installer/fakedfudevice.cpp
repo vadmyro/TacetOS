@@ -90,6 +90,8 @@ UsbControlResult FakeDfuDevice::control(const UsbControlRequest &request, const 
         if (request.type != kDfuTypeOut || request.length != 0 || request.value != 0)
             m_errors << QStringLiteral("bad ABORT");
         // In dfuERROR only CLRSTATUS leaves the state, as with the real ROM.
+        if (m_script.abortFails)
+            return fail(QStringLiteral("abort refused"));
         if (m_state != kDfuStateError) {
             m_state = kDfuStateIdle;
             m_nextBlock = 0;
@@ -114,6 +116,7 @@ UsbControlResult FakeDfuDevice::control(const UsbControlRequest &request, const 
         if (out.isEmpty()) {
             m_ended = true;
             m_state = kDfuStateManifest;
+            m_busyLeft = m_script.endBusyAnswers;
             m_status = m_script.endStatus;
             if (m_status != 0)
                 m_state = kDfuStateError;
@@ -145,6 +148,14 @@ UsbControlResult FakeDfuDevice::control(const UsbControlRequest &request, const 
             return answer(statusAnswer(m_status, m_state));
         }
         if (m_ended && m_state == kDfuStateManifest) {
+            if (m_busyLeft > 0) {
+                --m_busyLeft;
+                return answer(statusAnswer(0, kDfuStateDnBusy));
+            }
+            if (m_script.goneAfterEndBusy && m_script.endBusyAnswers > 0) {
+                m_gone = true;
+                return fail(QStringLiteral("timeout"));
+            }
             if (!m_manifestSeen) {
                 m_manifestSeen = true;
                 return answer(statusAnswer(0, kDfuStateManifest));

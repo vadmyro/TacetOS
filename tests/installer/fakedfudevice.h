@@ -45,6 +45,14 @@ struct FakeDfuScript
     int errorAtBlock = -1;
     // The status after the empty block: 0, or 10 (errFIRMWARE).
     int endStatus = 0;
+    // The GETSTATUS after the empty block is answered by this many dfuDNBUSY
+    // first: 1 on the real Classic.
+    int endBusyAnswers = 0;
+    // After the busy answers of `endBusyAnswers`, the payload runs: the next request
+    // fails, as on the real Classic.
+    bool goneAfterEndBusy = false;
+    // ABORT fails, with `requestCode`.
+    bool abortFails = false;
     FakeDfuEnd end = FakeDfuEnd::Gone;
 };
 

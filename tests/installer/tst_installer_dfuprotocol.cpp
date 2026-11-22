@@ -155,6 +155,9 @@ private slots:
     void errVerifyAtStepSix();
     void stuckInManifest();
     void timeoutThenAbort();
+    void busyAfterTheEmptyBlock();
+    void stillBusyAfterTheEmptyBlock();
+    void goneAfterBusyAtTheEnd();
     void imageSizeLimits();
     void openFails();
     void wrongDeviceIsRefused_data();
@@ -440,6 +443,72 @@ void TestDfuProtocol::timeoutThenAbort()
     COMPARE_REQUESTS(r.result.requests, expected);
     QCOMPARE(device.closes(), 1);
     QCOMPARE(device.opens(), 1);
+}
+
+// The real Classic answers dfuDNBUSY to the GETSTATUS after the empty block, then
+// dfuMANIFEST: the transfer waits the poll timeout and asks again.
+void TestDfuProtocol::busyAfterTheEmptyBlock()
+{
+    FakeDfuScript script;
+    script.endBusyAnswers = 1;
+    script.pollMs = 9;
+    FakeDfuDevice device(script);
+    const QByteArray image = pattern(3000, 5);
+    const Run r = run(device, image);
+
+    QVERIFY2(r.result.ok, qPrintable(r.result.message));
+    QList<UsbControlRequest> expected = cleanTransfer(3004);
+    expected.insert(expected.size() - 1, getStatus());
+    COMPARE_REQUESTS(r.result.requests, expected);
+    QCOMPARE(device.received(), withDfuChecksum(image));
+    QVERIFY2(device.protocolErrors().isEmpty(),
+             qPrintable(device.protocolErrors().join(QLatin1Char(';'))));
+    // The wait of the busy answer, then the one of step 6.
+    QCOMPARE(r.sleeps, (QList<int>{9, 9}));
+}
+
+// What the real Classic did on 2026-11-22: dfuDNBUSY after the empty block, then
+// no answer, because the payload runs already. That is the normal end.
+void TestDfuProtocol::goneAfterBusyAtTheEnd()
+{
+    FakeDfuScript script;
+    script.endBusyAnswers = 1;
+    script.goneAfterEndBusy = true;
+    script.requestCode = UsbAccessError::Other;
+    script.pollMs = 9;
+    FakeDfuDevice device(script);
+    const QByteArray image = pattern(3000, 7);
+    const Run r = run(device, image);
+
+    QVERIFY2(r.result.ok, qPrintable(r.result.message));
+    QCOMPARE(r.result.access, UsbAccessError::None);
+    // The busy answer, then the request that finds the device gone: no step 6.
+    const QList<UsbControlRequest> expected = cleanTransfer(3004);
+    COMPARE_REQUESTS(r.result.requests, expected);
+    QCOMPARE(device.received(), withDfuChecksum(image));
+    QCOMPARE(r.sleeps, QList<int>{9});
+    QCOMPARE(device.resets(), 0);
+    QCOMPARE(device.closes(), 1);
+}
+
+// Still busy after the empty block at the limit of step 4.3: the transfer stops. The
+// ABORT of the recovery fails too, but its code is not the cause and is not kept.
+void TestDfuProtocol::stillBusyAfterTheEmptyBlock()
+{
+    FakeDfuScript script;
+    script.endBusyAnswers = 25;
+    script.abortFails = true;
+    script.requestCode = UsbAccessError::Other;
+    FakeDfuDevice device(script);
+    const Run r = run(device, pattern(3000, 6));
+
+    QVERIFY(!r.result.ok);
+    QCOMPARE(r.result.failure, DfuFailure::Interrupted);
+    QCOMPARE(r.result.message, QString::fromLatin1(kInterrupted));
+    QCOMPARE(r.result.detail, QStringLiteral("still busy after 20 requests"));
+    QCOMPARE(r.result.access, UsbAccessError::None);
+    QCOMPARE(r.result.requests.last(), abortRequest());
+    QCOMPARE(device.closes(), 1);
 }
 
 void TestDfuProtocol::imageSizeLimits()

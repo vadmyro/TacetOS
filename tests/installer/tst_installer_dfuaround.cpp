@@ -142,6 +142,7 @@ private slots:
     void accessErrors();
     void flowMapsAccessErrors_data();
     void flowMapsAccessErrors();
+    void requestTimeoutIsNotAnOpenFailure();
 
     void afterTransferTable_data();
     void afterTransferTable();
@@ -380,10 +381,15 @@ void TestDfuAround::quietWait()
 {
     FakeSystemLayer layer;
     layer.bus = {at(0, {}), at(2500, {dfuAt(7)})};
-    const DfuWaitResult r = waitForQuietDfu(layer, layer.options());
+    AroundOptions options = layer.options();
+    // The moment the buttons can go: as soon as the device is seen, before the countdown.
+    QList<int> quietAt;
+    options.quiet = [&] { quietAt << layer.now; };
+    const DfuWaitResult r = waitForQuietDfu(layer, options);
     QVERIFY(r.ok);
     QCOMPARE(r.device.address, 7);
     QCOMPARE(r.resets, 0);
+    QCOMPARE(quietAt, QList<int>{3000});
     // Three polls of one second, then the countdown from 10 to 1.
     QCOMPARE(layer.notices.size(), 10);
     QCOMPARE(layer.notices.first(), QStringLiteral("Release the buttons now. 10"));
@@ -397,9 +403,14 @@ void TestDfuAround::resetDuringTheWaitStartsAgain()
     // At 5 s the iPod is gone for a moment, then back at the same socket, as the bus
     // may show it after a quick reset and a new enumeration.
     layer.bus = {at(0, {dfuAt(7)}), at(4500, {}), at(7500, {dfuAt(7)})};
-    const DfuWaitResult r = waitForQuietDfu(layer, layer.options());
+    AroundOptions options = layer.options();
+    int quiet = 0;
+    options.quiet = [&] { ++quiet; };
+    const DfuWaitResult r = waitForQuietDfu(layer, options);
     QVERIFY(r.ok);
     QCOMPARE(r.resets, 1);
+    // Told again when the iPod is back in DFU mode.
+    QCOMPARE(quiet, 2);
     // The countdown ran twice: cut short the first time, whole the second.
     QVERIFY(layer.notices.size() > 10);
     QCOMPARE(layer.notices.count(QStringLiteral("Release the buttons now. 10")), 2);
@@ -686,6 +697,23 @@ void TestDfuAround::flowMapsAccessErrors()
     QVERIFY(!o.hint.isEmpty());
     // The programs are given back whatever the code.
     QCOMPARE(rig.layer.events.last(), QStringLiteral("resume 13"));
+}
+
+// A request that fails with the code "Other" (a timeout) is not an open that failed:
+// the message stays the one of the transfer.
+void TestDfuAround::requestTimeoutIsNotAnOpenFailure()
+{
+    Rig rig;
+    FakeDfuScript script;
+    script.timeoutAtBlock = 3;
+    script.requestCode = UsbAccessError::Other;
+    FakeDfuDevice device(script);
+    rig.layer.device = &device;
+    const ClassicDfuOutcome o = runClassicDfu(rig.layer, rig.job, rig.layer.options());
+    QVERIFY(!o.ok);
+    QCOMPARE(o.stage, ClassicStage::Transfer);
+    QCOMPARE(o.transfer.access, UsbAccessError::Other);
+    QCOMPARE(o.message, QStringLiteral("The transfer was interrupted. The iPod is not changed."));
 }
 
 void TestDfuAround::afterTransferTable_data()
