@@ -132,6 +132,8 @@ private slots:
     void openOnNotMountedMountsThenOpens();
     void openReadOnlyUsesMountRo();
     void failedMountOpensNothing();
+    void mountsByItselfOnArrival();
+    void refusedMountOnArrivalIsAWarning();
     void refreshReadsAgain();
     void startsWithTheEmbeddedModels();
 
@@ -139,10 +141,14 @@ private:
     // Everything a window needs, in the order it needs it.
     struct Setup
     {
-        explicit Setup(const QList<Model> &models)
+        // The mount on arrival is off unless asked for: the other tests are about the mount
+        // that the user asks for.
+        explicit Setup(const QList<Model> &models, bool mountOnArrival = false)
             : world(models), window(&world, &clock, &actions, &executor,
                                     [this](const QString &folder) { opened << folder; })
         {
+            if (window.autoMounter())
+                window.autoMounter()->setEnabled(mountOnArrival);
         }
 
         FakeClock clock;
@@ -333,6 +339,49 @@ void TstHomeWiring::failedMountOpensNothing()
     s.clock.now = 60'000;
     s.window.driver()->wake();
     QVERIFY(s.opened.isEmpty());
+}
+
+// Section 2.8 of the state spec: Linux only, no file manager after it.
+void TstHomeWiring::mountsByItselfOnArrival()
+{
+    Setup s(models_, true);
+    if (!s.window.autoMounter())
+        QSKIP("the system mounts a FAT32 volume by itself");
+    s.plug();
+    s.giveDisk(false);
+    s.waitForVolume();
+    QCOMPARE(s.kind(), QStringLiteral("busy"));
+    QCOMPARE(s.executor.jobs.size(), 1);
+
+    s.actions.next.mountPoint = kMountPoint;
+    s.executor.runNext();
+    QCOMPARE(s.actions.ran, QStringList{QStringLiteral("mount 1-2")});
+    QCOMPARE(s.kind(), QStringLiteral("done"));
+    QVERIFY(s.opened.isEmpty());
+}
+
+void TstHomeWiring::refusedMountOnArrivalIsAWarning()
+{
+    Setup s(models_, true);
+    if (!s.window.autoMounter())
+        QSKIP("the system mounts a FAT32 volume by itself");
+    s.plug();
+    s.giveDisk(false);
+    s.waitForVolume();
+    s.actions.next.error = DiskError::NotAuthorized;
+    s.actions.next.detail = QStringLiteral("not authorized");
+    s.executor.runNext();
+
+    // Not `failed`: the card is as it was, with its Open button.
+    QCOMPARE(s.kind(), QStringLiteral("not-mounted"));
+    QVERIFY(s.opened.isEmpty());
+    int warnings = 0;
+    for (const journal::Entry &entry : s.window.journal()->entries()) {
+        if (entry.level == journal::Level::Warning &&
+            entry.text.contains(QStringLiteral("not authorized")))
+            ++warnings;
+    }
+    QCOMPARE(warnings, 1);
 }
 
 void TstHomeWiring::refreshReadsAgain()

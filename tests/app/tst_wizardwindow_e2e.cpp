@@ -19,6 +19,7 @@
 #include "progress.h"
 #include "runner.h"
 #include "stepfactory.h"
+#include "udevrule.h"
 #include "wizard/backuppage.h"
 #include "wizard/dfututorial.h"
 #include "wizard/diagnosepage.h"
@@ -473,7 +474,7 @@ private:
         r->etc = newFolder(QStringLiteral("root"));
         put(r->etc + "/etc/os-release", "ID=fedora\nVERSION_ID=44\n");
         r->udevRule = m_tmp.filePath(QStringLiteral("udev%1.rules").arg(++m_count));
-        put(r->udevRule, "# rule\n");
+        put(r->udevRule, helper::udevRuleText().toUtf8());
         r->backupRoot = newFolder(QStringLiteral("backups"));
         // Never started: the Classic goes through `classic-dfu` in this process.
         r->client = std::make_unique<helper::HelperClient>();

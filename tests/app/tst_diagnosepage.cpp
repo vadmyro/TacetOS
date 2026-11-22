@@ -3,6 +3,7 @@
 
 #include "diagnose.h"
 #include "runner.h"
+#include "udevrule.h"
 #include "wizard/diagnosepage.h"
 
 #include <QApplication>
@@ -109,11 +110,11 @@ private:
         std::unique_ptr<QSignalSpy> stopped;
         FlowShape shape;
 
-        Fixture(const Change &change = Change())
+        Fixture(const Change &change = Change(), Family family = Family::Dfu)
         {
             if (change)
                 change(sources.in);
-            shape.family = Family::Dfu;
+            shape.family = family;
             shape.kind = FlowKind::Install;
             shape.path = InstallPath::Keep;
             runner = std::make_unique<WizardRunner>(
@@ -123,7 +124,7 @@ private:
                     return std::make_unique<DoneStep>();
                 });
             page = std::make_unique<DiagnosePage>(runner.get(), QStringLiteral("8K1234ABCD"),
-                                                  QStringLiteral("classic-6g"), Family::Dfu);
+                                                  QStringLiteral("classic-6g"), family);
             page->setPause(50);
             page->show();
             reported = std::make_unique<QSignalSpy>(runner.get(), &WizardRunner::checksReported);
@@ -388,6 +389,10 @@ private slots:
         // The two commands for those who prefer a terminal.
         const QString commands = commandOf(f.page.get(), "udev-rule");
         QVERIFY(commands.contains("sudo tee /etc/udev/rules.d/70-tacetos-dfu.rules"));
+        // The text of both rules is the one of the helper: typed, the checks read it as in place.
+        QVERIFY(commands.contains(helper::udevRuleText()));
+        QVERIFY(commands.contains("sudo tee /etc/polkit-1/rules.d/70-tacetos-ipod.rules"));
+        QVERIFY(commands.contains(helper::polkitRuleText()));
         QVERIFY(commands.contains("sudo udevadm control --reload-rules"));
         button(f.page.get(), "copy-udev-rule")->click();
         QCOMPARE(QApplication::clipboard()->text(), commands);
@@ -401,6 +406,77 @@ private slots:
         QCOMPARE(f.page->findChild<QWidget *>("check-udev-rule")->property("result").toString(),
                  QStringLiteral("pass"));
         QVERIFY(!button(f.page.get(), "action-udev-rule"));
+    }
+
+    // An older iPod: the rule is only a warning, with its own name and button, and the same
+    // action. The flow goes on to the battery while it is not given.
+    void diskAccessAction()
+    {
+        const Change older = [](DiagnoseInput &i) {
+            i.family = Family::Partition;
+            i.ipod.appleVersion.clear();
+            i.ipod.firmwarePartitionOk = true;
+            i.ipod.bootloaderState = QStringLiteral("clean");
+            i.udevRulePresent = false;
+        };
+        Fixture f(older, Family::Partition);
+        f.page->setUdevInstaller([&f] {
+            f.sources.in.udevRulePresent = true;
+            return QString();
+        });
+        f.start();
+        QTRY_VERIFY(button(f.page.get(), "batteryYes") &&
+                    button(f.page.get(), "batteryYes")->isEnabled());
+        QVERIFY(!f.page->findChild<QWidget *>("check-udev-rule"));
+        QCOMPARE(f.page->findChild<QWidget *>("check-disk-access")->property("result").toString(),
+                 QStringLiteral("warn"));
+        QCOMPARE(label(f.page.get(), "sign-disk-access")->text(), QStringLiteral("!"));
+        QCOMPARE(label(f.page.get(), "name-disk-access")->text(),
+                 QStringLiteral("Disk permission"));
+        QVERIFY(label(f.page.get(), "message-disk-access")->text().contains("asks for your"));
+        QPushButton *allow = button(f.page.get(), "action-disk-access");
+        QVERIFY(allow);
+        QCOMPARE(allow->text(), QStringLiteral("Allow TacetOS"));
+        QVERIFY(commandOf(f.page.get(), "disk-access").contains("70-tacetos-ipod.rules"));
+
+        allow->click();
+        QTRY_VERIFY(f.reported->count() >= 2);
+        QTRY_VERIFY(button(f.page.get(), "batteryYes") &&
+                    button(f.page.get(), "batteryYes")->isEnabled());
+        QTRY_COMPARE(
+            f.page->findChild<QWidget *>("check-disk-access")->property("result").toString(),
+            QStringLiteral("pass"));
+        QVERIFY(!button(f.page.get(), "action-disk-access"));
+    }
+
+    // Screens section 3: while the checks run, the title ends with how far they are and a line
+    // names the check under way; both go when the list is complete.
+    void checkingProgress()
+    {
+        Fixture f;
+        const QString plain = QStringLiteral("Checking this computer and the iPod");
+        QCOMPARE(label(f.page.get(), "diagnoseTitle")->text(), plain);
+        QVERIFY(!label(f.page.get(), "diagnoseChecking")->isVisible());
+        f.start();
+        QTRY_VERIFY(f.reported->count() >= 1);
+        QTRY_COMPARE(label(f.page.get(), "diagnoseTitle")->text(), plain);
+        QVERIFY(!label(f.page.get(), "diagnoseChecking")->isVisible());
+        QVERIFY(label(f.page.get(), "diagnoseChecking")->text().isEmpty());
+
+        // The runner's own signal, as the step sends it.
+        emit f.runner->stepProgress(step::diagnose, QStringLiteral("apple-firmware"), 4, 10);
+        QCOMPARE(label(f.page.get(), "diagnoseTitle")->text(), plain + QStringLiteral(", 40 %"));
+        QCOMPARE(label(f.page.get(), "diagnoseChecking")->text(),
+                 QStringLiteral("Checking: Apple's firmware"));
+        QVERIFY(label(f.page.get(), "diagnoseChecking")->isVisible());
+        QCOMPARE(label(f.page.get(), "diagnoseChecking")->alignment(), Qt::AlignHCenter);
+        // Another step's progress is not for this page.
+        emit f.runner->stepProgress(QStringLiteral("backup-full"), QStringLiteral("x"), 9, 10);
+        QCOMPARE(label(f.page.get(), "diagnoseTitle")->text(), plain + QStringLiteral(", 40 %"));
+        // The list is complete.
+        emit f.runner->checksReported(f.page->checks());
+        QCOMPARE(label(f.page.get(), "diagnoseTitle")->text(), plain);
+        QVERIFY(!label(f.page.get(), "diagnoseChecking")->isVisible());
     }
 
     void udevRuleRefused()

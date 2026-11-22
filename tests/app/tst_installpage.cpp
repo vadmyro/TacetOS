@@ -536,7 +536,7 @@ private:
         std::unique_ptr<DonePage> page;
 
         Fixture(bool classic, const QString &model, const QString &name, bool clean,
-                const QList<Event> &events = {}, bool hold = false)
+                const QList<Event> &events = {}, bool hold = false, qint64 files = 1234)
         {
             verify.events = events;
             verify.allowed = hold ? 0 : 1000;
@@ -567,7 +567,8 @@ private:
             page->setIpod(model, name);
             page->setClassic(classic);
             page->setCleanInstall(clean);
-            page->setBackup(QStringLiteral("/b/2026-11-02"), 1234, qint64(71) * 1000 * 1000 * 1000);
+            page->setBackup(QStringLiteral("/b/2026-11-02"), files,
+                            files == 0 ? 0 : qint64(71) * 1000 * 1000 * 1000);
             page->show();
             FlowShape shape;
             shape.kind = FlowKind::Install;
@@ -613,6 +614,15 @@ private slots:
         QVERIFY(f.page->ejectButton()->isVisibleTo(f.page.get()));
         QCOMPARE(f.page->ejectNote(), QStringLiteral("Eject the iPod before you unplug it."));
         QVERIFY(!f.page->isChecking());
+    }
+
+    // Screens section 4.1: an iPod without files says so, on the end page too.
+    void emptyIpodBackupLine()
+    {
+        Fixture f(false, QStringLiteral("ipod-video"), QStringLiteral("iPod Video"), false, {},
+                  false, 0);
+        QTRY_VERIFY_WITH_TIMEOUT(f.page->isFinished(), 5000);
+        QCOMPARE(f.page->backupText(), QStringLiteral("The iPod was empty: nothing to back up"));
     }
 
     // An older iPod: its lines, or no section; "Put my music back" only after a clean install.

@@ -326,6 +326,23 @@ private slots:
         QTRY_COMPARE(ready.count(), 1);
     }
 
+    // Screens section 4.1: no file at all is said as such, not as "0 files".
+    void emptyIpodLine()
+    {
+        Fixture f;
+        f.script.total = 0;
+        f.script.points = {0};
+        f.page->setFileCount(0);
+        QSignalSpy ready(f.page.get(), &BackupPage::readyToGoOn);
+        f.clock = 1000;
+        f.script.gate.release();
+        f.start();
+        QTRY_VERIFY(!f.page->checkedLine().isEmpty());
+        QCOMPARE(f.page->checkedLine(), QStringLiteral("The iPod was empty: nothing to back up"));
+        QCOMPARE(label(f.page.get(), "backupNote")->text(), f.page->checkedLine());
+        QTRY_COMPARE(ready.count(), 1);
+    }
+
     void cancelKeepsTheFiles()
     {
         Fixture f;

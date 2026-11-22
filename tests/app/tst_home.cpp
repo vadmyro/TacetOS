@@ -95,6 +95,7 @@ private slots:
     void headerAndMark();
     void buttonSignals();
     void refreshSignal();
+    void noUninstallAfterAnUninstall();
 };
 
 void TestHome::initTestCase()
@@ -549,6 +550,47 @@ void TestHome::buttonSignals()
     screen.cards().first()->openButton()->click();
     screen.cards().first()->ejectButton()->click();
     QCOMPARE(spy.count(), 0);
+}
+
+// Wizard section 9.3: a Classic under Apple's firmware is offered Uninstall, unless the last
+// install record of that iPod is an uninstall.
+void TestHome::noUninstallAfterAnUninstall()
+{
+    Model classic;
+    classic.id = QStringLiteral("classic-6g");
+    classic.name = QStringLiteral("iPod Classic");
+    classic.family = QStringLiteral("classic");
+    Model video;
+    video.id = QStringLiteral("ipod-video");
+    video.name = QStringLiteral("iPod Video");
+    video.family = QStringLiteral("video");
+    const auto appleIn = [](const QString &model) {
+        DetectedIpod ipod = ipodIn(IpodState::Ready, model);
+        ipod.firmwareLine.kind = FirmwareKind::Apple;
+        return entryOf(QStringLiteral("1-2"), ScreenKind::Ready, ipod);
+    };
+
+    IpodCard card;
+    card.show();
+    card.setEntry(appleIn(QStringLiteral("classic-6g")), {classic, video});
+    QVERIFY(card.uninstallButton()->isVisibleTo(&card));
+    card.setWizardState(false, false, false);
+    QVERIFY(card.uninstallButton()->isVisibleTo(&card));
+    card.setWizardState(false, false, true);
+    QVERIFY(!card.uninstallButton()->isVisibleTo(&card));
+    QVERIFY(card.wizardButton()->isVisibleTo(&card));
+    QCOMPARE(card.wizardButton()->text(), QStringLiteral("Install TacetOS"));
+    // A later install brings it back.
+    card.setWizardState(false, false, false);
+    QVERIFY(card.uninstallButton()->isVisibleTo(&card));
+
+    // The home screen keeps the flag for the card of the port.
+    HomeScreen screen;
+    screen.setEntries({appleIn(QStringLiteral("classic-6g"))}, {classic, video}, kHost);
+    screen.setWizardState(QStringLiteral("1-2"), false, false, true);
+    QVERIFY(!screen.cards().first()->uninstallButton()->isVisibleTo(screen.cards().first()));
+    screen.setEntries({appleIn(QStringLiteral("classic-6g"))}, {classic, video}, kHost);
+    QVERIFY(!screen.cards().first()->uninstallButton()->isVisibleTo(screen.cards().first()));
 }
 
 void TestHome::refreshSignal()

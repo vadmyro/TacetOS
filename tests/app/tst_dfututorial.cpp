@@ -36,6 +36,7 @@ struct Event
     bool wait = false;
     QString reason;
     QString hint;
+    QString failedStage;
 };
 
 Event progress(const QString &stage, qint64 done = 0, qint64 total = 0)
@@ -85,6 +86,8 @@ public:
                 info.insert(QStringLiteral("model"), QStringLiteral("classic-6g"));
                 info.insert(QStringLiteral("reason"), e.reason);
                 info.insert(QStringLiteral("hint"), e.hint);
+                if (!e.failedStage.isEmpty())
+                    info.insert(QStringLiteral("stage"), e.failedStage);
                 script_.played++;
                 const UserAnswer answer = context.waitForUser(WaitKind::ReadyForDfu, info);
                 if (answer.cancelled)
@@ -487,6 +490,29 @@ private slots:
         QCOMPARE(f.page->titleText(), QStringLiteral("Let go of the buttons now"));
     }
 
+    // Detection sees the DFU device before the helper does: the next `wait-device` of the
+    // helper does not send the user back to holding the buttons.
+    void waitDeviceAfterDfuDetectedKeepsLetGo()
+    {
+        Fixture f({wait(), progress(QStringLiteral("wait-device")),
+                   progress(QStringLiteral("dfu-detected")),
+                   progress(QStringLiteral("wait-device")), progress(QStringLiteral("quiet"))});
+        f.next();
+        QTRY_VERIFY(f.page->isAsking());
+        QTest::mouseClick(f.page->startButton(), Qt::LeftButton);
+        f.next();
+        QTRY_COMPARE(f.page->way(), DfuWay::Hold);
+        f.next();
+        QTRY_COMPARE(f.page->way(), DfuWay::Release);
+        f.next();
+        QTest::qWait(200);
+        QCOMPARE(f.page->way(), DfuWay::Release);
+        QCOMPARE(f.page->titleText(), QStringLiteral("Let go of the buttons now"));
+        f.next();
+        QTest::qWait(200);
+        QCOMPARE(f.page->way(), DfuWay::Release);
+    }
+
     // Nothing arrives: the step gives the help and the steps again, with Start.
     void nothingArrives()
     {
@@ -516,6 +542,50 @@ private slots:
         f.next();
         QTRY_COMPARE(f.page->way(), DfuWay::Hold);
         QCOMPARE(f.page->countdownSeconds(), 15);
+    }
+
+    // Every Start has the order written above it.
+    void startHintIsAboveEveryStart()
+    {
+        Fixture f({wait(), progress(QStringLiteral("wait-device")),
+                   wait(QString(error::dfuFailed), QStringLiteral("Check the cable."))});
+        QLabel *hint = label(f.page.get(), "dfuStartHint");
+        QCOMPARE(hint->text(),
+                 QStringLiteral("Press Start first, then hold MENU and the center button"));
+        QVERIFY(hint->isHidden());
+        f.next();
+        QTRY_VERIFY(f.page->isAsking());
+        QVERIFY(hint->isVisible());
+        QTest::mouseClick(f.page->startButton(), Qt::LeftButton);
+        f.next();
+        QTRY_COMPARE(f.page->way(), DfuWay::Hold);
+        QVERIFY(hint->isHidden());
+        f.next();
+        QTRY_VERIFY(f.page->isAsking());
+        QVERIFY(hint->isVisible());
+    }
+
+    // A try that stopped after the send says the transfer was interrupted, with its text;
+    // one that never saw the iPod in DFU mode says so.
+    void failureAfterTheSendSaysTheTransferWasInterrupted()
+    {
+        Event failed =
+            wait(QString(error::dfuFailed),
+                 QStringLiteral("The transfer was interrupted. The iPod is not changed."));
+        failed.failedStage = QStringLiteral("send");
+        Fixture f({wait(), progress(QStringLiteral("send"), 10, 100), failed});
+        f.next();
+        QTRY_VERIFY(f.page->isAsking());
+        QTest::mouseClick(f.page->startButton(), Qt::LeftButton);
+        f.next();
+        QTRY_COMPARE(f.page->titleText(), QStringLiteral("Sending TacetOS to the iPod"));
+        f.next();
+        QTRY_VERIFY(f.page->isAsking());
+        QCOMPARE(f.page->titleText(), QStringLiteral("The transfer to the iPod was interrupted"));
+        QCOMPARE(label(f.page.get(), "dfuReason")->text(),
+                 QStringLiteral("Nothing was written: the iPod starts Apple's software again. "
+                                "Wait for its menu, then press Start to try again."));
+        QVERIFY(label(f.page.get(), "dfuStartHint")->isVisible());
     }
 
     // The iPod left DFU mode three times: its message, and Start asks the window to resume.
