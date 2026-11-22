@@ -214,6 +214,8 @@ private slots:
                                               dir.filePath(QStringLiteral("backups")));
         config.osReleaseRoot = dir.path();
         config.udevRuleFile = dir.filePath(QStringLiteral("70-test.rules"));
+        // A folder of polkit rules that exists on every system, not the one of the host.
+        config.polkitRuleFile = dir.filePath(QStringLiteral("70-polkit.rules"));
         LinuxDiagnoseSources sources(config, view, commands, client);
 
         QCOMPARE(sources.os(), Os::Linux);
