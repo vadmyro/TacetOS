@@ -10,13 +10,13 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 | Foundations | Firmware base, model database, library rules, specs of the install formats and protocols | 7/7 | ✅ done |
 | **v0.1** | Device detection and live state (plug, unplug, disk mode, DFU) | 7/7 | ✅ done |
 | Test devices | Disk image test devices + privileged helper | 6/6 | ✅ done |
-| **v0.2** | Install and reset wizard: backup, format, firmware, bootloader, guided DFU, uninstall | 12/13 | ⏳ |
+| **v0.2** | Install and reset wizard: backup, format, firmware, bootloader, guided DFU, uninstall | 12/12 | ✅ done |
 | **v0.3** | Our own firmware build: name, custom boot logo, update channel, health page | 0/11 | ⏳ |
 | **v0.4** | Music library and sync: tags, cover art, sorting rules, playlists, conversion, import folder | 0/12 | ⏳ |
 | **v0.5** | Settings editor, fonts, menu order, listening recap | 0/7 | ⏳ |
 | **v0.6** | Themes: browser, editor with live preview, simple mode, default TacetOS theme | 0/11 | ⏳ |
 | **v0.7** | Translations: language picked at first launch and in Settings, French, then many more | 0/3 | ⏳ |
-| **v0.8** | Windows and macOS: detection, DFU and disk access on every system | 0/5 | ⏳ |
+| **v0.8** | Windows, macOS and Linux: detection, DFU and disk access, tested on every major system | 0/6 | ⏳ |
 | **v0.9** | Public beta: packages (AppImage, .deb, .rpm, Windows installer, .dmg), one-command install, install guide | 0/6 | ⏳ |
 | **v1.0** | Fixes from the beta | 0/1 | ⏳ |
 
@@ -56,9 +56,8 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 - [x] Safety tests: refuse a USB stick, power cut in the middle of a write, full disk
 - [x] Real-device read-only check on an iPod Classic
 
-## v0.2 · Install and reset wizard
+## v0.2 · Install and reset wizard ✅
 
-- [ ] Early checks of DFU on Windows and disk writes on macOS
 - [x] Wizard flow that resumes after an interruption
 - [x] Diagnostic screen with blocking checks before any write, and a clear message when something is missing on the computer
 - [x] Automatic backup of settings, themes, playlists and the firmware partition
@@ -131,13 +130,14 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 - [ ] French
 - [ ] As many languages as possible, then community translations
 
-## v0.8 · Windows and macOS
+## v0.8 · Windows, macOS and Linux
 
 - [ ] Windows: detection, eject, helper
 - [ ] Windows: DFU
 - [ ] macOS: detection, DFU, helper, Mac-formatted iPods
-- [ ] Tests on Windows and macOS with a real iPod
-- [ ] CI on more systems: older Ubuntu, Fedora, Arch, Debian, ARM64, Apple Silicon Macs (the CI runs on Intel Macs for now)
+- [ ] Linux: the same checks on every major distribution (udisks2, udev rule, helper)
+- [ ] Tests with a real iPod on Windows, macOS and Linux
+- [ ] CI on every supported system: Windows 10 and 11, several macOS versions on Intel and Apple Silicon, Ubuntu, Debian, Fedora and Arch, ARM64 included
 
 ## v0.9 · Public beta
 
