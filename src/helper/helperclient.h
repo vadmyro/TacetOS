@@ -54,6 +54,10 @@ public:
     // The command `read-state` on an image file.
     int readImageState(const QString &path, int sectorSize, const QString &port = QString());
 
+    // Starts the helper when it is not running, so that its hello is there
+    // before the first command. Called when a wizard window opens.
+    void ensureStarted();
+
     // The hello of the running helper, empty before it came.
     QJsonObject hello() const { return m_hello; }
     bool isRunning() const { return m_process.state() != QProcess::NotRunning; }

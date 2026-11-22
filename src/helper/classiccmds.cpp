@@ -177,6 +177,11 @@ CommandOutcome runClassicDfuOnDisk(const QJsonObject &args, SystemLayer &system,
         }
         hooks.stage(stageName(stage));
     };
+    options.quiet = [&] {
+        inStage.restart();
+        lastSecond = -1;
+        hooks.stage(QStringLiteral("quiet"));
+    };
 
     const ClassicDfuOutcome out = runClassicDfu(*layer, job, options);
     hooks.stage(QStringLiteral("resume"));
@@ -204,6 +209,9 @@ CommandOutcome runClassicDfuOnDisk(const QJsonObject &args, SystemLayer &system,
     QJsonObject data;
     data.insert(QStringLiteral("stage"), stageName(out.stage));
     data.insert(QStringLiteral("hint"), out.hint);
+    // For the log only: which USB call failed, and how, under the message for the user.
+    if (!out.transfer.detail.isEmpty())
+        data.insert(QStringLiteral("usbDetail"), out.transfer.detail);
     return failure(err::dfuFailed, detail, data);
 }
 

@@ -80,6 +80,12 @@ int HelperClient::readImageState(const QString &path, int sectorSize, const QStr
     return request(QString(cmd::readState), args, port);
 }
 
+void HelperClient::ensureStarted()
+{
+    if (m_state == State::Stopped)
+        start();
+}
+
 int HelperClient::request(const QString &cmd, const QJsonObject &args, const QString &port)
 {
     const int id = m_nextId;
