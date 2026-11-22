@@ -316,7 +316,7 @@ After Start, the page follows the stages of `classic-dfu` by itself, without any
 | `resume` | "The iPod restarts" | Release | Section 7.3 |
 
 - **The countdown** of `wait-device` starts at 15 s, from the first `wait-device` event, and counts each second in the large style ("15", "14", ...). Under it, "Keep holding". At 0 it does not go below: the text becomes "Keep holding. It can take a few more seconds", until the helper sees the DFU device or gives up (60 s, wizard section 9.4).
-- When the stage `quiet` comes, the change is immediate and the title is announced to screen readers (section 12).
+- When the stage `quiet` comes, the change is immediate and the title is announced to screen readers (section 12). From then on, a `wait-device` event that comes late (detection can see the DFU device before the helper does, and gives the stage `dfu-detected`) does not bring back "Hold MENU and the center button now": the page says to let go until the try ends.
 - **The iPod went back to normal mode** (`disk-mode-instead`, wizard section 9.4): the page shows the "Wrong buttons" way, the title "The iPod started in Disk Mode", and "You held the center button and Play. Hold MENU and the center button instead", then Start again (the step waits again).
 - **The disk did not come back** (`no-disk`, wizard section 9.4): "The iPod did not come back", and "If its screen is black, it is still in DFU mode: hold MENU and the center button for about 6 seconds, and let go as soon as the screen changes. Wait for its menu, then press Start.", then Start.
 - **No DFU mode in time** (`dfu-failed` before the stage `send`): "The iPod did not appear in DFU mode", then the steps of section 6.2 again, with Start.

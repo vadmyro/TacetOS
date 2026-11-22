@@ -43,7 +43,7 @@ One **detected iPod** per iPod found. The app keeps a list of them, and the list
 | `variant` | The exact iPod inside the model (capacity and release period, section 8.4), or none. The model decides what can be written, the variant is only for display |
 | `variant_source` | Which clue decided the variant: `device-sheet`, `sysinfo`, `capacity`, or none |
 | `disk` | The node of the disk, its size in bytes and its sector size. Optional |
-| `volume` | Mount point, filesystem type, label, free bytes. Optional |
+| `volume` | Mount point, filesystem type, label, free bytes, and whether it is mounted read only (`read_only`, false when the system cannot tell). Optional |
 | `state` | One of the states of section 8.3 |
 | `firmware` | What the marker files say is installed (section 7.4) |
 | `running` | Which firmware runs now, from the USB name strings (section 7.6): `apple`, `other` or `unknown` |
@@ -123,7 +123,7 @@ Given the disk of section 5, the music volume is one of the mounted filesystems 
 
 | System | How the volume is found |
 |---|---|
-| Linux | Read `/proc/self/mountinfo`. Each line has the mount point (5th field) and, after a lone `-`, the filesystem type and the source device. Match the source with the node of the partition (`/dev/sdb2`), by the device number (`major:minor`, 3rd field) rather than by name, so that a link such as `/dev/disk/by-label/...` still matches. Mount points escape the space, tab, newline and backslash as `\040`, `\011`, `\012`, `\134`: decode them |
+| Linux | Read `/proc/self/mountinfo`. Each line has the mount point (5th field) and, after a lone `-`, the filesystem type and the source device. Match the source with the node of the partition (`/dev/sdb2`), by the device number (`major:minor`, 3rd field) rather than by name, so that a link such as `/dev/disk/by-label/...` still matches. Mount points escape the space, tab, newline and backslash as `\040`, `\011`, `\012`, `\134`: decode them. The mount is read only when the list of options of the mount (6th field) or the list after the source (the last field) holds `ro` as a whole word (`rw` does not; `errors=remount-ro` is not `ro`). The result is kept as `read_only` on the volume |
 | macOS | The volume path given by DiskArbitration for the partition `disk2s2`. If it has none, the partition is not mounted |
 | Windows | For each drive letter, open the volume and ask which disk extents it covers. A volume that covers exactly one extent, on the disk number found in section 5, and at the offset of one of its partitions, is a candidate, and the order above picks the music volume. A volume that spans several disks is ignored |
 
@@ -273,12 +273,13 @@ When two pieces of evidence name different models, the one closer to the hardwar
 | `no-volume` | A disk exists, no mounted music volume | Says why when it knows: Mac format, or not mounted. Does not mount it |
 | `mac-format` | The disk reading, or the filesystem of the volume (section 6.2), says HFS+ | The conversion of `bootloader-legacy.md` section 21, with its confirmations |
 | `unsupported-filesystem` | The volume exists with a filesystem of section 6.2 "anything else" | Nothing. The text explains |
+| `read-only` | The music volume is mounted read only (section 6.1). The disk service does this to a FAT32 volume that the iPod left marked as not properly unmounted | Nothing that writes. The text says what to do. Nothing is repaired by the app |
 | `ambiguous` | Several models are possible (section 8.2 rule 2) | A question to the user |
 | `conflict` | Section 8.2 rule 3 | A message, no action |
 | `permission` | The disk read was refused and it is the only missing piece | How to give the right, per system |
 | `unsupported-model` | The disk reading gave a generation that is not in the table of `bootloader-legacy.md` section 5, or the id is a known iPod but with no support | "An iPod we do not support", no action |
 
-The states are listed here so that every one has a test and a message (section 10). The first row that matches in this order is the state: `conflict`, `unsupported-model`, `permission`, `ambiguous`, `dfu`, `waiting`, `no-disk`, `mac-format`, `no-volume`, `unsupported-filesystem`, `ready`.
+The states are listed here so that every one has a test and a message (section 10). The first row that matches in this order is the state: `conflict`, `unsupported-model`, `permission`, `ambiguous`, `dfu`, `waiting`, `no-disk`, `mac-format`, `no-volume`, `unsupported-filesystem`, `read-only`, `ready`.
 
 Where "when" needed a precise meaning, the code reads it like this:
 
@@ -388,6 +389,7 @@ The text the user sees for every situation. Short, in the plain words of the app
 | `no-volume`, not mounted | The iPod storage is there but is not open on this computer. Open it from the file manager, then press Refresh. |
 | `mac-format` | This iPod was formatted for a Mac. TacetOS needs the Windows format: the iPod can be converted (this erases the music on it). If the system offers to format the disk, answer No. |
 | `unsupported-filesystem` | The iPod uses a filesystem TacetOS cannot read. |
+| `read-only` | The iPod is open for reading only. |
 | `ambiguous` | Several iPod models share this connection. Which one is yours? |
 | `conflict` | The iPod and its files do not agree on the model. TacetOS will not change anything. |
 | `permission` | TacetOS may not read the disk of the iPod. (The line for the system follows: a group on Linux, an administrator prompt on Windows, the disk access setting on macOS.) |
@@ -443,7 +445,7 @@ Everything in sections 4, 6.1, 6.2, 7 and 8 is tested with recorded data and no 
 
 ### 12.2 Disks and volumes (sections 5 and 6)
 
-- A fake `mountinfo` with a FAT32 volume, an HFS+ volume, a mount point with spaces and a backslash (escaped), and a source named by another link.
+- A fake `mountinfo` with a FAT32 volume, an HFS+ volume, a mount point with spaces and a backslash (escaped), and a source named by another link. Lines with `ro` in the mount options, in the last options, in both, and with only `errors=remount-ro`, as a recorded file.
 - A sysfs tree where the disk is under the USB device, and one where it is not (an internal disk).
 - A Windows case where a volume has two extents, and a case with no volume at all (Mac iPod).
 

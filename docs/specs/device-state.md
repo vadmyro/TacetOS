@@ -26,7 +26,7 @@ One **displayed state** per iPod, found by its port path. The words below are th
 | `done` | The operation just finished well | An operation, for `DONE_SHOWN` |
 | `failed` | The operation finished badly | An operation, until the next action |
 | `released` | The iPod was ejected: it can be unplugged | An `eject` that finished well, for `RELEASED_KEEP` |
-| `attention` | Something the user has to read and maybe act on. Carries a **reason**, which is the detection state | Detection `no-disk`, `mac-format`, `conflict`, `ambiguous`, `permission`, `unsupported-filesystem`, `unsupported-model`, and `no-volume` when the reason is Mac format |
+| `attention` | Something the user has to read and maybe act on. Carries a **reason**, which is the detection state | Detection `no-disk`, `mac-format`, `conflict`, `ambiguous`, `permission`, `unsupported-filesystem`, `read-only`, `unsupported-model`, and `no-volume` when the reason is Mac format |
 
 `attention` is one state with a reason, and not one state per reason, because the screen treats them the same way (a message, maybe one action) and the message comes from `detection.md` section 10 by the reason.
 
