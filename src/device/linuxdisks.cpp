@@ -86,6 +86,13 @@ QList<LinuxPartition> readPartitions(const QDir &diskDir)
     return partitions;
 }
 
+// A whole word of a comma-separated list of mount options: `ro` is one,
+// `errors=remount-ro` is not.
+bool hasOption(const QString &options, const QString &word)
+{
+    return options.split(QLatin1Char(',')).contains(word);
+}
+
 // Mount points and sources write space, tab, newline and backslash as a
 // backslash and three octal digits.
 QString decodeMountEscapes(const QString &text)
@@ -174,6 +181,11 @@ QList<MountEntry> parseMountinfo(const QString &text)
         entry.mountPoint = decodeMountEscapes(fields[4]);
         entry.filesystem = fields[separator + 1];
         entry.source = decodeMountEscapes(fields[separator + 2]);
+        // The options of the mount (6th field), then the ones of the filesystem after the source.
+        entry.readOnly = hasOption(fields[5], QStringLiteral("ro"));
+        if (separator + 3 < fields.size())
+            entry.readOnly =
+                entry.readOnly || hasOption(fields[separator + 3], QStringLiteral("ro"));
         entries.append(entry);
     }
     return entries;
@@ -202,6 +214,7 @@ std::optional<VolumeInfo> findMountedVolume(const QList<MountEntry> &mounts,
     VolumeInfo volume;
     volume.mountPoint = best->mountPoint;
     volume.filesystem = best->filesystem;
+    volume.readOnly = best->readOnly;
     return volume;
 }
 

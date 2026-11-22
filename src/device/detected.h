@@ -30,6 +30,7 @@ enum class IpodState {
     MacFormat,
     NoVolume,
     UnsupportedFilesystem,
+    ReadOnly,
     Ready,
 };
 
@@ -66,6 +67,8 @@ struct VolumeInfo
     QString label;
     qint64 totalBytes = 0;
     qint64 freeBytes = 0;
+    // Section 6.1: the system mounted it read only. False when it cannot tell.
+    bool readOnly = false;
 };
 
 struct FirmwareInfo

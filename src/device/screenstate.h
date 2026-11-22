@@ -110,6 +110,10 @@ public:
     // The user starts an operation (rows 8, 14 and 15): ends the released
     // record of the port, then asks the runner.
     OperationRequest startOperation(OperationKind kind, const QString &portPath);
+    // An operation that the app started by itself (the mount on arrival) failed:
+    // its record is dropped, so that the detection state shows and not `failed`
+    // (section 2.8 rule 3). Does nothing for a record that is not failed.
+    void dropFailed(const QString &portPath);
     // The user presses Refresh (row 16): ends `failed` and `released`, then
     // reads everything again.
     void refresh();

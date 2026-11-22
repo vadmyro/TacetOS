@@ -24,6 +24,10 @@ HostSystem currentHostSystem();
 // The line that follows the `permission` message: what to do on this system.
 QString permissionHint(HostSystem system);
 
+// The line that follows the `read-only` message in the checks of the wizard:
+// what to do about a volume that the system opened for reading only.
+QString readOnlyAdvice();
+
 // The name of an iPod (section 8.4, "What is shown"): the variant with its
 // release period ("iPod Classic 120 GB (late 2008)"), else the name of the
 // model, else empty. The `ready` message and the card of the home screen start

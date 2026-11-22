@@ -67,6 +67,8 @@ struct MountEntry
     QString mountPoint;
     QString filesystem;
     QString source;
+    // `ro` among the options of the mount or of the filesystem.
+    bool readOnly = false;
 };
 
 // Section 6.1. Lines that do not parse are skipped.

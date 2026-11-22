@@ -80,6 +80,10 @@ inline constexpr qint64 kDoneShownMs = 5 * 1000;
 // long (starting value).
 inline constexpr qint64 kReleasedKeepMs = 30 * 1000;
 
+// Section 2.8 of device-state.md: the setting "Mount iPods when they are plugged
+// in". On by default; Settings come in v0.7, and until then it is always on.
+inline constexpr bool kMountOnArrival = true;
+
 // Section 7.3: the hidden folder of the firmware and the info file inside it.
 inline constexpr QLatin1String kFirmwareFolder(".rockbox");
 inline constexpr QLatin1String kFirmwareInfoFile("rockbox-info.txt");

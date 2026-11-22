@@ -63,6 +63,8 @@ QString stateName(IpodState state)
         return QStringLiteral("no-volume");
     case IpodState::UnsupportedFilesystem:
         return QStringLiteral("unsupported-filesystem");
+    case IpodState::ReadOnly:
+        return QStringLiteral("read-only");
     case IpodState::Ready:
         return QStringLiteral("ready");
     }
@@ -177,6 +179,12 @@ bool LiveTracker::isMissing(const QString &portPath) const
 {
     const Entry *entry = find(portPath);
     return entry && entry->missingSinceMs;
+}
+
+bool LiveTracker::isHeld(const QString &portPath) const
+{
+    const Entry *entry = find(portPath);
+    return entry && entry->held;
 }
 
 void LiveTracker::tick()

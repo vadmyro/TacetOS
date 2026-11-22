@@ -124,6 +124,12 @@ QString permissionHint(HostSystem system)
     return tr("Add your user to the group that may read disks, then sign in again.");
 }
 
+QString readOnlyAdvice()
+{
+    return tr("Unplug the iPod, plug it in again, and if it stays so, check the volume on this "
+              "computer.");
+}
+
 QString stateMessage(const DetectedIpod &ipod, const QList<Model> &models, HostSystem system)
 {
     switch (ipod.state) {
@@ -144,6 +150,8 @@ QString stateMessage(const DetectedIpod &ipod, const QList<Model> &models, HostS
             "answer No.");
     case IpodState::UnsupportedFilesystem:
         return tr("The iPod uses a filesystem TacetOS cannot read.");
+    case IpodState::ReadOnly:
+        return tr("The iPod is open for reading only.");
     case IpodState::Ambiguous:
         return ambiguousMessage(ipod, models);
     case IpodState::Conflict:

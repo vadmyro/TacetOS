@@ -84,6 +84,7 @@ ScreenState fromDetection(IpodState detected)
     case IpodState::Ambiguous:
     case IpodState::Permission:
     case IpodState::UnsupportedFilesystem:
+    case IpodState::ReadOnly:
     case IpodState::UnsupportedModel:
         break;
     }
@@ -232,6 +233,15 @@ OperationRequest DeviceStateModel::startOperation(OperationKind kind, const QStr
     const OperationRequest answer = runner_->request(kind, portPath);
     update();
     return answer;
+}
+
+void DeviceStateModel::dropFailed(const QString &portPath)
+{
+    const std::optional<Operation> op = runner_->operation(portPath);
+    if (!op || op->status != OperationStatus::Failed)
+        return;
+    runner_->forget(portPath);
+    update();
 }
 
 void DeviceStateModel::refresh()

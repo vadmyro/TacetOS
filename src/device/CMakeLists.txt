@@ -3,6 +3,8 @@
 
 # Detection of the iPod, with no user interface. Tested on its own.
 qt_add_library(tacet_device STATIC
+    automount.cpp
+    automount.h
     constants.h
     detected.h
     firmware.cpp

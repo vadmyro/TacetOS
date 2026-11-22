@@ -108,6 +108,9 @@ public:
     // missing: it may come back within the same port window (section 9.4).
     bool isMissing(const QString &portPath) const;
 
+    // An operation or a flow of the app holds this iPod (setHeld).
+    bool isHeld(const QString &portPath) const;
+
     // Lets time pass: polls when due, ends the disk wait, drops the iPods
     // that did not come back within the same port window.
     void tick();

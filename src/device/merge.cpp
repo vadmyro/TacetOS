@@ -195,6 +195,8 @@ MergeResult mergeEvidence(const IpodEvidence &ev, const QList<Model> &models)
         out.state = IpodState::NoVolume;
     else if (unsupportedFs)
         out.state = IpodState::UnsupportedFilesystem;
+    else if (volume && volume->readOnly)
+        out.state = IpodState::ReadOnly;
     else
         out.state = IpodState::Ready;
 
