@@ -52,9 +52,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Intel Macs: since November 2026 the Apple Silicon runners are often not given to
-        # the job at all, and it is cancelled after 15 minutes in the queue.
-        os: [ubuntu-24.04, windows-2025, macos-15-intel]
+        # Linux only until v0.8, which brings back Windows and macOS (windows-2025,
+        # macos-15-intel) with every other supported system. The Windows and macOS
+        # steps below stay in place for that.
+        os: [ubuntu-24.04]
         preset: [debug, release]
     steps:
       - uses: actions/checkout@v7
