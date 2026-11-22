@@ -490,6 +490,8 @@ private slots:
         QCOMPARE(runFlow(), QString());
         QVERIFY(!m_device->received().isEmpty());
         QVERIFY(m_stages.contains(QStringLiteral("send")));
+        // The guide lets go of the buttons on `dfu-detected` or `quiet`, whichever comes first.
+        QVERIFY(m_progress.contains(QStringLiteral("dfu-detected")));
         QCOMPARE(m_reasons, (QStringList{QString()}));
         // Back under TacetOS: `verify` may then see Apple's firmware (Menu held).
         QCOMPARE(m_returned, QStringLiteral("tacetos"));

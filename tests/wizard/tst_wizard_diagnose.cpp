@@ -84,13 +84,21 @@ public:
     std::optional<bool> battery;
     int asked = 0;
     QJsonObject facts;
+    QStringList stages;
+    qint64 lastDone = 0;
+    qint64 lastTotal = 0;
 
     QString serial() const override { return QStringLiteral("8K1234ABCD"); }
     QString model() const override { return QStringLiteral("classic-6g"); }
     FlowShape shape() const override { return flowShape; }
     bool isResume() const override { return false; }
     bool stopRequested() const override { return false; }
-    void progress(const QString &, qint64, qint64) override {}
+    void progress(const QString &stage, qint64 done, qint64 total) override
+    {
+        stages << stage;
+        lastDone = done;
+        lastTotal = total;
+    }
     UserAnswer waitForUser(WaitKind kind, const QJsonObject &) override
     {
         if (kind != WaitKind::Battery)
@@ -153,6 +161,7 @@ private slots:
     void osReleaseFile();
     void folder();
     void stepAsksTheBattery();
+    void stepReportsHowFarItIs();
     void stepStopsOnABlockingCheck();
     void stepSeesAChangedPackage();
 };
@@ -174,15 +183,22 @@ void TstWizardDiagnose::order()
              QStringLiteral("system helper writes udisks classic-build udev-rule backup-folder "
                             "backup-space model serial single-ipod volume format apple-firmware "
                             "package firmware-room battery"));
-    QCOMPARE(ids(diagnose(goodOlder())).join(QLatin1Char(' ')),
-             QStringLiteral("system helper writes udisks backup-folder backup-space model serial "
-                            "volume format apple-firmware bootloader-state package firmware-room "
-                            "battery"));
+    QCOMPARE(
+        ids(diagnose(goodOlder())).join(QLatin1Char(' ')),
+        QStringLiteral("system helper writes udisks disk-access backup-folder backup-space model "
+                       "serial volume format apple-firmware bootloader-state package firmware-room "
+                       "battery"));
     // Not on Linux: no udisks2, no udev rule.
     DiagnoseInput mac = goodClassic();
     mac.os = Os::MacOs;
     QVERIFY(!find(diagnose(mac), QStringLiteral("udisks")));
     QVERIFY(!find(diagnose(mac), QStringLiteral("udev-rule")));
+    DiagnoseInput macOlder = goodOlder();
+    macOlder.os = Os::MacOs;
+    QVERIFY(!find(diagnose(macOlder), QStringLiteral("disk-access")));
+    // The check of the older iPods is not asked of the Classic, nor the other way round.
+    QVERIFY(!find(diagnose(goodClassic()), QStringLiteral("disk-access")));
+    QVERIFY(!find(diagnose(goodOlder()), QStringLiteral("udev-rule")));
 }
 
 void TstWizardDiagnose::rows_data()
@@ -229,6 +245,9 @@ void TstWizardDiagnose::rows_data()
     QTest::newRow("no udev rule") << true
                                   << Change([](DiagnoseInput &i) { i.udevRulePresent = false; })
                                   << "udev-rule" << F << "USB permission" << none;
+    QTest::newRow("no disk access (older iPod)")
+        << false << Change([](DiagnoseInput &i) { i.udevRulePresent = false; }) << "disk-access"
+        << int(CheckResult::Warn) << "asks for your password each time" << none;
     QTest::newRow("backup folder read only")
         << true << Change([](DiagnoseInput &i) { i.backup.writable = false; }) << "backup-folder"
         << F << "Cannot write" << none;
@@ -261,6 +280,13 @@ void TstWizardDiagnose::rows_data()
         i.ipod.volumeReady = false;
         i.ipod.volumeMessage = QStringLiteral("The iPod is not mounted");
     }) << "volume" << F << "not mounted"
+                                      << none;
+    QTest::newRow("volume read only") << true << Change([](DiagnoseInput &i) {
+        i.ipod.volumeReady = false;
+        i.ipod.volumeMessage = QStringLiteral("The iPod is open for reading only. Unplug the iPod, "
+                                              "plug it in again, and if it stays so, check the "
+                                              "volume on this computer.");
+    }) << "volume" << F << "open for reading only"
                                       << none;
     QTest::newRow("volume unmounted") << true << Change([](DiagnoseInput &i) {
         i.ipod.volumeReady = false;
@@ -338,7 +364,7 @@ void TstWizardDiagnose::rows()
     QCOMPARE(int(check->result), result);
     QVERIFY2(check->message.contains(message), qPrintable(check->message));
     QCOMPARE(check->command, command);
-    if (id == QLatin1String("udev-rule"))
+    if (id == QLatin1String("udev-rule") || id == QLatin1String("disk-access"))
         QCOMPARE(check->action, QStringLiteral("install-udev-rule"));
     // A volume that is there but not mounted is offered to mount; any other not.
     if (id == QLatin1String("volume"))
@@ -489,6 +515,35 @@ void TstWizardDiagnose::stepAsksTheBattery()
 
     context.battery.reset();
     QCOMPARE(step.run(context).kind, StepOutcome::Kind::Cancelled);
+}
+
+void TstWizardDiagnose::stepReportsHowFarItIs()
+{
+    // Screens section 3: each source names its check, in the order of the checks.
+    FakeSources sources;
+    FakeContext context;
+    context.flowShape = {Family::Partition, FlowKind::Install, InstallPath::Keep, false};
+    context.battery = true;
+    DiagnoseStep step(sources);
+    QCOMPARE(step.run(context).kind, StepOutcome::Kind::Done);
+    QCOMPARE(context.stages.join(QLatin1Char(' ')),
+             QStringLiteral("system helper udisks disk-access backup-folder backup-space model "
+                            "package firmware-room"));
+    QCOMPARE(context.lastTotal, 10);
+    // `done` counts the sources already read when the last one starts.
+    QCOMPARE(context.lastDone, 8);
+
+    // The Classic names its own rule, and an uninstall has no package to look at.
+    FakeSources classic;
+    classic.in = goodClassic();
+    FakeContext uninstall;
+    uninstall.flowShape = {Family::Dfu, FlowKind::Uninstall, InstallPath::None, false};
+    uninstall.battery = true;
+    DiagnoseStep other(classic);
+    other.run(uninstall);
+    QCOMPARE(uninstall.stages.join(QLatin1Char(' ')),
+             QStringLiteral("system helper udisks udev-rule backup-folder backup-space model"));
+    QCOMPARE(uninstall.lastTotal, 8);
 }
 
 void TstWizardDiagnose::stepStopsOnABlockingCheck()

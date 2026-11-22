@@ -10,6 +10,7 @@
 #include "helperclient.h"
 #include "sources.h"
 #include "stepfactory.h"
+#include "udevrule.h"
 #include "udisks.h"
 #include "wizardconstants.h"
 
@@ -223,6 +224,21 @@ private slots:
         QFile rule(config.udevRuleFile);
         QVERIFY(rule.open(QIODevice::WriteOnly));
         rule.close();
+        // Helper section 11.5 step 1: an empty file, or a rule of an older build (without the
+        // line that names the polkit rule), is missing.
+        QVERIFY(!sources.udevRulePresent());
+        QVERIFY(rule.open(QIODevice::WriteOnly));
+        rule.write(helper::udevRuleTextWithoutPolkitLine().toUtf8());
+        rule.close();
+        QVERIFY(!sources.udevRulePresent());
+        // ... unless the system has no folder of polkit rules: nothing more can be done.
+        config.polkitRuleFile = dir.filePath(QStringLiteral("no-polkit/70-test.rules"));
+        QVERIFY(LinuxDiagnoseSources(config, view, commands, client).udevRulePresent());
+        config.polkitRuleFile = dir.filePath(QStringLiteral("70-polkit.rules"));
+        QVERIFY(!LinuxDiagnoseSources(config, view, commands, client).udevRulePresent());
+        QVERIFY(rule.open(QIODevice::WriteOnly));
+        rule.write(helper::udevRuleText().toUtf8());
+        rule.close();
         QVERIFY(sources.udevRulePresent());
 
         const FolderInfo folder = sources.backupFolder();
@@ -310,6 +326,28 @@ private slots:
         QCOMPARE(facts.volumeSize, qint64(4000000));
         QCOMPARE(facts.volumeFree, qint64(3000000));
         QCOMPARE(sources.backupNeedBytes(InstallPath::Clean), qint64(1000000) + kBackupMargin);
+    }
+
+    void readOnlyVolumeFailsTheCheckWithItsAdvice()
+    {
+        device::DetectedIpod ipod =
+            detected(QStringLiteral("S1"), QStringLiteral("1-2"), QString());
+        ipod.state = device::IpodState::ReadOnly;
+        ipod.volume->readOnly = true;
+        IpodView view(QStringLiteral("S1"));
+        view.seen(ipod);
+        helper::HelperClient client;
+        FakeCommands commands;
+        LinuxDiagnoseSources sources(configFor(Family::Dfu, QStringLiteral("S1"), QString()), view,
+                                     commands, client);
+        const IpodFacts facts = sources.ipod();
+        QVERIFY(!facts.volumeReady);
+        QVERIFY(!facts.volumeMountable);
+        QVERIFY(
+            facts.volumeMessage.startsWith(QStringLiteral("The iPod is open for reading only")));
+        QVERIFY(facts.volumeMessage.contains(
+            QStringLiteral("Unplug the iPod, plug it in again, and if it stays so, check the "
+                           "volume on this computer")));
     }
 
     void classicReadsTheAppleVersion()

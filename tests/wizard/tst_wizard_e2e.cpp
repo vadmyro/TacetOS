@@ -21,6 +21,7 @@
 #include "runner.h"
 #include "stepfactory.h"
 #include "testpackage.h"
+#include "udevrule.h"
 #include "wizarderrors.h"
 
 #include <QCryptographicHash>
@@ -604,7 +605,7 @@ private:
         r.etc = newFolder(QStringLiteral("root"));
         put(r.etc + "/etc/os-release", "ID=fedora\nVERSION_ID=44\n");
         r.udevRule = m_tmp.filePath(QStringLiteral("udev%1.rules").arg(++m_count));
-        put(r.udevRule, "# rule\n");
+        put(r.udevRule, helper::udevRuleText().toUtf8());
         r.client = std::make_unique<helper::HelperClient>();
         r.client->setProgram(QStringLiteral(TACETOS_HELPER_PROGRAM));
 #ifdef TACETOS_HELPER_KILLTEST_PROGRAM
