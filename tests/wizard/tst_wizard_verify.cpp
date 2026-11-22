@@ -14,6 +14,7 @@
 #include <QCryptographicHash>
 #include <QDir>
 #include <QDirIterator>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QTemporaryDir>
 #include <QTest>
@@ -81,11 +82,26 @@ public:
     HelperCommands &helper() const override { return commands; }
     QString volumeRoot() const override { return volume; }
     QString target() const override { return kTarget; }
-    device::DetectedIpod detected() const override { return ipod; }
+    // The first `readyAfter` readings show the iPod still waiting, as after a
+    // restart, before detection has its volume.
+    device::DetectedIpod detected() const override
+    {
+        ++readings;
+        if (readings <= readyAfter) {
+            device::DetectedIpod waiting = ipod;
+            waiting.state = device::IpodState::Waiting;
+            return waiting;
+        }
+        return ipod;
+    }
+    qint64 readyWaitMs() const override { return readyWait; }
 
     mutable StateOnly commands;
     QString volume;
     device::DetectedIpod ipod;
+    int readyAfter = 0;
+    qint64 readyWait = 0;
+    mutable int readings = 0;
 };
 
 class Context : public StepContext
@@ -135,6 +151,8 @@ private slots:
     void installPackageGone();
     void notReady_data();
     void notReady();
+    void waitsUntilReady();
+    void waitsThenGivesUp();
 
     void uninstallOlderIpodPasses();
     void uninstallClassicPasses();
@@ -275,6 +293,8 @@ void TstWizardVerify::installBootloaderNotRead()
     QVERIFY(out.detail.endsWith(state));
 }
 
+// The Classic under Apple's firmware: a failure, unless `classic-bootloader` saw it
+// come back under TacetOS in this flow (double boot, Menu held at power on since).
 void TstWizardVerify::installClassicRunsApple()
 {
     install(Family::Dfu);
@@ -282,6 +302,23 @@ void TstWizardVerify::installClassicRunsApple()
     const StepOutcome out = verify();
     QCOMPARE(out.code, QString(error::verifyFailed));
     QVERIFY(out.detail.contains(QLatin1String("TacetOS")));
+
+    m_context.others.insert(QString(step::classicBootloader), QJsonObject{{"returned", "tacetos"}});
+    QCOMPARE(verify().kind, StepOutcome::Kind::Done);
+
+    // A flow from before the fact: the install record of the step says the same.
+    m_context.others.insert(QString(step::classicBootloader),
+                            QJsonObject{{"record", "/backups/S/install-record.json"}});
+    QCOMPARE(verify().kind, StepOutcome::Kind::Done);
+
+    // Neither: Apple's firmware alone does not tell.
+    m_context.others.insert(QString(step::classicBootloader), QJsonObject{});
+    QCOMPARE(verify().code, QString(error::verifyFailed));
+
+    // An unknown firmware never passes.
+    m_context.others.insert(QString(step::classicBootloader), QJsonObject{{"returned", "tacetos"}});
+    m_sources.ipod.running = device::RunningFirmware::Unknown;
+    QCOMPARE(verify().code, QString(error::verifyFailed));
 }
 
 // Section 7.1: the package of the flow, read again; gone, it fails with its own
@@ -317,6 +354,31 @@ void TstWizardVerify::notReady()
     if (noVolume)
         m_sources.volume.clear();
     QCOMPARE(verify().code, QString(error::verifyFailed));
+    QVERIFY(m_sources.commands.calls.isEmpty());
+}
+
+// The Classic back from its restart: detection sees it before its volume is mounted
+// (6 s on the real one). The step waits for `ready`, then reads.
+void TstWizardVerify::waitsUntilReady()
+{
+    install(Family::Dfu);
+    m_sources.readyAfter = 3;
+    m_sources.readyWait = 10000;
+    QCOMPARE(verify().kind, StepOutcome::Kind::Done);
+    QCOMPARE(m_sources.readings, 4);
+}
+
+// Never ready within the wait: the step fails as before, without a command.
+void TstWizardVerify::waitsThenGivesUp()
+{
+    install(Family::Dfu);
+    m_sources.readyAfter = 1000000;
+    m_sources.readyWait = 300;
+    QElapsedTimer clock;
+    clock.start();
+    QCOMPARE(verify().code, QString(error::verifyFailed));
+    QVERIFY(clock.elapsed() >= 300);
+    QVERIFY(m_sources.readings > 1);
     QVERIFY(m_sources.commands.calls.isEmpty());
 }
 

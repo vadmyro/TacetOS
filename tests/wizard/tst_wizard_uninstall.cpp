@@ -282,9 +282,18 @@ class RemoveFrom : public UninstallSources
 {
 public:
     HelperCommands &helper() const override { return *commands; }
-    QString volumeRoot() const override { return volume; }
+    // The first `mountedAfter` readings find no volume, as after a restart.
+    QString volumeRoot() const override
+    {
+        ++readings;
+        return readings <= mountedAfter ? QString() : volume;
+    }
+    qint64 volumeWaitMs() const override { return volumeWait; }
     HelperCommands *commands = nullptr;
     QString volume;
+    int mountedAfter = 0;
+    qint64 volumeWait = 0;
+    mutable int readings = 0;
 };
 
 class BootFrom : public BootloaderSources
@@ -772,6 +781,31 @@ private slots:
         QVERIFY(QFile::exists(record));
         QCOMPARE(classicStateBefore(c->sources.records + QStringList{record}, kSerial),
                  QStringLiteral("absent"));
+    }
+
+    // The Classic comes back from `classic-remove` before its volume is mounted (8 s on
+    // the real one): `remove-firmware` waits for it, then removes the folder.
+    void classicWaitsForTheVolume()
+    {
+        auto c = classic(true, true);
+        QVERIFY(c);
+        c->remove.mountedAfter = 3;
+        c->remove.volumeWait = 10000;
+        QCOMPARE(run(c->flow), QString());
+        QVERIFY(!QDir(c->sources.volume + "/" + kFolder).exists());
+        QCOMPARE(c->remove.readings, 4);
+    }
+
+    // The volume never comes back within the wait: `volume-not-back`, the folder stays.
+    void classicVolumeNotBack()
+    {
+        auto c = classic(true, true);
+        QVERIFY(c);
+        c->remove.mountedAfter = 1000000;
+        c->remove.volumeWait = 300;
+        QCOMPARE(run(c->flow), QString(error::volumeNotBack));
+        QVERIFY(QDir(c->sources.volume + "/" + kFolder).exists());
+        QVERIFY(c->remove.readings > 1);
     }
 
     // Section 10, "Nothing to do" on a Classic: no folder and no record. The

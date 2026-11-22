@@ -262,6 +262,10 @@ void TstWizardDiagnose::rows_data()
         i.ipod.volumeMessage = QStringLiteral("The iPod is not mounted");
     }) << "volume" << F << "not mounted"
                                       << none;
+    QTest::newRow("volume unmounted") << true << Change([](DiagnoseInput &i) {
+        i.ipod.volumeReady = false;
+        i.ipod.volumeMountable = true;
+    }) << "volume" << F << "not ready" << none;
     QTest::newRow("Mac, clean") << false << Change([](DiagnoseInput &i) {
         i.ipod.filesystem = Filesystem::HfsPlus;
         i.path = InstallPath::Clean;
@@ -336,6 +340,10 @@ void TstWizardDiagnose::rows()
     QCOMPARE(check->command, command);
     if (id == QLatin1String("udev-rule"))
         QCOMPARE(check->action, QStringLiteral("install-udev-rule"));
+    // A volume that is there but not mounted is offered to mount; any other not.
+    if (id == QLatin1String("volume"))
+        QCOMPARE(check->action,
+                 in.ipod.volumeMountable ? QStringLiteral("mount-volume") : QString());
     // Section 4.1 rule 4: a warning lets the flow go on, nothing else does.
     QCOMPARE(canGoOn(checks), result == int(CheckResult::Warn));
     if (result != int(CheckResult::Warn))

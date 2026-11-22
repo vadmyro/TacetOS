@@ -102,6 +102,9 @@ add_test(NAME tst_wizard_verify COMMAND tst_wizard_verify)
 # from memory, the helper is not started.
 qt_add_executable(tst_wizard_sources tst_wizard_sources.cpp)
 target_link_libraries(tst_wizard_sources PRIVATE tacet_wizard Qt6::Test)
+target_compile_definitions(tst_wizard_sources PRIVATE
+    TACETOS_HELPER_PROGRAM="$<TARGET_FILE:tacet-helper>")
+add_dependencies(tst_wizard_sources tacet-helper)
 add_test(NAME tst_wizard_sources COMMAND tst_wizard_sources)
 
 # The whole journey through the real factory of steps (section 2 to 10): older

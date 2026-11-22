@@ -254,6 +254,38 @@ private slots:
         QCOMPARE(failed.readError, QStringLiteral("unavailable"));
     }
 
+    // The check `helper` before any command: the client waits for the hello
+    // instead of reading it before it came (it read empty, "missing").
+    void theHelperCheckWaitsForTheHello()
+    {
+        IpodView view(QStringLiteral("S1"));
+        FakeCommands commands;
+        LinuxSourcesConfig config = configFor(Family::Partition, QStringLiteral("S1"), QString());
+        config.helloReader = nullptr;
+
+        helper::HelperClient client;
+        client.setProgram(QStringLiteral(TACETOS_HELPER_PROGRAM));
+        QVERIFY(client.hello().isEmpty());
+        const HelperInfo info = LinuxDiagnoseSources(config, view, commands, client).helper();
+        QVERIFY(info.found);
+        QVERIFY(info.protocolOk);
+        client.shutdown();
+
+        // Started when the window opens: the hello is there before the check.
+        helper::HelperClient early;
+        early.setProgram(QStringLiteral(TACETOS_HELPER_PROGRAM));
+        early.ensureStarted();
+        QVERIFY(early.isRunning());
+        QTRY_VERIFY(!early.hello().isEmpty());
+        QVERIFY(LinuxDiagnoseSources(config, view, commands, early).helper().protocolOk);
+        early.shutdown();
+
+        // No program: missing, at once.
+        helper::HelperClient none;
+        none.setProgram(QDir::temp().filePath(QStringLiteral("tacetos-no-such-helper")));
+        QVERIFY(!LinuxDiagnoseSources(config, view, commands, none).helper().found);
+    }
+
     // A volume that is a folder on another disk, as in the tests: the system
     // figures are those of that disk, so the sizes come from detection.
     void aVolumeFolderTakesTheSizesOfDetection()
@@ -382,6 +414,31 @@ private slots:
                 }
             }
         }
+    }
+
+    // The Classic gives another serial under TacetOS than under Apple's firmware:
+    // the iPod of the flow is found again on its port. A serial that matches wins.
+    void theViewFindsTheIpodOnItsPortWhenTheSerialChanged()
+    {
+        IpodView view(QStringLiteral("S1"), QStringLiteral("1-2"));
+        QVERIFY(view.current().serial.isEmpty());
+        view.seen(detected(QStringLiteral("T9"), QStringLiteral("1-3"), QString()));
+        QVERIFY(view.current().serial.isEmpty());
+        view.seen(detected(QStringLiteral("T1"), QStringLiteral("1-2"), QString()));
+        QCOMPARE(view.current().serial, QStringLiteral("T1"));
+        view.seen(detected(QStringLiteral("S1"), QStringLiteral("1-4"), QString()));
+        QCOMPARE(view.current().serial, QStringLiteral("S1"));
+
+        // The iPod on the port is not "another iPod" for the check `single-ipod`.
+        IpodView single(QStringLiteral("S1"), QStringLiteral("1-2"));
+        single.seen(detected(QStringLiteral("T1"), QStringLiteral("1-2"), QString()));
+        QCOMPARE(single.otherIpods(), 0);
+        single.seen(detected(QStringLiteral("T9"), QStringLiteral("1-3"), QString()));
+        QCOMPARE(single.otherIpods(), 1);
+
+        IpodView noPort(QStringLiteral("S1"));
+        noPort.seen(detected(QStringLiteral("T1"), QStringLiteral("1-2"), QString()));
+        QVERIFY(noPort.current().serial.isEmpty());
     }
 
     void classicHasNoFirmwarePartition()

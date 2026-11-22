@@ -139,10 +139,12 @@ public:
 
     void gone() { queue.append(event(IpodSight::Kind::Gone, device::UsbMode::None)); }
     void dfu() { queue.append(event(IpodSight::Kind::Seen, device::UsbMode::Dfu)); }
-    void normal(device::RunningFirmware running, bool disk = true)
+    void normal(device::RunningFirmware running, bool disk = true,
+                const QString &serial = QString())
     {
         IpodSight s = event(IpodSight::Kind::Seen, device::UsbMode::Normal);
         s.ipod.running = running;
+        s.ipod.serial = serial;
         if (disk)
             s.ipod.disk = device::DiskInfo{QStringLiteral("/dev/sdb"), 1000, 4096};
         queue.append(s);
@@ -171,6 +173,15 @@ public:
                       const HelperWatch &watch = HelperWatch()) override
     {
         asked << cmd;
+        if (diskGone > 0) {
+            // As the helper does when udisks2 does not know the disk: before anything.
+            --diskGone;
+            HelperAnswer gone;
+            gone.code = QString(helper::err::diskGone);
+            if (onResult)
+                onResult(gone);
+            return gone;
+        }
         Hooks hooks(*this, watch);
         const helper::CommandOutcome o = helper::runClassicDfuOnDisk(args, *system, disk, hooks);
         HelperAnswer answer;
@@ -188,6 +199,8 @@ public:
     std::function<void(const QString &)> onStage;
     std::function<void(const HelperAnswer &)> onResult;
     QStringList asked;
+    // The next calls answer `disk-gone`, as the helper does before it looks at anything.
+    int diskGone = 0;
 
 private:
     class Hooks : public helper::CommandHooks
@@ -282,6 +295,22 @@ public:
     StepOutcome run(StepContext &) override { return StepOutcome::done(); }
 };
 
+// In place of `verify`: what `classic-bootloader` told the steps after it.
+class ReadReturned : public Step
+{
+public:
+    explicit ReadReturned(QString *seen) : m_seen(seen) {}
+    StepOutcome run(StepContext &context) override
+    {
+        *m_seen =
+            context.fact(QString(step::classicBootloader), QStringLiteral("returned")).toString();
+        return StepOutcome::done();
+    }
+
+private:
+    QString *m_seen;
+};
+
 } // namespace
 
 class TstWizardClassicDfu : public QObject
@@ -303,7 +332,13 @@ private:
     TestPackage m_package;
     QString m_backup;
     QStringList m_stages;
+    // The stages the step gave the runner.
+    QStringList m_progress;
     QList<QString> m_reasons;
+    // The fact `returned` as the step after `classic-bootloader` reads it.
+    QString m_returned;
+    // The USB detail of each "ready" wait.
+    QList<QString> m_usb;
     int m_waits = 0;
     // What the user does at each "ready" wait: true presses Start.
     QList<bool> m_start;
@@ -362,7 +397,10 @@ private:
                                     bootFile(pattern(4096, 0x42)), {{QStringLiteral("a"), "a"}});
         m_backup = newFolder(QStringLiteral("backup"));
         m_stages.clear();
+        m_progress.clear();
         m_reasons.clear();
+        m_returned.clear();
+        m_usb.clear();
         m_waits = 0;
         m_start.clear();
         m_runner.reset();
@@ -386,14 +424,19 @@ private:
                     return std::make_unique<SetBackupFolder>(m_backup);
                 if (name == step::classicBootloader)
                     return std::make_unique<ClassicDfuStep>(m_sources);
+                if (name == step::verify)
+                    return std::make_unique<ReadReturned>(&m_returned);
                 return std::make_unique<NoopStep>();
             });
         WizardRunner *runner = m_runner.get();
+        connect(runner, &WizardRunner::stepProgress, runner,
+                [this](const QString &, const QString &stage) { m_progress << stage; });
         connect(runner, &WizardRunner::stepWaiting, runner,
                 [this, runner](const QString &, WaitKind kind, const QJsonObject &info) {
                     if (kind != WaitKind::ReadyForDfu)
                         return;
                     m_reasons << info.value(QStringLiteral("reason")).toString();
+                    m_usb << info.value(QStringLiteral("usb")).toString();
                     UserAnswer answer;
                     answer.cancelled = m_waits >= m_start.size() || !m_start.at(m_waits);
                     ++m_waits;
@@ -439,14 +482,17 @@ private slots:
                 m_watch.dfu();
             }
         };
+        // Under TacetOS the Classic gives another serial (D45).
         m_commands.onResult = [this](const HelperAnswer &) {
             m_watch.gone();
-            m_watch.normal(device::RunningFirmware::Other);
+            m_watch.normal(device::RunningFirmware::Other, true, QStringLiteral("T1"));
         };
         QCOMPARE(runFlow(), QString());
         QVERIFY(!m_device->received().isEmpty());
         QVERIFY(m_stages.contains(QStringLiteral("send")));
         QCOMPARE(m_reasons, (QStringList{QString()}));
+        // Back under TacetOS: `verify` may then see Apple's firmware (Menu held).
+        QCOMPARE(m_returned, QStringLiteral("tacetos"));
         QFile file(recordPath());
         QVERIFY(file.open(QIODevice::ReadOnly));
         const QJsonObject record = QJsonDocument::fromJson(file.readAll()).object();
@@ -458,6 +504,11 @@ private slots:
         // The record is what the next `stateBefore` reads.
         QCOMPARE(classicStateBefore({recordPath()}, kSerial), QString("present"));
         QCOMPARE(classicStateBefore({recordPath()}, QString("other")), QString("unknown"));
+        // The second serial, and the way back to the first one.
+        QCOMPARE(record.value("serialUnderTacetos").toString(), QStringLiteral("T1"));
+        QCOMPARE(appleSerialOf({recordPath()}, QStringLiteral("T1")), kSerial);
+        QVERIFY(appleSerialOf({recordPath()}, kSerial).isEmpty());
+        QVERIFY(appleSerialOf({recordPath()}, QString()).isEmpty());
     }
 
     // Section 9.4: the iPod comes back as a disk instead of DFU mode. The
@@ -493,6 +544,49 @@ private slots:
         QVERIFY(!m_device->received().isEmpty());
     }
 
+    // Section 9.4: Start while the iPod restarts, so udisks2 does not know its
+    // disk yet. The step does not fail: it waits for detection to show the disk,
+    // then sends again by itself, without a second Start.
+    void startWithoutTheDiskWaitsForIt()
+    {
+        setUpRun();
+        m_start = {true};
+        m_commands.diskGone = 2;
+        m_commands.onStage = [this](const QString &name) {
+            m_stages << name;
+            if (name == QLatin1String("wait-device")) {
+                m_watch.gone();
+                m_watch.dfu();
+            }
+        };
+        m_commands.onResult = [this](const HelperAnswer &answer) {
+            // The disk shows up again after each refusal, then the iPod restarts.
+            m_watch.gone();
+            m_watch.normal(answer.ok() ? device::RunningFirmware::Other
+                                       : device::RunningFirmware::Apple);
+        };
+        QCOMPARE(runFlow(), QString());
+        QCOMPARE(m_commands.asked.size(), 3);
+        QCOMPARE(m_reasons, (QStringList{QString()}));
+        QCOMPARE(m_progress.count(QStringLiteral("wait-disk")), 2);
+        QVERIFY(!m_device->received().isEmpty());
+        QVERIFY(QFile::exists(recordPath()));
+    }
+
+    // The disk does not come back in time (the iPod stays in DFU mode): the
+    // step asks for Start again, with the reason `no-disk`. Nothing was ejected.
+    void startWithoutTheDiskAsksAgainAfterAWhile()
+    {
+        setUpRun();
+        m_start = {true};
+        m_commands.diskGone = 1000000;
+        QCOMPARE(runFlow(), QString(error::cancelled));
+        QCOMPARE(m_reasons, (QStringList{QString(), QString(error::noDisk)}));
+        QVERIFY(m_commands.asked.size() >= 1);
+        QCOMPARE(m_layer->unmountCalls, 0);
+        QVERIFY(m_device->received().isEmpty());
+    }
+
     // Section 9.4: no DFU device in the wait of the helper. The step waits for
     // the user again with the hint; here the user stops.
     void noDfuInTime()
@@ -504,6 +598,23 @@ private slots:
         QCOMPARE(m_reasons, (QStringList{QString(), QString(error::dfuFailed)}));
         QVERIFY(m_device->received().isEmpty());
         QVERIFY(!QFile::exists(recordPath()));
+    }
+
+    // The iPod in DFU mode cannot be opened: the step waits again with the USB
+    // detail of the helper for the log; here the user stops.
+    void openFailureGivesTheUsbDetail()
+    {
+        setUpRun();
+        FakeDfuScript script;
+        script.openFails = true;
+        script.openCode = UsbAccessError::Other;
+        m_device = std::make_unique<FakeDfuDevice>(script);
+        m_layer->device = m_device.get();
+        m_start = {true};
+        QCOMPARE(runFlow(), QString(error::cancelled));
+        QCOMPARE(m_reasons, (QStringList{QString(), QString(error::dfuFailed)}));
+        QCOMPARE(m_usb, (QStringList{QString(), QStringLiteral("access denied")}));
+        QVERIFY(m_device->received().isEmpty());
     }
 
     // Nothing is ejected before the user says "Start".
