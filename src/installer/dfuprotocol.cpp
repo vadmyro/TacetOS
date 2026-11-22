@@ -59,6 +59,8 @@ private:
     bool sendOut(quint8 request, quint16 value, const QByteArray &data = {});
     bool getState(int *state);
     bool getStatus(Status *status);
+    // The detail of a request that failed: its name, where the transfer was, then `text`.
+    void requestFailed(quint8 request, const QString &text);
     void wait(int pollMs);
     // Step 3. `answered` tells a wrong state from a request that failed.
     bool checkIdle(bool *answered);
@@ -75,7 +77,45 @@ private:
     UsbDfuLink &m_link;
     const DfuSendOptions &m_options;
     DfuTransferResult m_result;
+    // Where the transfer is, for the detail: the block sent (from 1) out of `m_blocks`,
+    // 0 before the first one; `m_final` once the empty block is on its way.
+    int m_block = 0;
+    int m_blocks = 0;
+    bool m_final = false;
 };
+
+QString requestName(quint8 request)
+{
+    switch (request) {
+    case kDfuDnload:
+        return QStringLiteral("DNLOAD");
+    case kDfuGetStatus:
+        return QStringLiteral("GETSTATUS");
+    case kDfuClrStatus:
+        return QStringLiteral("CLRSTATUS");
+    case kDfuGetState:
+        return QStringLiteral("GETSTATE");
+    case kDfuAbort:
+        return QStringLiteral("ABORT");
+    default:
+        return QStringLiteral("request %1").arg(request);
+    }
+}
+
+void Transfer::requestFailed(quint8 request, const QString &text)
+{
+    QString where = requestName(request);
+    const bool sends = request == kDfuDnload;
+    if (m_final)
+        where += sends ? QStringLiteral(" of the final empty block")
+                       : QStringLiteral(" after the final empty block");
+    else if (m_block > 0)
+        where += QStringLiteral(" %1 block %2 of %3")
+                     .arg(sends ? QStringLiteral("of") : QStringLiteral("after"))
+                     .arg(m_block)
+                     .arg(m_blocks);
+    m_result.detail = where + QStringLiteral(": ") + text;
+}
 
 UsbControlResult Transfer::send(quint8 type, quint8 request, quint16 value, const QByteArray &out,
                                 quint16 asked)
@@ -97,7 +137,7 @@ bool Transfer::sendOut(quint8 request, quint16 value, const QByteArray &data)
 {
     const UsbControlResult r = send(kDfuTypeOut, request, value, data, 0);
     if (!r.ok)
-        m_result.detail = r.error;
+        requestFailed(request, r.error);
     return r.ok;
 }
 
@@ -105,11 +145,11 @@ bool Transfer::getState(int *state)
 {
     const UsbControlResult r = send(kDfuTypeIn, kDfuGetState, 0, {}, 1);
     if (!r.ok) {
-        m_result.detail = r.error;
+        requestFailed(kDfuGetState, r.error);
         return false;
     }
     if (r.data.size() != 1) {
-        m_result.detail = QStringLiteral("GETSTATE answered %1 bytes").arg(r.data.size());
+        requestFailed(kDfuGetState, QStringLiteral("answered %1 bytes").arg(r.data.size()));
         return false;
     }
     *state = quint8(r.data.at(0));
@@ -120,11 +160,11 @@ bool Transfer::getStatus(Status *status)
 {
     const UsbControlResult r = send(kDfuTypeIn, kDfuGetStatus, 0, {}, kDfuStatusBytes);
     if (!r.ok) {
-        m_result.detail = r.error;
+        requestFailed(kDfuGetStatus, r.error);
         return false;
     }
     if (r.data.size() != kDfuStatusBytes) {
-        m_result.detail = QStringLiteral("GETSTATUS answered %1 bytes").arg(r.data.size());
+        requestFailed(kDfuGetStatus, QStringLiteral("answered %1 bytes").arg(r.data.size()));
         return false;
     }
     status->status = quint8(r.data.at(0));
@@ -248,7 +288,9 @@ DfuTransferResult Transfer::run(const QByteArray &image)
     // Step 4.
     const QByteArray data = withDfuChecksum(image);
     int number = 0;
+    m_blocks = int((data.size() + kDfuBlockBytes - 1) / kDfuBlockBytes);
     for (qsizetype at = 0; at < data.size(); at += kDfuBlockBytes, ++number) {
+        m_block = number + 1;
         if (!sendBlock(number, data.mid(at, kDfuBlockBytes)))
             return recover(DfuFailure::Interrupted, kMessageInterrupted, {});
     }
@@ -257,6 +299,7 @@ DfuTransferResult Transfer::run(const QByteArray &image)
     // first; then it may answer dfuMANIFEST, or not at all because the payload runs
     // already, which is the first case of step 6.
     Status status;
+    m_final = true;
     if (!sendOut(kDfuDnload, quint16(number)))
         return recover(DfuFailure::Interrupted, kMessageInterrupted, {});
     bool goneAfterBusy = false;
