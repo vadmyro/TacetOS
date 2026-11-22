@@ -4,7 +4,7 @@ The small program `tacet-helper`, started by the app, with a fixed list of comma
 
 On Linux it runs as the user: the disk is opened through udisks2, which asks for the password, and `pkexec` is used once, only to put the udev rule in place. On Windows it runs as an administrator, on macOS as the user.
 
-What is there so far: the udev rule that gives the logged-in user access to an iPod Classic in DFU mode (`05ac:1223`) and to nothing else, `70-tacetos-dfu.rules`.
+What is there so far: the udev rule that gives the logged-in user access to an iPod Classic in DFU mode (`05ac:1223`) and to nothing else, `70-tacetos-dfu.rules`. Its last line names the polkit rule that is put in place with it, built into the helper (`udevrule.cpp`): it opens an iPod disk (vendor Apple, model starting with iPod, removable, USB) for a local and active session with no password window. One `pkexec` call puts both in place; on a system with no folder of polkit rules only the udev rule is put, and `install-udev-rule` answers with `polkit` false.
 
 The skeleton of the program is there too. `tacet-helper` reads one JSON request per line on its standard input, refuses anything that is not exactly in its table of commands (`commands.cpp`), takes a lock per disk (`lock.cpp`), and answers with events on its standard output. The gate of development builds is in `gate.h`. One command is wired so far, `read-state`, on disk image files (a real disk is refused for now). `HelperClient` (`helperclient.h`) is the class of the app that starts the program with a `QProcess`, sends the requests and turns the `log` events into entries of the journal. Still to come: `busy` and `cancel` (they need commands that last), the other commands, and the Linux layer.
 

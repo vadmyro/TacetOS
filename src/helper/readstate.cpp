@@ -62,8 +62,12 @@ bool looksLikeClassic(const PartitionTable &t)
     const Slot &first = t.slotList.first();
     if (first.type != kDosTypeFat32 && first.type != kDosTypeFat32Lba)
         return false;
+    // Under Apple's firmware the other slots are empty. Under TacetOS the Classic also shows
+    // its firmware area, as a slot that ends before the music starts (section 6.2).
     for (int i = 1; i < t.slotList.size(); ++i) {
-        if (!t.slotList.at(i).isEmpty())
+        const Slot &other = t.slotList.at(i);
+        if (!other.isEmpty() &&
+            quint64(other.firstSector) + other.sectorCount > quint64(first.firstSector))
             return false;
     }
     return true;

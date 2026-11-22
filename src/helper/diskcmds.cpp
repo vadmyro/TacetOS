@@ -132,6 +132,7 @@ CommandOutcome runInstallUdevRule(SystemLayer *system)
     CommandOutcome o;
     o.ok = true;
     o.data.insert(QStringLiteral("alreadyInstalled"), r.alreadyInstalled);
+    o.data.insert(QStringLiteral("polkit"), r.polkit);
     return o;
 }
 

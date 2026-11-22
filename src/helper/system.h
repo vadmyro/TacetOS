@@ -81,6 +81,9 @@ struct UdevEnv
 {
     // `/etc/udev/rules.d/70-tacetos-dfu.rules` on a real system.
     QString rulesFile;
+    // `/etc/polkit-1/rules.d/70-tacetos-ipod.rules` on a real system. Only its
+    // folder is looked at: whether the system has polkit rules (section 11.5).
+    QString polkitRulesFile;
     // The path of `pkexec`, empty when it is missing (section 11.5).
     QString pkexecPath;
     // Where the helper makes its temporary folder.

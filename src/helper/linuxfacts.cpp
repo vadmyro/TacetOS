@@ -20,6 +20,30 @@ const QString kDriveInterface = QStringLiteral("org.freedesktop.UDisks2.Drive");
 const QString kPartitionInterface = QStringLiteral("org.freedesktop.UDisks2.Partition");
 const QString kLoopInterface = QStringLiteral("org.freedesktop.UDisks2.Loop");
 
+// Section 11.2 step 2: the serial of the drive, as udev gives it to udisks2. Spaces at both
+// ends go, each run of spaces inside becomes one `_`, and every other character that is not
+// a letter, a digit or one of `#+-.:=@_` becomes `_`. A Classic under TacetOS has a USB
+// serial with spaces ("3           Y8CISJFKS"), which udisks2 shows as "3_Y8CISJFKS".
+QString udevSerial(const QString &usbSerial)
+{
+    const QString trimmed = usbSerial.trimmed();
+    QString out;
+    bool space = false;
+    for (const QChar c : trimmed) {
+        if (c.isSpace()) {
+            space = true;
+            continue;
+        }
+        if (space)
+            out += QLatin1Char('_');
+        space = false;
+        const bool kept =
+            (c.unicode() < 128 && c.isLetterOrNumber()) || QStringLiteral("#+-.:=@_").contains(c);
+        out += kept ? c : QLatin1Char('_');
+    }
+    return out;
+}
+
 // A byte string of D-Bus ends with a zero byte.
 QString bytesText(const QVariant &value)
 {
@@ -215,7 +239,8 @@ DiskVerdict judgeDisk(const DiskRequest &request, const DiskInputs &inputs)
                           .arg(request.sizeBytes));
     const QString actualSerial = usb.found ? usb.serial : block.serial;
     if (actualSerial != request.serial ||
-        (!block.serial.isEmpty() && block.serial != request.serial))
+        (!block.serial.isEmpty() && block.serial != request.serial &&
+         block.serial != udevSerial(request.serial)))
         return refuse(err::diskChanged,
                       QStringLiteral("the serial of the disk is not the one of the request"));
     const QString actualPort = usb.found ? usb.port : QString();

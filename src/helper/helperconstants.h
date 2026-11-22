@@ -28,6 +28,7 @@ inline constexpr int kImageSectorSizes[] = {512, 2048, 4096};
 
 // Section 11.5: where the rule goes on a real system.
 inline constexpr QLatin1String kUdevRulesFile("/etc/udev/rules.d/70-tacetos-dfu.rules");
+inline constexpr QLatin1String kPolkitRulesFile("/etc/polkit-1/rules.d/70-tacetos-ipod.rules");
 
 // Section 13. The last three are not in the spec's table: they are what the
 // client says when there is no helper to answer (sections 2.3, 3.2).

@@ -179,6 +179,7 @@ std::unique_ptr<SystemLayer> makeRealSystem()
 #endif
     static const std::unique_ptr<ProcessRunner> runner = makeProcessRunner();
     system->udev.rulesFile = QString(kUdevRulesFile);
+    system->udev.polkitRulesFile = QString(kPolkitRulesFile);
     system->udev.pkexecPath = QStandardPaths::findExecutable(QStringLiteral("pkexec"));
     system->udev.runner = runner.get();
 #if TACETOS_HELPER_HAS_USB
