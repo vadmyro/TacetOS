@@ -190,6 +190,27 @@ void TstDeviceMerge::stateTable_data()
             << ev << IpodState::UnsupportedFilesystem << "classic-6g";
     }
     {
+        IpodEvidence ev = plugged(QStringLiteral("05ac:1261"));
+        ev.volume->readOnly = true;
+        QTest::newRow("read-only: FAT32 volume mounted read only")
+            << ev << IpodState::ReadOnly << "classic-6g";
+    }
+    {
+        // A volume that cannot be used at all says so before the read only flag.
+        IpodEvidence ev = plugged(QStringLiteral("05ac:1261"));
+        ev.volume = someVolume(QStringLiteral("exfat"));
+        ev.volume->readOnly = true;
+        QTest::newRow("unsupported-filesystem wins over read-only")
+            << ev << IpodState::UnsupportedFilesystem << "classic-6g";
+    }
+    {
+        IpodEvidence ev = plugged(QStringLiteral("05ac:1209"));
+        ev.volume = someVolume(QStringLiteral("hfsplus"));
+        ev.volume->readOnly = true;
+        QTest::newRow("mac-format wins over read-only")
+            << ev << IpodState::MacFormat << "ipod-video";
+    }
+    {
         IpodEvidence ev = plugged(QStringLiteral("05ac:1205"));
         QTest::newRow("ambiguous: minis, nothing to tell them apart")
             << ev << IpodState::Ambiguous << "";

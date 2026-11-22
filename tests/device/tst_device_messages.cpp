@@ -141,6 +141,16 @@ void TestMessages::otherStatesUseDetection()
     QCOMPARE(screenMessage(attention, ipod, {}, HostSystem::Linux),
              QStringLiteral("This iPod is not supported."));
 
+    // A volume mounted read only: the card says so, with no action to offer.
+    ScreenState readOnly = stateOf(ScreenKind::Attention);
+    readOnly.reason = IpodState::ReadOnly;
+    ipod.state = IpodState::ReadOnly;
+    QCOMPARE(screenMessage(readOnly, ipod, {}, HostSystem::Linux),
+             QStringLiteral("The iPod is open for reading only."));
+    QCOMPARE(readOnlyAdvice(),
+             QStringLiteral("Unplug the iPod, plug it in again, and if it stays so, check the "
+                            "volume on this computer."));
+
     ipod.state = IpodState::Ready;
     ipod.model = QStringLiteral("classic-6g");
     Model classic;

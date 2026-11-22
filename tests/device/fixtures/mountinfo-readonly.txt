@@ -1,0 +1,6 @@
+100 29 8:18 / /run/media/user/RW rw,nosuid,nodev,relatime shared:60 - vfat /dev/sdb2 rw,fmask=0022
+101 29 8:34 / /run/media/user/MOUNTRO ro,nosuid,nodev,relatime shared:61 - vfat /dev/sdc2 rw,fmask=0022
+102 29 8:50 / /run/media/user/SUPERRO rw,nosuid,nodev,relatime shared:62 - vfat /dev/sdd2 ro,fmask=0022
+103 29 8:66 / /run/media/user/BOTHRO ro,nosuid,nodev,relatime - vfat /dev/sde2 ro
+104 29 8:82 / /run/media/user/REMOUNT rw,relatime shared:63 - ext4 /dev/sdf2 rw,errors=remount-ro
+105 29 8:98 / /run/media/user/NOOPTS rw - vfat /dev/sdg2

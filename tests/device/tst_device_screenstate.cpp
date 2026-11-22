@@ -38,6 +38,7 @@ const QList<QPair<QString, IpodState>> kStates = {
     {QStringLiteral("mac-format"), IpodState::MacFormat},
     {QStringLiteral("no-volume"), IpodState::NoVolume},
     {QStringLiteral("unsupported-filesystem"), IpodState::UnsupportedFilesystem},
+    {QStringLiteral("read-only"), IpodState::ReadOnly},
     {QStringLiteral("ready"), IpodState::Ready},
 };
 
@@ -408,6 +409,7 @@ void TstDeviceScreenState::everyDetectionState_data()
         {QStringLiteral("mac-format"), QStringLiteral("attention")},
         {QStringLiteral("no-volume"), QStringLiteral("not-mounted")},
         {QStringLiteral("unsupported-filesystem"), QStringLiteral("attention")},
+        {QStringLiteral("read-only"), QStringLiteral("attention")},
         {QStringLiteral("ready"), QStringLiteral("ready")},
     };
     for (const auto &item : kStates)

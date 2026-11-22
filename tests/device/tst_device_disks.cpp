@@ -113,6 +113,7 @@ private slots:
     void mountinfoParsing();
     void mountinfoEscapes();
     void mountinfoSkipsBadLines();
+    void mountinfoReadOnly();
     void volumeFat32();
     void volumeHfsPlus();
     void volumeBySourceLink();
@@ -298,6 +299,28 @@ void TestDeviceDisks::mountinfoEscapes()
     const QList<MountEntry> odd =
         parseMountinfo(QStringLiteral("1 2 8:2 / /a\\zz rw - vfat /dev/sdb2 rw\n"));
     QCOMPARE(odd[0].mountPoint, QStringLiteral("/a\\zz"));
+}
+
+void TestDeviceDisks::mountinfoReadOnly()
+{
+    // A recorded file: `ro` in the options of the mount, in the ones of the filesystem, in both,
+    // and the look-alikes that are not.
+    const QList<MountEntry> mounts =
+        readMountinfo(QStringLiteral(TACETOS_DEVICE_FIXTURES "/mountinfo-readonly.txt"));
+    QCOMPARE(mounts.size(), 6);
+    const QList<bool> expected = {false, true, true, true, false, false};
+    for (int i = 0; i < mounts.size(); ++i)
+        QCOMPARE(mounts[i].readOnly, expected[i]);
+
+    // The flag reaches the volume of a partition by its device number.
+    LinuxPartition partition;
+    partition.major = 8;
+    partition.minor = 34;
+    const std::optional<VolumeInfo> volume = findMountedVolume(mounts, partition);
+    QVERIFY(volume);
+    QVERIFY(volume->readOnly);
+    partition.minor = 18;
+    QVERIFY(!findMountedVolume(mounts, partition)->readOnly);
 }
 
 void TestDeviceDisks::mountinfoSkipsBadLines()
