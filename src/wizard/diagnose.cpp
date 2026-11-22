@@ -176,9 +176,13 @@ QList<Check> ipodChecks(const DiagnoseInput &in, bool helperOk)
     }
 
     Check volume = make("volume", Side::Ipod, true);
-    if (!ipod.volumeReady)
+    if (!ipod.volumeReady) {
         fail(volume, ipod.volumeMessage.isEmpty() ? tr("The music volume of the iPod is not ready")
                                                   : ipod.volumeMessage);
+        // An iPod whose volume was unmounted (by an eject, or by the system) stays so.
+        if (ipod.volumeMountable)
+            volume.action = QStringLiteral("mount-volume");
+    }
     add(volume, true);
     const bool volumeOk = helperOk && volume.result == CheckResult::Pass;
 

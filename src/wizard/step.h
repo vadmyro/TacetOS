@@ -5,11 +5,13 @@
 
 #include "flow.h"
 
+#include <QDeadlineTimer>
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QList>
 #include <QMetaType>
 #include <QString>
+#include <QThread>
 #include <functional>
 #include <memory>
 
@@ -103,6 +105,20 @@ public:
 
 // Makes the step of a name of section 2.3. Null for a name it does not know.
 using StepFactory = std::function<std::unique_ptr<Step>(const QString &name)>;
+
+// After a restart, detection sees the iPod before its volume is mounted (6 to 8 s on
+// the real Classic). Asks `ready` every 100 ms until it is true, `ms` is over or the
+// user stops; returns whether it became true.
+inline bool waitUntil(StepContext &context, qint64 ms, const std::function<bool()> &ready)
+{
+    const QDeadlineTimer deadline(ms);
+    while (!ready()) {
+        if (deadline.hasExpired() || context.stopRequested())
+            return false;
+        QThread::msleep(100);
+    }
+    return true;
+}
 
 } // namespace tacetos::wizard
 

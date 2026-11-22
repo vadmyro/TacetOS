@@ -137,6 +137,10 @@ device::DetectedIpod IpodView::current() const
         if (m_serial.isEmpty() || ipod.serial == m_serial)
             return ipod;
     }
+    for (const device::DetectedIpod &ipod : m_ipods) {
+        if (!m_portPath.isEmpty() && ipod.portPath == m_portPath)
+            return ipod;
+    }
     return {};
 }
 
@@ -146,7 +150,10 @@ int IpodView::otherIpods() const
     int others = 0;
     bool first = true;
     for (const device::DetectedIpod &ipod : m_ipods) {
-        const bool mine = m_serial.isEmpty() ? first : ipod.serial == m_serial;
+        const bool mine =
+            m_serial.isEmpty()
+                ? first
+                : ipod.serial == m_serial || (!m_portPath.isEmpty() && ipod.portPath == m_portPath);
         first = false;
         if (!mine)
             ++others;
@@ -273,7 +280,14 @@ UdisksInfo LinuxDiagnoseSources::udisks() const
 
 HelperInfo LinuxDiagnoseSources::helper() const
 {
-    return helperInfoFromHello(m_config.helloReader ? m_config.helloReader() : m_client.hello());
+    if (m_config.helloReader)
+        return helperInfoFromHello(m_config.helloReader());
+    // The hello comes some time after the start. A `cancel` of no request waits
+    // for it (or for the helper to be missing, silent or of another version)
+    // and changes nothing.
+    if (m_client.hello().isEmpty())
+        callHelper(m_client, QString(helper::cmd::cancel), {{QStringLiteral("request"), 0}});
+    return helperInfoFromHello(m_client.hello());
 }
 
 bool LinuxDiagnoseSources::udevRulePresent() const
@@ -308,6 +322,7 @@ IpodFacts LinuxDiagnoseSources::ipod() const
     facts.capacityGb = capacityOf(m_config.model, ipod);
     facts.otherIpods = m_view.otherIpods();
     facts.volumeReady = ipod.state == device::IpodState::Ready && ipod.volume.has_value();
+    facts.volumeMountable = ipod.state == device::IpodState::NoVolume && ipod.disk.has_value();
     facts.filesystem = filesystemOf(ipod);
     if (ipod.volume) {
         const QStorageInfo storage(ipod.volume->mountPoint);

@@ -27,6 +27,7 @@ const QString kStageSend = QStringLiteral("send");
 const QString kStageResume = QStringLiteral("resume");
 const QString kStageDfuDetected = QStringLiteral("dfu-detected");
 const QString kStageDiskModeInstead = QStringLiteral("disk-mode-instead");
+const QString kStageWaitDisk = QStringLiteral("wait-disk");
 const QString kNotTaken = QStringLiteral("notTaken");
 const QString kNotRemoved = QStringLiteral("notRemoved");
 
@@ -81,6 +82,28 @@ QString classicStateBefore(const QStringList &files, const QString &serial)
     return QStringLiteral("unknown");
 }
 
+QString appleSerialOf(const QStringList &files, const QString &seen)
+{
+    if (seen.isEmpty())
+        return {};
+    QDateTime latest;
+    QString serial;
+    for (const QString &path : files) {
+        const QJsonObject record = readRecord(path);
+        if (record.value(QStringLiteral("serialUnderTacetos")).toString() != seen)
+            continue;
+        const QDateTime date =
+            QDateTime::fromString(record.value(QStringLiteral("date")).toString(), Qt::ISODate);
+        if (!date.isValid())
+            continue;
+        if (!latest.isValid() || date >= latest) {
+            latest = date;
+            serial = record.value(QStringLiteral("serial")).toString();
+        }
+    }
+    return serial;
+}
+
 // Section 9.1: any failure stops the step before the iPod is ejected.
 std::optional<StepOutcome> ClassicDfuStep::conditions(StepContext &context) const
 {
@@ -123,6 +146,8 @@ bool ClassicDfuStep::writeRecord(StepContext &context, const PackageFiles &files
     record.insert(QStringLiteral("operation"), QStringLiteral("install"));
     record.insert(QStringLiteral("date"), QDateTime::currentDateTimeUtc().toString(Qt::ISODate));
     record.insert(QStringLiteral("serial"), context.serial());
+    if (!m_returnedSerial.isEmpty() && m_returnedSerial != context.serial())
+        record.insert(QStringLiteral("serialUnderTacetos"), m_returnedSerial);
     record.insert(QStringLiteral("model"), context.model());
     record.insert(QStringLiteral("version"), files.version);
     record.insert(QStringLiteral("bootloaderName"), QFileInfo(files.bootloader).fileName());
@@ -203,6 +228,9 @@ StepOutcome ClassicDfuStep::comeBack(StepContext &context, QList<IpodSight> &pen
                 context.setFact(kNotRemoved, times);
                 return StepOutcome::failed(QString(error::stillTacetos), QString::number(times));
             }
+            // For `verify`: the iPod may run Apple's firmware later in the flow (Menu held).
+            context.setFact(QStringLiteral("returned"), QStringLiteral("tacetos"));
+            m_returnedSerial = sight->ipod.serial;
             return StepOutcome::done();
         case device::RunningFirmware::Apple: {
             if (m_operation == ClassicOperation::Uninstall)
@@ -246,17 +274,27 @@ StepOutcome ClassicDfuStep::run(StepContext &context)
     }
     const QString port = m_sources.portPath();
     IpodSightWatch &sight = m_sources.sight();
+    m_returnedSerial.clear();
     QString reason;
     QString hint;
+    // The USB detail of the last failed try, for the log of the app.
+    QString usb;
+    // Set while the step looks for the disk after a Start without it: the user
+    // already said Start, the step sends again by itself.
+    std::optional<QDeadlineTimer> diskWait;
     for (;;) {
         // Step 1: nothing is ejected before the user says "Start".
-        QJsonObject info;
-        info.insert(QStringLiteral("model"), context.model());
-        info.insert(QStringLiteral("reason"), reason);
-        info.insert(QStringLiteral("hint"), hint);
-        const UserAnswer answer = context.waitForUser(WaitKind::ReadyForDfu, info);
-        if (answer.cancelled)
-            return StepOutcome::cancelled();
+        if (!diskWait) {
+            QJsonObject info;
+            info.insert(QStringLiteral("model"), context.model());
+            info.insert(QStringLiteral("reason"), reason);
+            info.insert(QStringLiteral("hint"), hint);
+            if (!usb.isEmpty())
+                info.insert(QStringLiteral("usb"), usb);
+            const UserAnswer answer = context.waitForUser(WaitKind::ReadyForDfu, info);
+            if (answer.cancelled)
+                return StepOutcome::cancelled();
+        }
 
         // Step 3.
         QJsonObject args;
@@ -310,12 +348,41 @@ StepOutcome ClassicDfuStep::run(StepContext &context)
         const HelperAnswer result =
             m_sources.helper().call(QString(helper::cmd::classicDfu), args, watch);
 
+        if (result.code == helper::err::diskGone && stage != kStageSend && stage != kStageResume) {
+            // Section 9.4: Start while the iPod restarts, or is still in DFU mode.
+            // Nothing was sent: the step waits for the disk, then sends again.
+            if (!diskWait)
+                diskWait = QDeadlineTimer(m_sources.returnMs());
+            if (diskWait->hasExpired()) {
+                diskWait.reset();
+                reason = QString(error::noDisk);
+                hint.clear();
+                usb.clear();
+                continue;
+            }
+            context.progress(kStageWaitDisk, 0, 0);
+            const auto stop = [&context] { return context.stopRequested(); };
+            const QDeadlineTimer look(std::min(kDiskLookMs, diskWait->remainingTime()));
+            while (!look.hasExpired()) {
+                const auto seen = sight.next(look.remainingTime(), stop);
+                if (context.stopRequested())
+                    return StepOutcome::cancelled();
+                if (seen && (port.isEmpty() || seen->portPath == port) &&
+                    seen->kind != IpodSight::Kind::Gone &&
+                    seen->ipod.mode == device::UsbMode::Normal && seen->ipod.disk)
+                    break;
+            }
+            continue;
+        }
+        diskWait.reset();
+
         if (diskInstead &&
             (result.code == helper::err::cancelled || result.code == helper::err::dfuFailed)) {
             // Not a failure: the buttons were not the right ones.
             context.progress(kStageDiskModeInstead, 0, 0);
             reason = QString(error::diskModeInstead);
             hint.clear();
+            usb.clear();
             continue;
         }
         if (result.code == helper::err::cancelled)
@@ -324,6 +391,7 @@ StepOutcome ClassicDfuStep::run(StepContext &context)
             // Section 9.4: the step waits for the user again.
             reason = QString(error::dfuFailed);
             hint = result.detail;
+            usb = result.data.value(QStringLiteral("usbDetail")).toString();
             continue;
         }
         if (!result.ok())

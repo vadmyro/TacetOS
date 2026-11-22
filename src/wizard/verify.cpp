@@ -32,8 +32,17 @@ StepOutcome VerifyStep::run(StepContext &context)
     const FlowShape shape = context.shape();
     const bool install = shape.kind == FlowKind::Install;
 
-    const device::DetectedIpod ipod = m_sources.detected();
-    if (ipod.serial.isEmpty() || ipod.state != device::IpodState::Ready)
+    const auto ready = [](const device::DetectedIpod &seen) {
+        return !seen.serial.isEmpty() && seen.state == device::IpodState::Ready;
+    };
+    device::DetectedIpod ipod;
+    const bool seen = waitUntil(context, m_sources.readyWaitMs(), [&] {
+        ipod = m_sources.detected();
+        return ready(ipod);
+    });
+    if (context.stopRequested())
+        return StepOutcome::cancelled();
+    if (!seen)
         return differs(QStringLiteral("the iPod is not ready"));
     const QString root = m_sources.volumeRoot();
     if (root.isEmpty())
@@ -57,7 +66,19 @@ StepOutcome VerifyStep::run(StepContext &context)
 
     // The Classic: the firmware it runs now, as detection shows it.
     if (shape.family == Family::Dfu) {
-        if (install && ipod.running != device::RunningFirmware::Other)
+        // Double boot: Apple's firmware also runs when Menu was held at power on. The
+        // bootloader is there if `classic-bootloader` saw the iPod come back under
+        // TacetOS in this flow. A flow from before the fact `returned` has the record,
+        // which that step writes only after such a return.
+        const bool cameBack =
+            context.fact(QString(step::classicBootloader), QStringLiteral("returned")).toString() ==
+                QLatin1String("tacetos") ||
+            !context.fact(QString(step::classicBootloader), QStringLiteral("record"))
+                 .toString()
+                 .isEmpty();
+        const bool tacetos = ipod.running == device::RunningFirmware::Other ||
+                             (ipod.running == device::RunningFirmware::Apple && cameBack);
+        if (install && !tacetos)
             return differs(QStringLiteral("the iPod does not run TacetOS"));
         if (!install && ipod.running != device::RunningFirmware::Apple)
             return differs(QStringLiteral("the iPod does not run the Apple firmware"));

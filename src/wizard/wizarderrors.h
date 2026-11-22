@@ -40,6 +40,7 @@ inline constexpr QLatin1String firmwareNoRoom("firmware-no-room");
 inline constexpr QLatin1String firmwareWriteFailed("firmware-write-failed");
 inline constexpr QLatin1String bootloaderRestored("bootloader-restored");
 inline constexpr QLatin1String diskModeInstead("disk-mode-instead");
+inline constexpr QLatin1String noDisk("no-disk");
 inline constexpr QLatin1String dfuFailed("dfu-failed");
 inline constexpr QLatin1String bootloaderNotTaken("bootloader-not-taken");
 inline constexpr QLatin1String backInDfu("back-in-dfu");

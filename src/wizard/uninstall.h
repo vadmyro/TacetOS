@@ -25,6 +25,9 @@ public:
     // The mount point of the music volume, asked when the step runs: an older
     // iPod gets a new one after Disk Mode.
     virtual QString volumeRoot() const = 0;
+    // How long `remove-firmware` waits for the volume: the Classic comes back from
+    // `classic-remove` before its volume is mounted.
+    virtual qint64 volumeWaitMs() const = 0;
 };
 
 // Section 10, "Nothing to do" for an older iPod: `read-state` says `clean` and

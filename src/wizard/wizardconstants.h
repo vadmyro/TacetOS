@@ -94,6 +94,10 @@ inline constexpr qint64 kVolumeReturnMs = 30 * 1000;
 // (device-state.md section 4).
 inline constexpr qint64 kRestartWindowMs = 60 * 1000;
 
+// Section 9.4: Start while the disk of the Classic is not there. The step looks
+// for it again this often, for at most `kRestartWindowMs`.
+inline constexpr qint64 kDiskLookMs = 2 * 1000;
+
 // Section 9.3: the install record of the Classic, in the backup of the flow.
 inline constexpr QLatin1String kInstallRecordFile("install-record.json");
 inline constexpr int kInstallRecordFormat = 1;

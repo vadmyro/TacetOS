@@ -29,7 +29,8 @@ struct Check
     QString message;
     // Section 4.4: the command to type for what is missing on the computer.
     QString command;
-    // An action the screen offers for this check (`install-udev-rule`).
+    // An action the screen offers for this check (`install-udev-rule`,
+    // `mount-volume`).
     QString action;
 };
 
@@ -75,6 +76,9 @@ struct IpodFacts
     int otherIpods = 0;
     bool volumeReady = false;
     QString volumeMessage;
+    // The disk is there and its volume is not mounted (detection state
+    // `no-volume`): the screen offers to mount it.
+    bool volumeMountable = false;
     Filesystem filesystem = Filesystem::Unknown;
     qint64 volumeFree = 0;
     qint64 volumeSize = 0;

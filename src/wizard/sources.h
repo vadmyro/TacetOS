@@ -67,7 +67,12 @@ struct LinuxSourcesConfig
 class IpodView
 {
 public:
-    explicit IpodView(QString serial = QString()) : m_serial(std::move(serial)) {}
+    // `portPath` finds the iPod of the flow when its serial changed: the Classic
+    // gives another one under TacetOS than under Apple's firmware.
+    explicit IpodView(QString serial = QString(), QString portPath = QString())
+        : m_serial(std::move(serial)), m_portPath(std::move(portPath))
+    {
+    }
     void seen(const device::DetectedIpod &ipod);
     void gone(const QString &portPath);
     // The iPod of the flow; empty `serial` when detection shows none.
@@ -80,6 +85,7 @@ public:
 private:
     mutable QMutex m_mutex;
     QString m_serial;
+    QString m_portPath;
     // By port path, in the order of arrival.
     QList<device::DetectedIpod> m_ipods;
 };
@@ -189,6 +195,10 @@ public:
 
     // VerifySources.
     device::DetectedIpod detected() const override { return m_view.current(); }
+    qint64 readyWaitMs() const override { return returnMs(); }
+
+    // UninstallSources.
+    qint64 volumeWaitMs() const override { return returnMs(); }
 
 private:
     LinuxSourcesConfig m_config;

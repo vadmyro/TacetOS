@@ -64,10 +64,15 @@ public:
     HelperAnswer call(const QString &cmd, const QJsonObject &args,
                       const HelperWatch &watch = HelperWatch()) override;
 
+    // Gives the target of each command instead of the one given at the start:
+    // the disk of an iPod that restarted may have a new name.
+    void setTargetSource(std::function<QJsonObject()> source) { m_source = std::move(source); }
+
 private:
     helper::HelperClient &m_client;
     QJsonObject m_target;
     QString m_port;
+    std::function<QJsonObject()> m_source;
 };
 
 } // namespace tacetos::wizard

@@ -153,7 +153,7 @@ HelperAnswer ClientHelperCommands::call(const QString &cmd, const QJsonObject &a
                                         const HelperWatch &watch)
 {
     QJsonObject withTarget = args;
-    withTarget.insert(QStringLiteral("target"), m_target);
+    withTarget.insert(QStringLiteral("target"), m_source ? m_source() : m_target);
     return callHelper(m_client, cmd, withTarget, m_port, watch);
 }
 

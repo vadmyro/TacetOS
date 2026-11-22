@@ -57,9 +57,27 @@ LinuxStepFactory::LinuxStepFactory(const LinuxSourcesConfig &config, helper::Hel
                                    UdisksMounter::DiskReader disks,
                                    std::unique_ptr<HelperCommands> commands)
 {
-    m_view = std::make_unique<IpodView>(config.serial);
-    m_commands = commands ? std::move(commands)
-                          : std::make_unique<ClientHelperCommands>(client, target, port);
+    m_view = std::make_unique<IpodView>(config.serial, port);
+    if (commands) {
+        m_commands = std::move(commands);
+    } else {
+        auto real = std::make_unique<ClientHelperCommands>(client, target, port);
+        if (target.value(QStringLiteral("kind")).toString() == QLatin1String("disk")) {
+            // The disk as detection shows it now: an iPod that restarted may come
+            // back under another name.
+            IpodView *view = m_view.get();
+            real->setTargetSource([view, target] {
+                QJsonObject now = target;
+                const device::DetectedIpod ipod = view->current();
+                if (ipod.disk && !ipod.disk->node.isEmpty()) {
+                    now.insert(QStringLiteral("node"), ipod.disk->node);
+                    now.insert(QStringLiteral("sizeBytes"), double(ipod.disk->sizeBytes));
+                }
+                return now;
+            });
+        }
+        m_commands = std::move(real);
+    }
     m_partition = std::make_unique<HelperFirmwarePartition>(client, target, port);
     m_mounter = std::make_shared<UdisksMounter>(backend ? std::move(backend) : realBackend(),
                                                 std::move(disks));

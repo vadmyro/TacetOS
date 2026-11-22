@@ -23,6 +23,11 @@ namespace tacetos::wizard {
 // `install-record.json` files; the last record of the serial decides.
 QString classicStateBefore(const QStringList &files, const QString &serial);
 
+// D45: the Classic gives another serial under TacetOS than under Apple's firmware,
+// and the install record keeps that second one. Returns the serial of the last
+// record that saw `seen` under TacetOS, or empty when none did.
+QString appleSerialOf(const QStringList &files, const QString &seen);
+
 // What the step is made from. The app gives the real ones, the tests their own.
 class ClassicDfuSources
 {
@@ -78,6 +83,8 @@ private:
 
     const ClassicDfuSources &m_sources;
     ClassicOperation m_operation;
+    // The serial the iPod gave when it came back under TacetOS, for the record.
+    QString m_returnedSerial;
 };
 
 } // namespace tacetos::wizard

@@ -28,6 +28,9 @@ public:
     // The iPod of the flow as detection shows it now; empty `serial` when it
     // shows none.
     virtual device::DetectedIpod detected() const = 0;
+    // How long the step waits for the iPod to be `ready`: after a restart it is
+    // seen before its volume is mounted.
+    virtual qint64 readyWaitMs() const = 0;
 };
 
 // Section 11.1. Reads everything again, from the iPod and not from the facts of

@@ -132,8 +132,14 @@ StepOutcome RemoveFirmwareStep::run(StepContext &context)
     QString why;
     if (backup.isEmpty() || !isVerifiedBackup(backup, context.serial(), &why))
         return StepOutcome::failed(QString(error::backupNotVerified), why);
-    const QString root = m_sources.volumeRoot();
-    if (root.isEmpty())
+    QString root;
+    const bool back = waitUntil(context, m_sources.volumeWaitMs(), [&] {
+        root = m_sources.volumeRoot();
+        return !root.isEmpty();
+    });
+    if (context.stopRequested())
+        return StepOutcome::cancelled();
+    if (!back)
         return StepOutcome::failed(QString(error::volumeNotBack));
 
     const QString folder = QString(device::kFirmwareFolder);
