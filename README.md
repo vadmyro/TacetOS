@@ -49,7 +49,7 @@
 | Foundations | Firmware base, model database, specs | ✅ 7/7 |
 | **v0.1** | Device detection and live state | ✅ 7/7 |
 | Test devices | Disk image test devices, privileged helper | ✅ 6/6 |
-| **v0.2** | Install and reset wizard | ⏳ 11/13 |
+| **v0.2** | Install and reset wizard | ⏳ 12/13 |
 | **v0.3** | TacetOS firmware | ⏳ 0/11 |
 | **v0.4** | Music library and sync | ⏳ 0/12 |
 | **v0.5** | Settings, fonts, menus | ⏳ 0/7 |
@@ -72,7 +72,7 @@
 - [x] Bootloader install on the iPod Classic, dual boot
 - [x] Uninstall: back to 100 % Apple software
 - [x] Real-device test: uninstall, reinstall, check
-- [ ] Fixes from the real-device test: one password, automatic mount, clearer messages
+- [x] Fixes from the real-device test: one password, automatic mount, clearer messages
 - [x] Log and a "copy report" button for Discord
 
 Every task is listed in the [roadmap](docs/ROADMAP.md). News is posted on the [Discord server](https://discord.gg/XfXtZeUFYs).

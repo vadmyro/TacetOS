@@ -10,7 +10,7 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 | Foundations | Firmware base, model database, library rules, specs of the install formats and protocols | 7/7 | ✅ done |
 | **v0.1** | Device detection and live state (plug, unplug, disk mode, DFU) | 7/7 | ✅ done |
 | Test devices | Disk image test devices + privileged helper | 6/6 | ✅ done |
-| **v0.2** | Install and reset wizard: backup, format, firmware, bootloader, guided DFU, uninstall | 11/13 | ⏳ |
+| **v0.2** | Install and reset wizard: backup, format, firmware, bootloader, guided DFU, uninstall | 12/13 | ⏳ |
 | **v0.3** | Our own firmware build: name, custom boot logo, update channel, health page | 0/11 | ⏳ |
 | **v0.4** | Music library and sync: tags, cover art, sorting rules, playlists, conversion, import folder | 0/12 | ⏳ |
 | **v0.5** | Settings editor, fonts, menu order, listening recap | 0/7 | ⏳ |
@@ -69,7 +69,7 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 - [x] Bootloader install on the iPod Classic, dual boot
 - [x] Uninstall: back to 100 % Apple software
 - [x] Real-device test: uninstall, reinstall, check
-- [ ] Fixes from the real-device test: one password, automatic mount, clearer messages
+- [x] Fixes from the real-device test: one password, automatic mount, clearer messages
 - [x] Log and a "copy report" button for Discord
 
 ## v0.3 · TacetOS firmware
