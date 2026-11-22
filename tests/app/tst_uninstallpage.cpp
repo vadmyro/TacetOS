@@ -395,9 +395,12 @@ private slots:
     // is the success.
     void classicRestart()
     {
-        Fixture f(QStringLiteral("classic-remove"), {progress(QStringLiteral("resume"))}, true,
-                  QStringLiteral("classic-6g"));
+        Fixture f(QStringLiteral("classic-remove"),
+                  {progress(QStringLiteral("send"), 10, 100), progress(QStringLiteral("resume"))},
+                  true, QStringLiteral("classic-6g"));
         f.start();
+        f.next();
+        QVERIFY(!f.page->isRestarting());
         f.next();
         QVERIFY(f.page->isRestarting());
         QCOMPARE(f.page->titleText(), QStringLiteral("The iPod restarts"));

@@ -434,6 +434,59 @@ private slots:
                 !f.page->startButton()->isVisible());
     }
 
+    // Wizard section 9.4: Start before the iPod is there as a disk. The page says why it waits
+    // and how to leave DFU mode, then follows the new try by itself; after a while without the
+    // disk, the steps and Start again with the reason.
+    void startWithoutTheDisk()
+    {
+        Fixture f({wait(), progress(QStringLiteral("wait-disk")),
+                   progress(QStringLiteral("wait-disk")), progress(QStringLiteral("check")),
+                   progress(QStringLiteral("wait-device")), wait(QString(error::noDisk))});
+        f.next();
+        QTRY_VERIFY(f.page->isAsking());
+        QTest::mouseClick(f.page->startButton(), Qt::LeftButton);
+        QTRY_COMPARE(int(f.script.answers), 1);
+
+        f.next();
+        QTRY_COMPARE(f.page->titleText(), QStringLiteral("Waiting for the iPod"));
+        QCOMPARE(f.page->way(), DfuWay::Rest);
+        QVERIFY(!f.page->isAsking());
+        QVERIFY(!f.page->startButton()->isVisible());
+        QVERIFY(label(f.page.get(), "dfuUnder")->text().contains("DFU mode"));
+        f.next();
+        f.settle();
+        QCOMPARE(f.page->titleText(), QStringLiteral("Waiting for the iPod"));
+
+        // The disk is back: the try goes on without a click.
+        f.next();
+        QTRY_COMPARE(f.page->titleText(), QStringLiteral("Getting the iPod ready"));
+        QVERIFY(label(f.page.get(), "dfuUnder")->text().isEmpty());
+        f.next();
+        QTRY_COMPARE(f.page->way(), DfuWay::Hold);
+        QCOMPARE(int(f.script.answers), 1);
+
+        f.next();
+        QTRY_VERIFY(f.page->isAsking());
+        QCOMPARE(f.page->titleText(), QStringLiteral("The iPod did not come back"));
+        QVERIFY(label(f.page.get(), "dfuReason")->text().contains("MENU and the center button"));
+        QVERIFY(f.page->startButton()->isEnabled());
+    }
+
+    // The helper sees the DFU device: `quiet` alone says to let go, without `dfu-detected`.
+    void quietAloneSaysLetGo()
+    {
+        Fixture f(
+            {wait(), progress(QStringLiteral("wait-device")), progress(QStringLiteral("quiet"))});
+        f.next();
+        QTRY_VERIFY(f.page->isAsking());
+        QTest::mouseClick(f.page->startButton(), Qt::LeftButton);
+        f.next();
+        QTRY_COMPARE(f.page->way(), DfuWay::Hold);
+        f.next();
+        QTRY_COMPARE(f.page->way(), DfuWay::Release);
+        QCOMPARE(f.page->titleText(), QStringLiteral("Let go of the buttons now"));
+    }
+
     // Nothing arrives: the step gives the help and the steps again, with Start.
     void nothingArrives()
     {

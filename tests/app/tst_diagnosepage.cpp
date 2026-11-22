@@ -418,6 +418,64 @@ private slots:
         QVERIFY(install->isEnabled());
     }
 
+    // A volume left unmounted (after an eject): the check offers to mount it, in a thread of its
+    // own, and the checks run again by themselves.
+    void volumeMountAction()
+    {
+        Fixture f([](DiagnoseInput &i) {
+            i.ipod.volumeReady = false;
+            i.ipod.volumeMountable = true;
+        });
+        QThread *testThread = QThread::currentThread();
+        std::atomic<int> calls{0};
+        f.page->setVolumeMounter([&f, testThread, &calls] {
+            if (QThread::currentThread() != testThread)
+                ++calls;
+            f.sources.in.ipod.volumeReady = true;
+            f.sources.in.ipod.volumeMountable = false;
+            return QString();
+        });
+        f.start();
+        QTRY_VERIFY(f.settled(1));
+        QPushButton *mount = button(f.page.get(), "action-volume");
+        QVERIFY(mount);
+        QCOMPARE(mount->text(), QStringLiteral("Mount the volume"));
+        mount->click();
+        QTRY_VERIFY(f.reported->count() >= 2);
+        QTRY_COMPARE(f.page->findChild<QWidget *>("check-volume")->property("result").toString(),
+                     QStringLiteral("pass"));
+        QCOMPARE(int(calls), 1);
+        QVERIFY(!button(f.page.get(), "action-volume"));
+    }
+
+    void volumeMountFails()
+    {
+        Fixture f([](DiagnoseInput &i) {
+            i.ipod.volumeReady = false;
+            i.ipod.volumeMountable = true;
+        });
+        f.page->setVolumeMounter([] { return QStringLiteral("The permission was not given"); });
+        f.start();
+        QTRY_VERIFY(f.settled(1));
+        button(f.page.get(), "action-volume")->click();
+        QTRY_VERIFY(
+            label(f.page.get(), "diagnoseNote")->text().contains("The permission was not given"));
+        QCOMPARE(f.reported->count(), 1);
+        QTRY_VERIFY(button(f.page.get(), "action-volume")->isEnabled());
+    }
+
+    // Without a mounter (or a volume that cannot be mounted), the message only.
+    void noMounterNoButton()
+    {
+        Fixture f([](DiagnoseInput &i) {
+            i.ipod.volumeReady = false;
+            i.ipod.volumeMountable = true;
+        });
+        f.start();
+        QTRY_VERIFY(f.settled(1));
+        QVERIFY(!button(f.page.get(), "action-volume"));
+    }
+
     void noInstallerNoButtonPress()
     {
         Fixture f([](DiagnoseInput &i) { i.udevRulePresent = false; });

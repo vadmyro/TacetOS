@@ -498,6 +498,7 @@ private slots:
             const UserAnswer a = c.waitForUser(WaitKind::ReadyForDfu);
             if (a.cancelled)
                 return StepOutcome::cancelled();
+            c.progress(QStringLiteral("send"), 10, 100);
             c.progress(QStringLiteral("resume"), 0, 0);
             return StepOutcome::done();
         });
@@ -548,6 +549,7 @@ private slots:
             if (a.cancelled)
                 return StepOutcome::cancelled();
             seen.append("dfu=" + pageAfter(window, "dfu"));
+            c.progress(QStringLiteral("send"), 10, 100);
             c.progress(QStringLiteral("resume"), 0, 0);
             seen.append("restart=" + pageAfter(window, "write"));
             return StepOutcome::done();
@@ -576,6 +578,53 @@ private slots:
         QCOMPARE(seen, QStringList({"firmware=write", "dfu=dfu", "restart=write", "verify=done",
                                     "finish=done"}));
         QCOMPARE(w.pageName(), QStringLiteral("done"));
+    }
+
+    // A try of the Classic that never reached DFU mode (the iPod came back as a disk): the helper
+    // still says `resume`, which is no restart. The guide asks again with its Start button, and
+    // only the try that sends shows the restart.
+    void classicTryWithoutDfuAsksAgain()
+    {
+        QStringList seen;
+        WizardWindow *window = nullptr;
+        m_scripts.insert(QString(step::classicBootloader), [&](StepContext &c) {
+            if (c.waitForUser(WaitKind::ReadyForDfu).cancelled)
+                return StepOutcome::cancelled();
+            for (const char *stage :
+                 {"check", "eject", "wait-device", "resume", "disk-mode-instead"})
+                c.progress(QLatin1String(stage), 0, 0);
+            QJsonObject info;
+            info.insert(QStringLiteral("reason"), QString(error::diskModeInstead));
+            if (c.waitForUser(WaitKind::ReadyForDfu, info).cancelled)
+                return StepOutcome::cancelled();
+            seen.append("again=" + pageAfter(window, "dfu"));
+            c.progress(QStringLiteral("check"), 0, 0);
+            c.progress(QStringLiteral("send"), 10, 100);
+            c.progress(QStringLiteral("resume"), 0, 0);
+            seen.append("restart=" + pageAfter(window, "write"));
+            return StepOutcome::done();
+        });
+        WizardTarget t = target(Family::Dfu);
+        t.bootloaderTarget = QStringLiteral("ipod6g");
+        WizardRunner runner(m_dir.path(), factory());
+        WizardWindow w(t, options(), &runner, WizardEntry::Install);
+        window = &w;
+        w.diagnosePage()->setPause(0);
+        w.backupPage()->setPause(0);
+        w.setPackage(writePackage(m_dir.filePath(QStringLiteral("package"))));
+        QSignalSpy ended(&w, &WizardWindow::flowEnded);
+        QTest::mouseClick(buttonNamed(&w, "wizardMain"), Qt::LeftButton);
+        QTRY_VERIFY(w.dfuPage()->isAsking());
+        QTest::mouseClick(w.dfuPage()->startButton(), Qt::LeftButton);
+        // The second wait: the guide again, Start shown, no restart page.
+        QTRY_COMPARE(w.pageName(), QStringLiteral("dfu"));
+        QTRY_VERIFY(w.dfuPage()->isAsking());
+        QVERIFY(!w.installPage()->isRestarting());
+        QVERIFY(w.dfuPage()->startButton()->isVisibleTo(w.dfuPage()));
+        QTest::mouseClick(w.dfuPage()->startButton(), Qt::LeftButton);
+        QTRY_COMPARE(ended.count(), 1);
+        QVERIFY(runner.waitFinished(5000));
+        QCOMPARE(seen, QStringList({"again=dfu", "restart=write"}));
     }
 
     // Screens section 10: Report opens the report page over the page of the step, with the facts

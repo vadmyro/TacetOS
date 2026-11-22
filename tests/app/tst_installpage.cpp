@@ -480,7 +480,8 @@ private slots:
     // `ipod-not-back` and a three-tone error never offer to install again.
     void classicNeverOffersInstallAgain()
     {
-        Fixture f(QStringLiteral("classic-bootloader"), {progress(QStringLiteral("resume"))});
+        Fixture f(QStringLiteral("classic-bootloader"),
+                  {progress(QStringLiteral("send"), 10, 100), progress(QStringLiteral("resume"))});
         f.script.code = QString(error::ipodNotBack);
         f.next();
         f.finish();

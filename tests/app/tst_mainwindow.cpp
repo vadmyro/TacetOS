@@ -5,9 +5,12 @@
 #include "home/homescreen.h"
 #include "home/ipodcard.h"
 #include "mainwindow.h"
+#include "runner.h"
 #include "style/appicon.h"
 #include "wizard/wizardwindow.h"
 
+#include <QDir>
+#include <QFile>
 #include <QPushButton>
 #include <QTemporaryDir>
 #include <QTest>
@@ -103,6 +106,9 @@ private slots:
     void wizardOpensFromTheCard();
     void wizardRefusesToQuitWhileWriting();
     void devBuildOrNoHelperNeverWritesForReal();
+    void journalSaysWhyAStepWaitsAgain();
+    void journalSaysWhenAStepStartsAndEnds();
+    void flowSerialOfAClassicUnderTacetos();
 };
 
 void TestMainWindow::hasTitleAndMinimumSize()
@@ -180,9 +186,14 @@ void TestMainWindow::wizardOpensFromTheCard()
     QCOMPARE(again, wizard);
     QVERIFY(window.quitRefusal().isEmpty());
 
-    // The window goes: the iPod can have another.
+    QCOMPARE(window.homeScreen()->cards().first()->wizardButton()->text(),
+             QStringLiteral("Show the wizard"));
+
+    // The window goes: the iPod can have another, and the card leaves "Show the wizard".
     wizard->close();
     QTRY_VERIFY(!window.wizard()->manager().windowFor(serial));
+    QTRY_COMPARE(window.homeScreen()->cards().first()->wizardButton()->text(),
+                 QStringLiteral("Install TacetOS"));
     WizardWindow *second = window.wizard()->open(port, HomeAction::UninstallWizard);
     QVERIFY(second);
     QCOMPARE(second->pageName(), QStringLiteral("uninstall"));
@@ -237,6 +248,141 @@ void TestMainWindow::devBuildOrNoHelperNeverWritesForReal()
     WizardLauncher launcher(withHelper, *window.tracker(), nullptr);
     QVERIFY(launcher.helperFound());
     QCOMPARE(launcher.realWrites(), tacetos::installer::realWritesAllowed());
+}
+
+// A step that waits again writes the reason and the helper's detail in the journal of the app,
+// which the screen alone showed before, and the USB detail of a failed DFU try. The first wait,
+// without a reason, writes nothing.
+void TestMainWindow::journalSaysWhyAStepWaitsAgain()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    OneClassic world;
+    FixedClock clock;
+    NoActions actions;
+    NoExecutor executor;
+    MainWindow window(&world, &clock, &actions, &executor, {});
+    WizardLauncher::Config config;
+    config.dataDir = dir.filePath(QStringLiteral("data"));
+    config.backupRoot = dir.filePath(QStringLiteral("backups"));
+    config.helperProgram = dir.filePath(QStringLiteral("no-such-helper"));
+    config.models = loadModels(QStringLiteral(":/data/models.toml")).models;
+    window.attachWizard(config);
+    window.tracker()->usbEvent();
+    window.tracker()->diskEvent();
+    const QString port = QString::fromLatin1(OneClassic::kPort);
+    WizardWindow *wizard = window.wizard()->open(port, HomeAction::InstallWizard);
+    QVERIFY(wizard);
+    QVERIFY(window.journal());
+
+    const auto waitsAgain = [&] {
+        QStringList lines;
+        for (const journal::Entry &entry : window.journal()->entries()) {
+            if (entry.text.contains(QLatin1String("waits again")))
+                lines << entry.text;
+        }
+        return lines;
+    };
+    const QString step = QStringLiteral("classic-bootloader");
+    emit wizard->runner()->stepWaiting(step, wizard::WaitKind::ReadyForDfu,
+                                       {{"reason", ""}, {"hint", ""}});
+    QVERIFY(waitsAgain().isEmpty());
+
+    emit wizard->runner()->stepWaiting(
+        step, wizard::WaitKind::ReadyForDfu,
+        {{"reason", "dfu-failed"}, {"hint", "The iPod did not appear in DFU mode."}});
+    emit wizard->runner()->stepWaiting(
+        step, wizard::WaitKind::ReadyForDfu,
+        {{"reason", "dfu-failed"},
+         {"hint", "The iPod could not be opened."},
+         {"usb", "Claiming the USB interface failed: Other error (LIBUSB_ERROR_OTHER)"}});
+    emit wizard->runner()->stepWaiting(step, wizard::WaitKind::ReadyForDfu,
+                                       {{"reason", "disk-mode-instead"}, {"hint", ""}});
+    QCOMPARE(
+        waitsAgain(),
+        (QStringList{QStringLiteral("step classic-bootloader waits again: dfu-failed (The "
+                                    "iPod did not appear in DFU mode.)"),
+                     QStringLiteral("step classic-bootloader waits again: dfu-failed (The "
+                                    "iPod could not be opened.) [USB: Claiming the USB interface "
+                                    "failed: Other error (LIBUSB_ERROR_OTHER)]"),
+                     QStringLiteral("step classic-bootloader waits again: disk-mode-instead")}));
+    for (const journal::Entry &entry : window.journal()->entries()) {
+        if (entry.text.contains(QLatin1String("waits again"))) {
+            QCOMPARE(entry.port, port);
+            QCOMPARE(entry.level, journal::Level::Warning);
+        }
+    }
+}
+
+// Each step writes a line when it starts and when it is done, so that a report shows a success
+// too, and not only the failures.
+void TestMainWindow::journalSaysWhenAStepStartsAndEnds()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    OneClassic world;
+    FixedClock clock;
+    NoActions actions;
+    NoExecutor executor;
+    MainWindow window(&world, &clock, &actions, &executor, {});
+    WizardLauncher::Config config;
+    config.dataDir = dir.filePath(QStringLiteral("data"));
+    config.backupRoot = dir.filePath(QStringLiteral("backups"));
+    config.helperProgram = dir.filePath(QStringLiteral("no-such-helper"));
+    config.models = loadModels(QStringLiteral(":/data/models.toml")).models;
+    window.attachWizard(config);
+    window.tracker()->usbEvent();
+    window.tracker()->diskEvent();
+    const QString port = QString::fromLatin1(OneClassic::kPort);
+    WizardWindow *wizard = window.wizard()->open(port, HomeAction::InstallWizard);
+    QVERIFY(wizard);
+
+    emit wizard->runner()->stepStarted(5, QStringLiteral("verify"));
+    emit wizard->runner()->stepDone(5, QStringLiteral("verify"));
+    QStringList lines;
+    for (const journal::Entry &entry : window.journal()->entries()) {
+        if (entry.text.startsWith(QLatin1String("step verify"))) {
+            lines << entry.text;
+            QCOMPARE(entry.port, port);
+            QCOMPARE(entry.level, journal::Level::Info);
+        }
+    }
+    QCOMPARE(lines, (QStringList{QStringLiteral("step verify started"),
+                                 QStringLiteral("step verify done")}));
+}
+
+// D45: a Classic under TacetOS gives another serial. An install record that saw it gives back
+// Apple's serial, which names the iPod everywhere in the app; any other serial stays as it is.
+void TestMainWindow::flowSerialOfAClassicUnderTacetos()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString folder = dir.filePath(QStringLiteral("backups/APPLE1/2026-11-22_135136"));
+    QVERIFY(QDir().mkpath(folder));
+    QFile record(QDir(folder).filePath(QStringLiteral("install-record.json")));
+    QVERIFY(record.open(QIODevice::WriteOnly));
+    record.write(R"({"format": 1, "operation": "install", "date": "2026-11-22T13:07:05Z",
+                     "serial": "APPLE1", "serialUnderTacetos": "TACET1"})");
+    record.close();
+
+    OneClassic world;
+    FixedClock clock;
+    NoActions actions;
+    NoExecutor executor;
+    MainWindow window(&world, &clock, &actions, &executor, {});
+    WizardLauncher::Config config;
+    config.dataDir = dir.filePath(QStringLiteral("data"));
+    config.backupRoot = dir.filePath(QStringLiteral("backups"));
+    config.helperProgram = dir.filePath(QStringLiteral("no-such-helper"));
+    WizardLauncher launcher(config, *window.tracker(), nullptr);
+
+    device::DetectedIpod ipod;
+    ipod.serial = QStringLiteral("TACET1");
+    QCOMPARE(launcher.flowSerial(ipod), QStringLiteral("APPLE1"));
+    ipod.serial = QStringLiteral("APPLE1");
+    QCOMPARE(launcher.flowSerial(ipod), QStringLiteral("APPLE1"));
+    ipod.serial = QStringLiteral("OTHER");
+    QCOMPARE(launcher.flowSerial(ipod), QStringLiteral("OTHER"));
 }
 
 QTEST_MAIN(TestMainWindow)
