@@ -155,6 +155,7 @@ private slots:
     void errVerifyAtStepSix();
     void stuckInManifest();
     void timeoutThenAbort();
+    void statusTimeoutNamesTheBlock();
     void busyAfterTheEmptyBlock();
     void stillBusyAfterTheEmptyBlock();
     void goneAfterBusyAtTheEnd();
@@ -434,7 +435,8 @@ void TestDfuProtocol::timeoutThenAbort()
     QVERIFY(!r.result.ok);
     QCOMPARE(r.result.failure, DfuFailure::Interrupted);
     QCOMPARE(r.result.message, QString::fromLatin1(kInterrupted));
-    QCOMPARE(r.result.detail, QStringLiteral("timeout"));
+    // The 11th block of (0x20000 + 4 bytes of checksum) / 2048, rounded up.
+    QCOMPARE(r.result.detail, QStringLiteral("DNLOAD of block 11 of 65: timeout"));
     QList<UsbControlRequest> expected;
     expected << getState();
     for (int block = 0; block < 10; ++block)
@@ -443,6 +445,19 @@ void TestDfuProtocol::timeoutThenAbort()
     COMPARE_REQUESTS(r.result.requests, expected);
     QCOMPARE(device.closes(), 1);
     QCOMPARE(device.opens(), 1);
+}
+
+// The detail names the request that failed and where the transfer was.
+void TestDfuProtocol::statusTimeoutNamesTheBlock()
+{
+    FakeDfuScript script;
+    script.statusTimeoutAtBlock = 11;
+    FakeDfuDevice device(script);
+    const Run r = run(device, pattern(kMaxImage, 2));
+
+    QVERIFY(!r.result.ok);
+    QCOMPARE(r.result.failure, DfuFailure::Interrupted);
+    QCOMPARE(r.result.detail, QStringLiteral("GETSTATUS after block 12 of 65: timeout"));
 }
 
 // The real Classic answers dfuDNBUSY to the GETSTATUS after the empty block, then

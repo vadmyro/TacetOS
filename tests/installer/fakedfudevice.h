@@ -41,6 +41,8 @@ struct FakeDfuScript
     // The request of this DNLOAD fails (a timeout); -1 for never. The device
     // answers again afterwards, as after a stalled endpoint.
     int timeoutAtBlock = -1;
+    // The GETSTATUS after this block fails (a timeout); -1 for never.
+    int statusTimeoutAtBlock = -1;
     // The status after this block is dfuERROR with errWRITE; -1 for never.
     int errorAtBlock = -1;
     // The status after the empty block: 0, or 10 (errFIRMWARE).

@@ -136,6 +136,10 @@ UsbControlResult FakeDfuDevice::control(const UsbControlRequest &request, const 
         if (request.type != kDfuTypeIn || request.length != kDfuStatusBytes || request.value != 0)
             m_errors << QStringLiteral("bad GETSTATUS");
         if (m_state == 3 || m_state == kDfuStateDnBusy) {
+            if (m_script.statusTimeoutAtBlock == m_nextBlock - 1) {
+                m_script.statusTimeoutAtBlock = -1;
+                return fail(QStringLiteral("timeout"));
+            }
             if (m_busyLeft > 0) {
                 --m_busyLeft;
                 m_state = kDfuStateDnBusy;
