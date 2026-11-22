@@ -109,7 +109,7 @@ This is what the helper does once the app has the DFU image ready (section 8) an
    2. send GETSTATUS;
    3. while the state is 4 (dfuDNBUSY), wait the poll timeout it gave (at least 1 ms, at most 5 seconds), and send GETSTATUS again. Stop after 20 GETSTATUS requests for the same block, the first one included;
    4. the state must now be 5 (dfuDNLOAD-IDLE) with status 0. Otherwise stop (section 7).
-5. **Send the end.** DNLOAD with the next block number and no data. Then GETSTATUS. The usual answer is state 7 (dfuMANIFEST). A status 10 (errFIRMWARE) here means the ROM refused the image (bad checksum or bad signature): stop, and say the image is broken. Any other state: stop.
+5. **Send the end.** DNLOAD with the next block number and no data. Then GETSTATUS, with the wait of step 4.3 while the state is 4 (dfuDNBUSY): the real Classic answers dfuDNBUSY once here. After the wait, the usual answer is state 7 (dfuMANIFEST). A request that fails after a dfuDNBUSY means the payload already runs (seen on the real Classic): this is the first case of step 6, go to step 7. A status 10 (errFIRMWARE) here means the ROM refused the image (bad checksum or bad signature): stop, and say the image is broken. Any other state: stop.
 6. **Wait for the payload to start.** Wait the poll timeout of the last answer, then send GETSTATUS once more. Three outcomes:
    - **The request fails, or the device is gone**: the payload is running. This is the normal case on this iPod. Go to step 7.
    - **State 8 (dfuMANIFEST-WAIT-RESET)**: the ROM waits for a USB reset. Send it, then go to step 7. This case is in the standard, not seen on this iPod so far.
@@ -139,7 +139,7 @@ The id `1223` is also the 3rd generation nano in DFU mode (section 2). The app k
 
 Before step 4, nothing has been sent: the iPod is untouched. During steps 4 and 5, the ROM has only received part of a file, held in memory: the NOR has not been touched yet, because the payload has not run. So a failure of the transfer itself never harms the iPod. In every such case the helper:
 
-1. sends ABORT (if the device still answers), then GETSTATE, and CLRSTATUS if the state is 10;
+1. sends ABORT (if the device still answers), then GETSTATE, and CLRSTATUS if the state is 10. A request of this recovery that fails does not change the failure reported: the message is the one of the first cause;
 2. releases the device (step 7 of section 5);
 3. tells the user to reset the iPod (hold Menu and Select) and try again.
 

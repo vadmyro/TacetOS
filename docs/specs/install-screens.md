@@ -50,7 +50,7 @@ The card of the home screen gets three buttons (wizard section 2.1). They are ad
 | Card | Buttons added | Main button |
 |---|---|---|
 | A progress file exists for the serial | Resume | Resume |
-| Firmware line `apple` or `unknown`, no progress file | Install TacetOS; on a Classic also Uninstall (secondary, wizard section 2.1) | Install TacetOS |
+| Firmware line `apple` or `unknown`, no progress file | Install TacetOS; on a Classic also Uninstall (secondary, wizard section 2.1), except when the last install record of this iPod on this computer (wizard section 9.3) is an uninstall | Install TacetOS |
 | Firmware line `tacetos` or `custom`, no progress file | Uninstall | Uninstall |
 
 - The buttons are shown on `ready`, on `not-mounted` and on `attention` (the checks of section 3 then say what is missing), and are off while the card is `busy`. When they are shown, Show files and Open stay, as secondary buttons.
@@ -155,6 +155,7 @@ The page of the step `diagnose` (wizard section 4).
                                                  [ Check again ]
 ```
 
+- **While the checks run**, the title ends with how far they are, as a percentage of the checks of the list that have a result ("Checking this computer and the iPod, 40 %"), and a line under the list, centred, in `text-secondary`, names the check under way ("Checking: Apple's firmware", its name of section 13.3). Both go when the last check has its result.
 - **Two groups**, "This computer" then "This iPod" (wizard section 4.1), each with its title in the secondary style in capitals, 24 px between the groups.
 - **One line per check**, in the order of the wizard: a sign 16 px wide, the name of the check (section 13.3) in body weight 600 in a column of 160 px, then the message in body text, wrapped, never cut. A check that passes shows a short word ("Ready", "Linux", "FAT32", "2.0.1") or nothing.
 
@@ -167,7 +168,7 @@ The page of the step `diagnose` (wizard section 4).
 | `skipped` | A dash, `text-secondary` | `text-secondary` |
 
 - **A command to type** (wizard section 4.4, D34) is shown under its line, in a monospace field that can be selected but not changed, with a Copy button (secondary) on its right that puts the command in the clipboard and says "Copied" for 2 s. The app never runs it.
-- **The action of a check** is a button on its line: "Install the rule" for `udev-rule` (`install-udev-rule`, `helper.md` section 6.11). While it runs, the button is off and says "Waiting for your permission"; then the checks run again by themselves. The two commands of `helper.md` section 11.5 are shown under it, as commands to type, for those who prefer.
+- **The action of a check** is a button on its line: "Install the rule" for `udev-rule` and "Allow TacetOS" for `disk-access` (`install-udev-rule`, `helper.md` section 6.11, one password for both rules). While it runs, the button is off and says "Waiting for your permission"; then the checks run again by themselves. The commands of `helper.md` section 11.5 are shown under it, as commands to type, for those who prefer. "Mount the volume" for `volume` (`mount-volume`, wizard section 4.3): while it runs, the button is off and says "Mounting the volume"; then the checks run again by themselves. When it fails, the note says "The volume could not be mounted: " and what the disk service said.
 - **The battery** (`WaitKind::Battery`): its line asks "Is the iPod charged?" and holds the button "Yes, it is" (main style). The answer goes to the runner, which runs the checks again. "No" is not a button: the message under the line says "Charge the iPod for an hour first" and the user comes back later.
 - **The list comes from the runner**: the step sends its checks to the screen each time it runs them (a signal of the runner carrying the list of `Check`, added for this page), and the page shows the last list.
 - **Check again** (secondary, under the list, right aligned) runs the step again, as a resume of a failed `diagnose` (wizard section 3.3). It is on when the step failed with `check-blocking` or waits for the battery.
@@ -197,7 +198,7 @@ The page of `backup-full`, `backup-keep` and `backup-settings` (wizard section 5
 - **The stage** "Copying the firmware partition" replaces the file line during `backup-firmware`.
 - **The folder** of the backup, under it, with "Open folder" (secondary), which opens it in the file manager of the system.
 - **Cancel** is on during the whole backup (it writes nothing on the iPod). After it, the page says "Stopped. The files already checked are kept: the backup goes on from there at the next try".
-- **At the end**, the page shows for 1 s "Backup checked: 1 234 files, 71.0 GB", then the flow goes on. The same line is kept on the end page (section 8).
+- **At the end**, the page shows for 1 s "Backup checked: 1 234 files, 71.0 GB", then the flow goes on. The same line is kept on the end page (section 8). When the volume held nothing to back up (0 files), the line says "The iPod was empty: nothing to back up" instead, here and on the end page.
 
 ### 4.2 Not enough space, files that cannot be read
 
@@ -308,6 +309,7 @@ After Start, the page follows the stages of `classic-dfu` by itself, without any
 | Stage | Title | Drawing | Under it |
 |---|---|---|---|
 | `check`, `eject`, `spin-down`, `pause` | "Getting the iPod ready" | Rest | A thin indeterminate bar |
+| `wait-disk` | "Waiting for the iPod" | Rest | A thin indeterminate bar, and "If its screen is black, it is in DFU mode: hold MENU and the center button for about 6 seconds to leave it. TacetOS goes on by itself when the iPod is back." (wizard section 9.4) |
 | `wait-device` | "Hold MENU and the center button now" | Hold | The countdown, below |
 | `quiet` | "Let go of the buttons now" | Release | "Sending in 10 s", counting down (`bootloader-classic.md` section 16.1) |
 | `send` | "Sending TacetOS to the iPod" | Release | The progress bar, in bytes. "Do not unplug the iPod" |
@@ -316,8 +318,11 @@ After Start, the page follows the stages of `classic-dfu` by itself, without any
 - **The countdown** of `wait-device` starts at 15 s, from the first `wait-device` event, and counts each second in the large style ("15", "14", ...). Under it, "Keep holding". At 0 it does not go below: the text becomes "Keep holding. It can take a few more seconds", until the helper sees the DFU device or gives up (60 s, wizard section 9.4).
 - When the stage `quiet` comes, the change is immediate and the title is announced to screen readers (section 12).
 - **The iPod went back to normal mode** (`disk-mode-instead`, wizard section 9.4): the page shows the "Wrong buttons" way, the title "The iPod started in Disk Mode", and "You held the center button and Play. Hold MENU and the center button instead", then Start again (the step waits again).
-- **No DFU mode in time** (`dfu-failed`): "The iPod did not appear in DFU mode", then the steps of section 6.2 again, with Start.
+- **The disk did not come back** (`no-disk`, wizard section 9.4): "The iPod did not come back", and "If its screen is black, it is still in DFU mode: hold MENU and the center button for about 6 seconds, and let go as soon as the screen changes. Wait for its menu, then press Start.", then Start.
+- **No DFU mode in time** (`dfu-failed` before the stage `send`): "The iPod did not appear in DFU mode", then the steps of section 6.2 again, with Start.
+- **The send stopped** (`dfu-failed` at the stage `send`, a request that timed out for example): "The transfer to the iPod was interrupted", and "Nothing was written: the iPod starts Apple's software again. Wait for its menu, then press Start to try again.", then Start. The `usbDetail` of the helper goes to the journal, not on the page.
 - **The iPod keeps leaving DFU mode** (three resets, `bootloader-classic.md` section 16.1): its message, then Start.
+- **Each new try starts with Start.** The helper listens for the DFU device only after Start: buttons held before it do nothing. So every page of this section that ends with Start shows, just above the button, "Press Start first, then hold MENU and the center button" in body weight 600.
 
 ## 7. The install
 
@@ -522,6 +527,7 @@ The names of the stages of the steps of files are those that the steps already g
 | `udisks` | Disk service |
 | `classic-build` | Classic support |
 | `udev-rule` | USB permission |
+| `disk-access` | Disk permission |
 | `backup-folder` | Backup folder |
 | `backup-space` | Space for the backup |
 | `model` | Model |
@@ -551,18 +557,18 @@ Facts (D22), to be checked against two sources (Apple's support page on Disk Mod
 | Window titles | Install TacetOS, Uninstall TacetOS, Restore a backup |
 | Card buttons | Install TacetOS, Uninstall, Resume, Show the wizard |
 | Main buttons | Start, Resume, Start again, Check again, Yes, it is, Erase the iPod, The iPod is in Disk Mode, Try again, Try once more, Write the backup back, Put them back, Uninstall, Remove anyway, Eject, Close, Restore |
-| Secondary buttons | Cancel, Report, Back, Choose..., Change..., Copy, Install the rule, Open folder, Put my music back, Start fresh, Not now, Show the journal, Show the report, Save full report..., Copy report |
+| Secondary buttons | Cancel, Report, Back, Choose..., Change..., Copy, Install the rule, Allow TacetOS, Open folder, Put my music back, Start fresh, Not now, Show the journal, Show the report, Save full report..., Copy report |
 | Cancel question | Stop here? Nothing has been written to the iPod in this step. You can resume later from the card. (Stop, Go on) |
 | Writing | TacetOS is writing to the iPod. This step goes to its end |
 | Close refused | TacetOS is writing to the iPod. Wait for the end of this step, then close |
 | First screen | Choose how to install, Clean install, Keep my music, recommended, Needs %1 GB on this computer, %2 GB free, Firmware package, Backup folder, What will happen, About %1, Keep the iPod plugged in, Restore from a backup |
 | Path texts | Everything on the iPod is copied to this computer and checked, then the iPod is erased and gets TacetOS only. / Only your settings, themes and playlists are copied. TacetOS is added next to your music. |
 | Resume | An install was stopped at "%1", Started on %1, stopped at %2, Your backup is safe in %1, Start again from the beginning? The saved progress is deleted. Your backups are kept |
-| Checks | Checking this computer and the iPod, This computer, This iPod, Is the iPod charged?, Copied, Everything is ready |
-| Backup | Backing up your iPod, %1 GB of %2 GB, about %1 left, less than a minute left, Computing the time left, Saved to %1, Backup checked: %1 files, %2 GB, Nothing was written to the iPod, and %1 more |
+| Checks | Checking this computer and the iPod, Checking this computer and the iPod, %1 %, Checking: %1, This computer, This iPod, Is the iPod charged?, Copied, Everything is ready, Without this permission, the system asks for your password each time TacetOS opens the iPod |
+| Backup | Backing up your iPod, %1 GB of %2 GB, about %1 left, less than a minute left, Computing the time left, Saved to %1, Backup checked: %1 files, %2 GB, The iPod was empty: nothing to back up, Nothing was written to the iPod, and %1 more |
 | Restore | Backups of this iPod, Incomplete, Also write back the firmware partition, Copy %1 files back to the iPod (%2 GB)? Files already there are skipped, Putting your music back, Done: %1 files put back, Plug in the iPod of this backup |
 | Erase | All music on this iPod will be erased, %1 files, %2 GB. They are in the backup checked a moment ago:, To confirm, type the name of the iPod:, Erasing the iPod, Converting the iPod, Do not unplug the iPod, Waiting for the iPod to come back |
-| DFU guide | Put the iPod in DFU mode, the steps of section 6.2, Not the center button and Play: that is Disk Mode., Getting the iPod ready, Hold MENU and the center button now, Keep holding, Keep holding. It can take a few more seconds, Let go of the buttons now, Sending in %1 s, Sending TacetOS to the iPod, The iPod started in Disk Mode, You held the center button and Play. Hold MENU and the center button instead |
+| DFU guide | Press Start first, then hold MENU and the center button, The transfer to the iPod was interrupted, Nothing was written: the iPod starts Apple's software again. Wait for its menu, then press Start to try again., Put the iPod in DFU mode, the steps of section 6.2, Not the center button and Play: that is Disk Mode., Getting the iPod ready, Hold MENU and the center button now, Keep holding, Keep holding. It can take a few more seconds, Let go of the buttons now, Sending in %1 s, Sending TacetOS to the iPod, The iPod started in Disk Mode, You held the center button and Play. Hold MENU and the center button instead |
 | Restart | The iPod restarts, Listen: a low beep then a high one means it worked., Waiting for the iPod: %1 s, What the beeps mean |
 | End | Checking the result, TacetOS is installed, Starting each firmware, You can unplug the iPod, Eject the iPod before you unplug it., Apple software only, Your settings were saved in |
 | Start each firmware (Classic) | TacetOS: it starts by itself. / Apple's firmware: turn the iPod off, then turn it on while holding MENU for a second. / Back to TacetOS from Apple's firmware: hold MENU and the center button until the screen goes black, then let go at once. |

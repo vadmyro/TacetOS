@@ -131,7 +131,7 @@ An operation is something the app does to one iPod, on the request of the user, 
 | `eject` | Unmounts, then asks the service to power the drive off or eject it. The volumes are never left half done: when one cannot be unmounted, the drive is not touched | v0.1, Linux |
 | backup, format, install and the others | Write operations, with their own flows | later, see section 2.2 |
 
-The mount is done by the disk service of the system, as the user would from the file manager. TacetOS does not write to the iPod itself in these four kinds, so none needs the helper. `detection.md` section 13 asked whether the app should mount: the answer here is that it does, only when the user asks, and never on its own.
+The mount is done by the disk service of the system, as the user would from the file manager. TacetOS does not write to the iPod itself in these four kinds, so none needs the helper. `detection.md` section 13 asked whether the app should mount: the answer here is that it does, when the user asks, and on its own for an iPod that arrives with its volume not mounted (section 2.8).
 
 ### 2.2 Kinds that come later
 
@@ -203,6 +203,16 @@ A good `eject` leaves a **released record** for the port. The record outlives th
 - After the eject, the detection state of a drive that is still on the port will usually be `no-volume`, then `no-disk`. The record hides it while it lasts. When it ends and the iPod is still there, that state shows: the screen goes from "unplug" to a message about missing storage. This is accepted: after `RELEASED_KEEP` the user has had time to act, and the message is true.
 
 A failed eject leaves no released record. It is a `failed` operation like the others.
+
+### 2.8 Mounting on arrival (Linux)
+
+The desktop of the user often waits for a click on its own notice before it mounts a new USB disk. The app does not wait for it: an iPod that comes in with its music volume not mounted is mounted by the app.
+
+1. When an iPod reaches `not-mounted` for the first time since it appeared on its port (rows 3 and 7 of section 1.3), the app starts the `mount` operation for it, as if the user had pressed Open, without opening the file manager after it.
+2. Never when another operation or a wizard flow holds the iPod (section 2.6), never for a volume formatted for Mac (`attention` with `mac-format`), and never again for the same arrival: after an eject or an unmount by the user, an iPod still on its port stays `not-mounted` until it is plugged in again.
+3. The disk service mounts a removable disk of the active session with no password window. If it refuses or fails, the card shows `not-mounted` with its Open button as before, and the journal holds a warning with what the service said; the failure is not shown as `failed`.
+4. A setting, "Mount iPods when they are plugged in", turns it off. It is on by default. Settings come in v0.7; until then, it is always on.
+5. Windows and macOS mount a FAT32 volume by themselves: there is nothing to do there.
 
 ## 3. The journal
 
@@ -300,6 +310,7 @@ The pure functions are tested with tables, the runner and the model with a fake 
 - The hold: taken before the work starts, released after `done`, after `failed`, and after a work that throws, **in every case**.
 - An unplug during the work: no error shown, a warning in the journal, the record dropped. A good eject during which the device leaves leaves a released record.
 - A kind that expects a restart, with its own window: the iPod is `rebooting` for the window, and the end is `failed` with "did not return".
+- The mount on arrival (section 2.8), with a scripted detection and a fake service: one `mount` for an iPod that reaches `not-mounted`, none when it is held, none for `mac-format`, none after an eject or an unmount by the user on the same arrival, one again after a new plug in, none when the setting is off; a refusal of the service leaves `not-mounted` and one warning in the journal.
 
 ### 5.3 Journal (section 3)
 
@@ -314,8 +325,8 @@ The pure functions are tested with tables, the runner and the model with a fake 
 
 ## 6. Not decided yet
 
-- How long a clean restart really takes, per model, from the end of the write to the new enumeration. Measured on a real Classic with no write before: 8 to 10 s (`detection.md` section 9.4). `RESTART_WINDOW` stays a guess until an install is measured.
+- How long a clean restart really takes, per model, from the end of the write to the new enumeration. Measured on a real Classic with no write before: 8 to 10 s (`detection.md` section 9.4). After the DFU send of a real install of the Classic: back and `ready` again, its volume mounted, 6 to 10 s later (wizard section 16). `RESTART_WINDOW` keeps its 60 s; the older iPods are still to be measured.
 - Whether an iPod whose drive was powered off comes back by itself, and after how long, on each system (section 2.7). If it does, the new device on the port ends `released` early, and a longer rule may be needed.
-- Whether the USB serial changes with the mode (`detection.md` section 13). The model uses the port path only until it is known.
+- Whether the USB serial changes with the mode (`detection.md` section 13). The model uses the port path only until it is known. Under TacetOS the Classic gives another serial than under Apple's firmware (wizard section 9.3); Disk Mode is still to be seen.
 - The label of the volume (a name the user chose) goes in the journal as it is. If that turns out to hold names of people, it may need the same care as the file names.
 - A "copy the log" or "save the log" button, and what the report holds, belong to the support step of the roadmap.

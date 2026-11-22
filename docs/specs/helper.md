@@ -47,7 +47,7 @@ Through the helper:
 - the SCSI questions to a disk (section 6.2);
 - every USB exchange with an iPod in DFU mode;
 - the unmount of a volume when it is part of a write (a format, a conversion, the eject before DFU mode);
-- the one change to the system that needs the administrator: the udev rule on Linux (section 6.11).
+- the one change to the system that needs the administrator: the udev rule and the polkit rule on Linux, put in place together (section 6.11).
 
 Not through the helper:
 
@@ -69,7 +69,7 @@ On Linux and macOS, starting the helper does not ask for any password: the passw
 
 | System | The helper runs as | A disk is opened by | USB in DFU mode | Administrator asked for |
 |---|---|---|---|---|
-| Linux | the user | udisks2 (`OpenDevice`), with polkit's password window | libusb, allowed by a udev rule | only to put the udev rule in place, through `pkexec` |
+| Linux | the user | udisks2 (`OpenDevice`), with polkit's password window | libusb, allowed by a udev rule | only to put the udev rule and the polkit rule in place, through `pkexec` |
 | Windows | an administrator (UAC, once per helper) | the system, directly | libusb with WinUSB, or Apple's driver | at the start of the helper |
 | macOS | the user | the system's `authopen` tool, with its password window | IOKit | never |
 
@@ -231,7 +231,7 @@ The list below is all there is. A command that is not in it is refused (`unknown
 | `convert-to-fat32` | Turns a Mac iPod into a Windows iPod | yes | 6.8 |
 | `classic-dfu` | Installs or removes the bootloader of an iPod Classic, through DFU mode | yes (the NOR of the iPod) | 6.9 |
 | `resume-paused` | Resumes the programs a crash left paused | no | 6.10 |
-| `install-udev-rule` | Puts the DFU udev rule in place (Linux) | no (a system file) | 6.11 |
+| `install-udev-rule` | Puts the DFU udev rule and the polkit rule for the iPod disks in place (Linux) | no (a system file) | 6.11 |
 | `cancel` | Asks the running command to stop | no | 6.12 |
 
 Each section below gives the arguments of its command, in a table. Every argument is required unless the table says otherwise.
@@ -351,7 +351,7 @@ The app checks the conditions of `bootloader-classic.md` section 3 before it sen
 
 The result comes when the device has been released (step 7). Watching for the iPod to come back and reading its state (step 8, section 16.2) is the app's work, done by detection, which already watches the USB bus.
 
-Any device other than `05ac:1223` is refused, even when the user picks it (section 6 of the Classic spec). A failure gives the code of section 13 for its case and the `hint` of the Classic spec in `detail`.
+Any device other than `05ac:1223` is refused, even when the user picks it (section 6 of the Classic spec). A failure gives the code of section 13 for its case and the `hint` of the Classic spec in `detail`. A `dfu-failed` also carries, in its `data`, the `stage`, the `hint`, and `usbDetail` when the USB layer gave one: which call failed (open, configuration, claim of the interface, a request) and the error of the USB library, by its text and its name. For a request, it also names the request (`DNLOAD`, `GETSTATUS`, `ABORT`...) and, during the send, the number of the block and how many blocks the image has ("GETSTATUS after block 12 of 40: LIBUSB_ERROR_TIMEOUT"), so that a timeout says where it came. The message for the user stays the one of the code; `usbDetail` is for the log, which writes it after the reason when the step waits again.
 
 ### 6.10 `resume-paused`
 
@@ -365,9 +365,9 @@ Resumes the programs noted in the state file of `bootloader-classic.md` section 
 
 No arguments. Linux only: on the other systems, `unsupported-system`.
 
-The helper puts the udev rule of `bootloader-classic.md` section 15.2 in place, so that the user can talk to an iPod in DFU mode without being root. The text of the rule is **built into the helper**: it is never read from a file given by the app. The steps are in section 11.5. The `data` of a success says whether the rule was already there, in which case nothing was asked of the user.
+The helper puts two files in place, for one password: the udev rule of `bootloader-classic.md` section 15.2, so that the user can talk to an iPod in DFU mode without being root, and the polkit rule of section 11.5, so that the disk service opens an iPod for the user without a password window each time. The text of both is **built into the helper**: it is never read from a file given by the app. The steps are in section 11.5. The `data` of a success says whether the rules were already there, in which case nothing was asked of the user, and whether the polkit rule could be put in place (`polkit` true or false).
 
-The packages of TacetOS install the rule themselves; this command is for the builds that are not installed by a package (AppImage, archive). It is offered by the app only when the rule is missing and the user starts a Classic install.
+The packages of TacetOS install both files themselves; this command is for the builds that are not installed by a package (AppImage, archive). The app offers it when the rules are missing: on the line of the check `udev-rule` for a Classic, of the check `disk-access` for the older iPods (wizard section 4.2).
 
 ### 6.12 `cancel`
 
@@ -482,10 +482,10 @@ If the input of the helper closes (section 3.7): before the first write, it is a
 
 ### 11.1 Opening a disk: udisks2
 
-The helper runs as the user and is never root (decision of the project: udisks2 for the disks, `pkexec` only for the udev rule). It asks udisks2, the disk service of the system, for an open file of the disk, with the method `OpenDevice` of the block device object (on the system D-Bus, interface `org.freedesktop.UDisks2.Block`):
+The helper runs as the user and is never root (decision of the project: udisks2 for the disks, `pkexec` only for the two rules of section 11.5). It asks udisks2, the disk service of the system, for an open file of the disk, with the method `OpenDevice` of the block device object (on the system D-Bus, interface `org.freedesktop.UDisks2.Block`):
 
 - mode `r` for every command, and again `rw` only for the writes, after the checks (`bootloader-legacy.md` section 13.1);
-- the polkit action behind it is `org.freedesktop.udisks2.open-device` for a removable disk. Its usual default asks for the administrator's password and keeps the answer for a few minutes, so that the read and the write of the same operation ask once. The answer of udisks2 when the user closes the window or gives a wrong password is `permission-denied`;
+- the polkit action behind it is `org.freedesktop.udisks2.open-device` for a removable disk. Its usual default asks for the administrator's password and keeps the answer for a few minutes, so that the read and the write of the same operation ask once. The answer of udisks2 when the user closes the window or gives a wrong password is `permission-denied`. Once the polkit rule of section 11.5 is in place, this action is allowed with no window for an iPod of the active session, so that the password is asked once, when the rules are put in place, and never again;
 - for a disk that udisks2 counts as a disk of the system, the action is `open-device-system`, which always asks. An iPod is never one: if the helper meets it, section 7.1 step 4 has already refused;
 - the file given back is the only way the helper touches the disk. It does not open `/dev/sdX` by itself.
 
@@ -512,17 +512,19 @@ For `format-music`, `convert-to-fat32` and the eject of `classic-dfu`, the helpe
 
 The SCSI requests of section 6.3 go through the open file of section 11.1 (mode `r`) with the generic SCSI request of Linux (`SG_IO`). INQUIRY is one of the commands the kernel allows on a file opened for reading only: no other right is needed.
 
-### 11.5 The udev rule
+### 11.5 The udev rule and the polkit rule
 
-The rule gives the user of the session access to `05ac:1223` and to nothing else (`bootloader-classic.md` section 15.2). Its file in the system is `/etc/udev/rules.d/70-tacetos-dfu.rules` (a number below 73, so that the access tag is applied).
+The **udev rule** gives the user of the session access to `05ac:1223` and to nothing else (`bootloader-classic.md` section 15.2). Its file in the system is `/etc/udev/rules.d/70-tacetos-dfu.rules` (a number below 73, so that the access tag is applied). Its text ends with a comment line that names the file of the polkit rule put in place with it: the folder of the polkit rules cannot be read by the user on every system (on Fedora it is closed to all but root and polkit), so the udev rule is what the helper and the app read to know that both are there. A udev rule without that line (put by an older build) counts as missing.
 
-1. If the file is there and its content is the rule built into the helper, the command succeeds at once, with nothing asked.
-2. Otherwise the helper writes the rule to a new file of its own temporary folder, and runs `pkexec` once, with `/bin/sh`, a fixed script built into the helper, and the path of that file as the script's only argument. The script copies the file into place, owned by root and readable by all (`install -m 0644 -o root -g root`), then reloads the rules (`udevadm control --reload-rules`). Nothing of the request goes into the script: it has no argument the app could change.
-3. The exit code of `pkexec`: 126 when the user closed the password window (`cancelled`), 127 when the authorisation was refused (`permission-denied`), anything else that is not 0 is `udev-failed` with the code in `detail`.
-4. The helper reads the file of the system back and compares it with the rule. A difference is `udev-failed`.
-5. The rule is applied when the device appears, so the app then asks the user to put the iPod in DFU mode again.
+The **polkit rule** answers yes, with no password window, to one action only: `org.freedesktop.udisks2.open-device`, when the request comes from a local and active session, and the drive of the disk, as udisks2 describes it to polkit (the details `drive.vendor`, `drive.model`, `drive.removable` and `drive.removable.bus`), is removable, on USB, with the vendor and the model that an iPod gives under Apple's firmware (`Apple`, a model that starts with `iPod`). From v0.3, the names that our firmware gives are added to it (section 16). Every other request goes on to the usual rules of the system: the rule does not cover `open-device-system`, the mount, or any other disk. Its file is `/etc/polkit-1/rules.d/70-tacetos-ipod.rules`; polkit reads that folder again by itself when a file changes.
 
-When `pkexec` is missing (a Flatpak, a minimal system), the command answers `unsupported-system`, and the app shows the rule and the two commands to type in a terminal, as `bootloader-classic.md` section 15.2 says. The app never runs `sudo`.
+1. If the file of the udev rule is there and its content is the rule built into the helper, the command succeeds at once, with nothing asked. When the folder of the polkit rules does not exist, the rule without its last line counts as there too (step 2 puts it so): the folder itself can be seen by the user, even where its files cannot be read.
+2. Otherwise the helper writes the two rules to two new files of its own temporary folder, and runs `pkexec` once, with `/bin/sh`, a fixed script built into the helper, and the paths of those two files as the script's only arguments. The script copies each file into place, owned by root and readable by all (`install -m 0644 -o root -g root`), then reloads the udev rules (`udevadm control --reload-rules`), then compares each file in place with its source (`cmp`) and exits with 3 when one differs. When the folder of the polkit rules does not exist (a system without polkit's rules), the script copies only the udev rule, without its last line, and exits with 4. Nothing of the request goes into the script: it has no argument the app could change.
+3. The exit code of `pkexec`: 126 when the user closed the password window (`cancelled`), 127 when the authorisation was refused (`permission-denied`), 4 is a success with `polkit` false (the udev rule alone), anything else that is not 0 is `udev-failed` with the code in `detail`.
+4. The helper reads the file of the udev rule back and compares it with the rule (without its last line after an exit 4). A difference is `udev-failed`.
+5. The udev rule is applied when the device appears, so the app then asks the user to put the iPod in DFU mode again. The polkit rule applies from the next opening of the disk.
+
+When `pkexec` is missing (a Flatpak, a minimal system), the command answers `unsupported-system`, and the app shows the two rules and the commands to type in a terminal (copy each file into place, then reload the udev rules), as `bootloader-classic.md` section 15.2 says. The app never runs `sudo`.
 
 `pkexec` is never used for anything else.
 
@@ -589,7 +591,7 @@ The code is what the app reads; the `detail` is for the journal. The app shows i
 | `sheet-unsupported` | Section 6.3 | Nothing: the app goes on without the sheet |
 | `sheet-too-big`, `sheet-unreadable` | Section 6.3 | Nothing, the log only |
 | `unavailable` | Section 3.2 (`classic` or `usb` false) | "Classic install is not available in this build" |
-| `udev-failed` | Section 11.5 | "The USB permission could not be installed", and the rule and its two commands |
+| `udev-failed` | Section 11.5 | "The permissions for the iPod could not be installed", and the rules and their commands |
 | `unsupported-system` | Sections 6.11, 11.1, 11.5 | What is missing on the computer and the command to install it |
 | `helper-crashed` | Section 3.7 | "The helper stopped", then what `bootloader-legacy.md` section 19 says for a directory write, after a new reading of the state |
 
@@ -607,6 +609,7 @@ The code is what the app reads; the `detail` is for the journal. The app shows i
 | Image sector sizes | 512, 2048, 4096 | Section 5.1 |
 | Lock folder (Linux) | `$XDG_RUNTIME_DIR/tacetos/locks/` | Section 8 |
 | The udev rule's file | `/etc/udev/rules.d/70-tacetos-dfu.rules` | Section 11.5 |
+| The polkit rule's file | `/etc/polkit-1/rules.d/70-tacetos-ipod.rules` | Section 11.5 |
 | Oldest udisks2 | 2.7.3 | Section 11.1 |
 | Exit codes | 0 normal, 2 command line, 3 output closed | Section 3.7 |
 
@@ -636,16 +639,18 @@ One test from end to end per command (client, helper program, image file), each 
 
 - A fake of udisks2 on a private bus, or behind an interface of the helper: answers recorded from real systems for an iPod, a USB stick, a USB hard disk that reports itself fixed, an internal disk, a memory card reader. Each one is accepted or refused as section 7.2 says, with the right code.
 - Recorded device trees (`/sys`) for the same disks, in the folder of the tests, read through a root folder given to the code. Names that Windows refuses in a file name (a `:` in the folders of `/sys`) are protected so that the tests run on every system.
-- The `pkexec` step: the command line built for it (the script, the one argument) and the mapping of its exit codes, with a fake runner. Never the real `pkexec`.
+- The `pkexec` step: the command line built for it (the script, its two arguments) and the mapping of its exit codes (4 among them), with a fake runner. Never the real `pkexec`. The script itself, run by the test with `sh` on two temporary folders in place of the system's: each file copied and compared, exit 3 when a copy differs, exit 4 and the udev rule alone without its last line when the polkit folder is missing.
+- The text of the polkit rule: the one action, the session tests, the drive details it reads, and nothing else. A udev rule file without its last line (an older build) counts as missing.
 - `classic-dfu` on a fake of the layer under the transfer (the USB bus over time, the eject, a clock that moves only when the flow waits) and the fake iPod in DFU mode of `bootloader-classic.md` section 17, with synthetic parts of the image: the image the iPod receives is the one the helper built, for an install and an uninstall; the stages and one `progress` per second of a wait; a development build stops before the eject; a disk that is not a Classic (`not-classic`), wrong arguments, no parts or no USB access (`unavailable`), two iPods in DFU mode, another id or none (`dfu-failed`, nothing sent), a cancel during the waits. `resume-paused` with no state file answers at once.
 - The device sheet: the parsing of recorded INQUIRY answers (the list page, then the pages), and the stop at `SHEET_MAX_BYTES`.
 - The writes on a real disk (section 11.1 and 11.3), with the gate open: the loop of the helper runs in the test's own process, where the test opens the gate in the code of its system layer (no request, file or variable can), and the fake disk service gives an image file for reading, then for writing. For install, update, uninstall, restore, format and conversion: the order of the calls (the unmount first for a format or a conversion, the open for reading, then the open for reading and writing after every check), the result, and the iPod read again. An unmount refused (`in-use`) opens nothing; an open for writing refused (`permission-denied`) writes nothing. With the gate closed, nothing is unmounted.
 
 ## 16. Not decided yet
 
-- The page codes of the device sheet (section 6.3) come from public documentation of the iPod and from tools that read it. They must be read on the Classic at hand, in Disk Mode and in normal mode, before the app uses the sheet. Whether the older iPods answer the same way is open until one is tested.
-- Whether the password that udisks2 keeps "for a few minutes" is enough for a long operation that opens the disk twice (a format of a large iPod reads, then writes). If not, the helper keeps the file it opened in mode `rw` from the first open of a write command, still writing nothing before the checks.
-- Whether `udevadm control --reload-rules` is enough on every distribution, or whether some need `udevadm trigger` as well for the access to apply the next time the iPod enters DFU mode.
+- The page codes of the device sheet (section 6.3) come from public documentation of the iPod and from tools that read it. They were read on a real 120 GB Classic in normal mode under Apple's firmware (2026-11-14), and every diagnostic of its real install read the sheet the same way (2026-11-22). Disk Mode and the older iPods are still to be read.
+- On the real install of the Classic (2026-11-22, Fedora), udisks2 asked for the password once at each diagnostic, and never in the steps after it, which all came within a few minutes. The polkit rule of section 11.5 is there to remove even that one. Without it, a long operation that opens the disk twice (a format of a large older iPod reads, then writes) may still ask twice: not seen yet, since a Classic is emptied, not formatted. If it does, the helper keeps the file it opened in mode `rw` from the first open of a write command, still writing nothing before the checks.
+- Whether `udevadm control --reload-rules` is enough on every distribution, or whether some need `udevadm trigger` as well for the access to apply the next time the iPod enters DFU mode. On Fedora 44 the reload was enough (2026-11-21): the next DFU mode was open to the user, with no trigger.
+- The names that udisks2 gives to the drive of a real Classic (vendor, model, removable, bus), under Apple's firmware and under the firmware of v0.2, for the polkit rule of section 11.5: to be read on the iPod (`udisksctl info`) before the rule is written into the helper.
 - Windows: the elevated helper and its named pipe (section 12.1) against the other ways (a service, a helper elevated only for the writes, with a second one for DFU, which needs no rights). To be decided with the Windows port.
 - macOS: `authopen` is the way to get an open disk with no program installed (section 12.2). The service manager of the system, which needs a signed app, stays the other way, to be taken up only if `authopen` fails on a real Mac. To be tested on a real Mac before the port: how many password windows a read then a write of the same disk show, whether an account that is not an administrator can use an administrator's password, whether the privacy permission for removable volumes applies to the open of the raw disk, whether the helper must mount the disk again itself after the unmount (the system does not seem to do it), and which of Apple's programs hold an iPod in DFU mode.
 - Where the logs of a helper whose app went away should go (section 10.4). Today they are lost; the install record and the state read again are enough to explain the result.
