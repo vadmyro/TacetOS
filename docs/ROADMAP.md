@@ -10,14 +10,14 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 | Foundations | Firmware base, model database, library rules, specs of the install formats and protocols | 7/7 | ✅ done |
 | **v0.1** | Device detection and live state (plug, unplug, disk mode, DFU) | 7/7 | ✅ done |
 | Test devices | Disk image test devices + privileged helper | 6/6 | ✅ done |
-| **v0.2** | Install and reset wizard: backup, format, firmware, bootloader, guided DFU, uninstall | 10/12 | ⏳ |
-| **v0.3** | Our own firmware build: name, custom boot logo, update channel, health page | 0/10 | ⏳ |
-| **v0.4** | Music library and sync: tags, cover art, sorting rules, playlists, conversion, import folder | 0/11 | ⏳ |
+| **v0.2** | Install and reset wizard: backup, format, firmware, bootloader, guided DFU, uninstall | 11/13 | ⏳ |
+| **v0.3** | Our own firmware build: name, custom boot logo, update channel, health page | 0/11 | ⏳ |
+| **v0.4** | Music library and sync: tags, cover art, sorting rules, playlists, conversion, import folder | 0/12 | ⏳ |
 | **v0.5** | Settings editor, fonts, menu order, listening recap | 0/7 | ⏳ |
 | **v0.6** | Themes: browser, editor with live preview, simple mode, default TacetOS theme | 0/11 | ⏳ |
-| Translations | French first, then many more | 0/3 | ⏳ |
-| Windows and macOS | Detection, DFU and disk access on every system | 0/5 | ⏳ |
-| **beta** | Packages (AppImage, .deb, .rpm, Windows installer, .dmg), public beta | 0/6 | ⏳ |
+| **v0.7** | Translations: language picked at first launch and in Settings, French, then many more | 0/3 | ⏳ |
+| **v0.8** | Windows and macOS: detection, DFU and disk access on every system | 0/5 | ⏳ |
+| **v0.9** | Public beta: packages (AppImage, .deb, .rpm, Windows installer, .dmg), one-command install, install guide | 0/6 | ⏳ |
 | **v1.0** | Fixes from the beta | 0/1 | ⏳ |
 
 ## Setup ✅
@@ -68,13 +68,15 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 - [x] Built-in DFU guide: buttons to hold, countdown, carries on by itself
 - [x] Bootloader install on the iPod Classic, dual boot
 - [x] Uninstall: back to 100 % Apple software
-- [ ] Real-device test: uninstall, reinstall, check
+- [x] Real-device test: uninstall, reinstall, check
+- [ ] Fixes from the real-device test: one password, automatic mount, clearer messages
 - [x] Log and a "copy report" button for Discord
 
 ## v0.3 · TacetOS firmware
 
 - [ ] TacetOS name in the firmware, applied at build time
 - [ ] Custom boot logo read from the iPod (black by default), quiet bootloader
+- [ ] Install progress on the iPod screen and in the app: logo and a progress bar
 - [ ] CI builds for every model, plus simulators
 - [ ] Update channel through GitHub Releases, settings and themes kept
 - [ ] Weekly CI job to follow the base firmware
@@ -96,6 +98,7 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 - [ ] Music database built on the computer
 - [ ] Playlist link to a "to find" list (no downloads, only links to legal sources)
 - [ ] Import folder and drag and drop: TacetOS tags, sorts and readies your own files, opens `.zip` albums, spots duplicates
+- [ ] iPod card: a faithful drawing of the model and its colour, a storage bar by type, a clear summary
 - [ ] Real-device test with a full library
 
 ## v0.5 · Settings, fonts, menus
@@ -122,13 +125,13 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 - [ ] Real-device test with three themes
 - [ ] Default TacetOS theme with the boot logo
 
-## Translations
+## v0.7 · Translations
 
-- [ ] Every string translatable, language chosen in the app
+- [ ] Every string translatable, language picked at first launch, changed anytime in Settings
 - [ ] French
 - [ ] As many languages as possible, then community translations
 
-## Windows and macOS
+## v0.8 · Windows and macOS
 
 - [ ] Windows: detection, eject, helper
 - [ ] Windows: DFU
@@ -136,12 +139,12 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 - [ ] Tests on Windows and macOS with a real iPod
 - [ ] CI on more systems: older Ubuntu, Fedora, Arch, Debian, ARM64, Apple Silicon Macs (the CI runs on Intel Macs for now)
 
-## Beta
+## v0.9 · Public beta
 
 - [ ] App style guide and stylesheet (light and dark)
-- [ ] Packages: AppImage, .deb, .rpm, Windows installer, .dmg, with a built-in update check
+- [ ] Packages: AppImage, .deb, .rpm, Windows installer, .dmg, a one-command install for each system, and a built-in update check
 - [ ] Signed packages
-- [ ] User docs, one page per model, FAQ, website
+- [ ] User docs: install guide in the README, one page per model, FAQ, website
 - [ ] Screenshots and a short demo video
 - [ ] Public beta: untested models marked experimental
 

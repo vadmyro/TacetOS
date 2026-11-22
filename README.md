@@ -39,7 +39,7 @@
 - **Settings editor.** Every firmware setting in a clear form, with explanations, instead of editing a text file.
 - **Theme editor.** Browse and install themes for your screen size, or make your own with a live preview.
 - **Its own firmware.** With its own name, boot logo and default theme, updated from the app.
-- **Translated.** English first, French next, then as many languages as possible.
+- **Translated.** Pick your language the first time you open the app, and change it anytime in Settings. English first, French next, then as many languages as possible.
 
 ## Progress
 
@@ -49,14 +49,14 @@
 | Foundations | Firmware base, model database, specs | ✅ 7/7 |
 | **v0.1** | Device detection and live state | ✅ 7/7 |
 | Test devices | Disk image test devices, privileged helper | ✅ 6/6 |
-| **v0.2** | Install and reset wizard | ⏳ 10/12 |
-| **v0.3** | TacetOS firmware | ⏳ 0/10 |
-| **v0.4** | Music library and sync | ⏳ 0/11 |
+| **v0.2** | Install and reset wizard | ⏳ 11/13 |
+| **v0.3** | TacetOS firmware | ⏳ 0/11 |
+| **v0.4** | Music library and sync | ⏳ 0/12 |
 | **v0.5** | Settings, fonts, menus | ⏳ 0/7 |
 | **v0.6** | Themes | ⏳ 0/11 |
-| Translations | French, then many more | ⏳ 0/3 |
-| Windows and macOS | Detection, DFU, disk access | ⏳ 0/5 |
-| **beta** | Packages, public beta | ⏳ 0/6 |
+| **v0.7** | Translations | ⏳ 0/3 |
+| **v0.8** | Windows and macOS | ⏳ 0/5 |
+| **v0.9** | Public beta: packages, one-command install, install guide | ⏳ 0/6 |
 | **v1.0** | Fixes from the beta | ⏳ 0/1 |
 
 ### Now: install and reset wizard
@@ -71,7 +71,8 @@
 - [x] Built-in DFU guide: buttons to hold, countdown, carries on by itself
 - [x] Bootloader install on the iPod Classic, dual boot
 - [x] Uninstall: back to 100 % Apple software
-- [ ] Real-device test: uninstall, reinstall, check
+- [x] Real-device test: uninstall, reinstall, check
+- [ ] Fixes from the real-device test: one password, automatic mount, clearer messages
 - [x] Log and a "copy report" button for Discord
 
 Every task is listed in the [roadmap](docs/ROADMAP.md). News is posted on the [Discord server](https://discord.gg/XfXtZeUFYs).
