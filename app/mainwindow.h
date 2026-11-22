@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "automount.h"
 #include "home/homeaction.h"
 #include "journal.h"
 #include "live.h"
@@ -57,6 +58,8 @@ public:
     device::LiveDriver *driver() const { return driver_.get(); }
     device::DeviceStateModel *stateModel() const { return model_.get(); }
     journal::Journal *journal() const { return journal_.get(); }
+    // The mount on arrival: none where the system mounts by itself (not Linux).
+    device::AutoMounter *autoMounter() const { return autoMounter_.get(); }
 
     // Wires the window of the install wizard to the home screen (docs/specs/install-screens.md
     // section 1): the buttons of a card open it, and the app refuses to quit while a step is
@@ -97,6 +100,8 @@ private:
     std::unique_ptr<device::OperationRunner> runner_;
     std::unique_ptr<device::DeviceStateModel> model_;
     std::unique_ptr<device::LiveDriver> driver_;
+    // Linux only: the other systems mount a FAT32 volume by themselves.
+    std::unique_ptr<device::AutoMounter> autoMounter_;
     // Mount and mount read only open the mount point when they end well: the id of the
     // operation that asked, by port.
     QHash<QString, quint64> openAfter_;

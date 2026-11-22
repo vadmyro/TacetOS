@@ -33,7 +33,9 @@ public:
     void setNameInButtons(bool on);
 
     // Screens section 1.1: a progress file exists for the iPod, and a wizard window is open.
-    void setWizardState(bool hasProgress, bool windowOpen);
+    // `uninstalled`: the last install record of the iPod is an uninstall (wizard section 9.3), so
+    // a Classic under Apple's firmware is not offered Uninstall again.
+    void setWizardState(bool hasProgress, bool windowOpen, bool uninstalled = false);
 
     QString portPath() const { return portPath_; }
     QPushButton *wizardButton() const { return wizard_; }
@@ -78,6 +80,7 @@ private:
     bool firmwareIsOurs_ = false;
     bool isClassic_ = false;
     bool hasProgress_ = false;
+    bool uninstalled_ = false;
     bool windowOpen_ = false;
     bool ejectShown_ = false;
     bool openShown_ = false;

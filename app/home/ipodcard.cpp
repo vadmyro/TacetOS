@@ -391,10 +391,11 @@ void IpodCard::setEntry(const ScreenEntry &entry, const QList<Model> &models, Ho
     drawModel();
 }
 
-void IpodCard::setWizardState(bool hasProgress, bool windowOpen)
+void IpodCard::setWizardState(bool hasProgress, bool windowOpen, bool uninstalled)
 {
     hasProgress_ = hasProgress;
     windowOpen_ = windowOpen;
+    uninstalled_ = uninstalled;
     updateWizardButtons();
     updateButtonNames();
 }
@@ -417,7 +418,8 @@ void IpodCard::updateWizardButtons()
     eject_->setVisible(ejectShown_);
     open_->setVisible(openShown_);
     wizard_->setVisible(wizardShown_);
-    uninstall_->setVisible(wizardShown_ && !hasProgress_ && !firmwareIsOurs_ && isClassic_);
+    uninstall_->setVisible(wizardShown_ && !hasProgress_ && !firmwareIsOurs_ && isClassic_ &&
+                           !uninstalled_);
     if (!wizardShown_)
         return;
     if (hasProgress_) {

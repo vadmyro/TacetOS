@@ -10,7 +10,6 @@
 
 #include <QHash>
 #include <QList>
-#include <QPair>
 #include <QWidget>
 
 class QBoxLayout;
@@ -41,7 +40,9 @@ public:
     QList<IpodCard *> cards() const { return cards_; }
 
     // Screens section 1.1: which iPods have a progress file, and which have a wizard window.
-    void setWizardState(const QString &port, bool hasProgress, bool windowOpen);
+    // `uninstalled`: the last install record of the iPod is an uninstall.
+    void setWizardState(const QString &port, bool hasProgress, bool windowOpen,
+                        bool uninstalled = false);
 
 signals:
     void actionRequested(const QString &port, tacetos::HomeAction action);
@@ -64,7 +65,13 @@ private:
     QWidget *column_;
     QBoxLayout *columnLayout_;
     QList<IpodCard *> cards_;
-    QHash<QString, QPair<bool, bool>> wizardState_;
+    struct WizardFlags
+    {
+        bool hasProgress = false;
+        bool windowOpen = false;
+        bool uninstalled = false;
+    };
+    QHash<QString, WizardFlags> wizardState_;
     bool detectionAvailable_ = true;
 };
 

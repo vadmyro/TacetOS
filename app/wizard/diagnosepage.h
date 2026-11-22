@@ -74,6 +74,8 @@ private:
     void addCommand(QVBoxLayout *group, const QString &id, const QString &command);
     void addUdevAction(QVBoxLayout *group, const wizard::Check &check);
     void onStarted(const QString &name);
+    void onProgress(const QString &name, const QString &stage, qint64 done, qint64 total);
+    void setChecking(bool on, int percent = 0, const QString &stage = QString());
     void onWaiting(const QString &name, wizard::WaitKind kind);
     void onFailed(const QString &name, const QString &code);
     void onStopped();
@@ -105,6 +107,7 @@ private:
 
     QWidget *list_ = nullptr;
     QLabel *title_ = nullptr;
+    QLabel *checking_ = nullptr;
     QLabel *note_ = nullptr;
     QPushButton *again_button_ = nullptr;
 };

@@ -256,12 +256,17 @@ DfuTutorialPage::DfuTutorialPage(WizardRunner *runner, QWidget *parent)
     run->addWidget(under_);
     left->addWidget(running_);
 
+    // Section 6.2: the order again, right above each Start.
+    startHint_ = makeLabel(QStringLiteral("dfuStartHint"), this);
+    startHint_->setText(wtr("Press Start first, then hold MENU and the center button"));
+    startHint_->hide();
+    left->addStretch();
+    left->addWidget(startHint_, 0, Qt::AlignRight);
     start_ = new QPushButton(wtr("Start"), this);
     start_->setObjectName(QStringLiteral("dfuStart"));
     start_->setProperty("role", QStringLiteral("primary"));
     start_->setAccessibleName(wtr("Start"));
     connect(start_, &QPushButton::clicked, this, &DfuTutorialPage::onStartClicked);
-    left->addStretch();
     left->addWidget(start_, 0, Qt::AlignRight);
     layout->addLayout(left, 1);
 
@@ -366,6 +371,7 @@ void DfuTutorialPage::setStage(Stage stage, DfuWay way, const QString &title)
     const bool asking = stage == Stage::Asking;
     steps_->setVisible(asking);
     start_->setVisible(asking);
+    startHint_->setVisible(asking);
     running_->setVisible(!asking && stage != Stage::Idle);
     bar_->setVisible(stage == Stage::Preparing || stage == Stage::Sending ||
                      stage == Stage::Restarting);
@@ -408,7 +414,8 @@ void DfuTutorialPage::onStarted(const QString &name)
 }
 
 // Section 6.2.
-void DfuTutorialPage::showAsking(const QString &reason, const QString &hint)
+void DfuTutorialPage::showAsking(const QString &reason, const QString &hint,
+                                 const QString &failedStage)
 {
     asking_ = true;
     const bool uninstall = step_ == QLatin1String(step::classicRemove);
@@ -426,8 +433,16 @@ void DfuTutorialPage::showAsking(const QString &reason, const QString &hint)
                    "button for about 6 seconds, and let go as soon as the screen changes. Wait "
                    "for its menu, then press Start.");
     } else if (reason == QLatin1String(error::dfuFailed)) {
-        title = wtr("The iPod did not appear in DFU mode");
-        line = hint;
+        // The step says where the try stopped: at the send, the iPod was there, and
+        // nothing was written before the image was complete.
+        if (failedStage == QLatin1String("send")) {
+            title = wtr("The transfer to the iPod was interrupted");
+            line = wtr("Nothing was written: the iPod starts Apple's software again. Wait for "
+                       "its menu, then press Start to try again.");
+        } else {
+            title = wtr("The iPod did not appear in DFU mode");
+            line = hint;
+        }
     } else if (reason == QLatin1String(error::backInDfu)) {
         title = wtr("The iPod keeps leaving DFU mode");
         line = wtr("The iPod left DFU mode again and again. Unplug it, plug it in again, then "
@@ -444,7 +459,8 @@ void DfuTutorialPage::onWaiting(const QString &name, int kind, const QJsonObject
     if (name != step_ || !mine(name) || kind != int(WaitKind::ReadyForDfu))
         return;
     showAsking(info.value(QStringLiteral("reason")).toString(),
-               info.value(QStringLiteral("hint")).toString());
+               info.value(QStringLiteral("hint")).toString(),
+               info.value(QStringLiteral("stage")).toString());
 }
 
 void DfuTutorialPage::onStartClicked()
@@ -491,7 +507,10 @@ void DfuTutorialPage::onProgress(const QString &name, const QString &stage, qint
         under_->setText(text);
         setStage(Stage::Preparing, DfuWay::Rest, wtr("Waiting for the iPod"));
     } else if (stage == QLatin1String("wait-device")) {
-        if (stage_ == Stage::Hold)
+        // Once the DFU device is seen, the buttons must stay released: the helper may still
+        // send `wait-device` for a moment (it sees the device after detection does), and a
+        // try that goes wrong comes back through the asking page, never through here.
+        if (stage_ == Stage::Hold || stage_ == Stage::Release)
             return;
         countdownSince_ = now();
         setStage(Stage::Hold, DfuWay::Hold, wtr("Hold MENU and the center button now"));

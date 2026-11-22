@@ -159,7 +159,8 @@ void MainWindow::showWizardState(const QString &port)
         return;
     const QString serial = launcher_->flowSerial(*entry->ipod);
     home_->setWizardState(port, launcher_->manager().hasProgress(serial),
-                          launcher_->manager().windowFor(serial) != nullptr);
+                          launcher_->manager().windowFor(serial) != nullptr,
+                          launcher_->lastRecordIsUninstall(serial));
 }
 
 void MainWindow::setup()
@@ -206,6 +207,17 @@ void MainWindow::wire(DeviceSource *source, const Clock *clock, DiskActions *act
                 for (const QString &line : lines)
                     journal_->add(levelOfOperationLine(line), journal::Domain::Op, port, line);
             });
+
+#ifdef Q_OS_LINUX
+    // Section 2.8 of the state spec: an iPod that arrives with its volume not mounted is mounted
+    // here, without waiting for the desktop. The setting is always on until Settings (v0.7).
+    autoMounter_ = std::make_unique<AutoMounter>(model_.get(), tracker_.get(), runner_.get());
+    connect(autoMounter_.get(), &AutoMounter::logged, this,
+            [this](const QString &port, const QStringList &lines) {
+                for (const QString &line : lines)
+                    journal_->add(journal::Level::Warning, journal::Domain::Op, port, line);
+            });
+#endif
 
     // stateChanged is always followed by listChanged, so the screen is set once per change.
     connect(model_.get(), &DeviceStateModel::listChanged, this, &MainWindow::showEntries);

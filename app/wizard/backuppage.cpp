@@ -309,9 +309,12 @@ void BackupPage::onDone(const QString &name)
     barText_->clear();
     // Screens section 4.1: the line is kept on the end page (section 8).
     const QString size = backupSizeText(total_);
-    checkedLine_ = files_ >= 0
-                       ? wtr("Backup checked: %1 files, %2").arg(QLocale().toString(files_), size)
-                       : wtr("Backup checked: %1").arg(size);
+    if (files_ == 0)
+        checkedLine_ = wtr("The iPod was empty: nothing to back up");
+    else if (files_ > 0)
+        checkedLine_ = wtr("Backup checked: %1 files, %2").arg(QLocale().toString(files_), size);
+    else
+        checkedLine_ = wtr("Backup checked: %1").arg(size);
     note_->setText(checkedLine_);
     QAccessibleEvent alert(note_, QAccessible::Alert);
     QAccessible::updateAccessibility(&alert);

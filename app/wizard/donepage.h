@@ -37,7 +37,8 @@ public:
     void setClassic(bool classic) { classic_ = classic; }
     void setStartLines(const QStringList &lines) { lines_ = lines; }
 
-    // The summary of the backup: "Backup checked: 1 234 files, 71.0 GB".
+    // The summary of the backup: "Backup checked: 1 234 files, 71.0 GB",
+    // or "The iPod was empty: nothing to back up" when there were 0 files.
     void setBackup(const QString &folder, qint64 files, qint64 bytes);
 
     // A clean install: "Put my music back" is shown.

@@ -91,7 +91,7 @@ private:
     void onDone(const QString &name);
     void onFailed(const QString &name, const QString &code);
     void onStartClicked();
-    void showAsking(const QString &reason, const QString &hint);
+    void showAsking(const QString &reason, const QString &hint, const QString &failedStage = {});
     void setStage(Stage stage, DfuWay way, const QString &title);
     void setWay(DfuWay way);
     void announce();
@@ -129,6 +129,7 @@ private:
     QProgressBar *bar_ = nullptr;
     QLabel *countdown_ = nullptr;
     QLabel *under_ = nullptr;
+    QLabel *startHint_ = nullptr;
     QPushButton *start_ = nullptr;
 };
 

@@ -269,8 +269,10 @@ void DonePage::showFinish(const QJsonObject &summary)
     backup_->setVisible(hasBackup);
     folder_->setVisible(hasBackup);
     if (hasBackup)
-        backup_->setText(wtr("Backup checked: %1 files, %2")
-                             .arg(QLocale().toString(files_), backupSizeText(bytes_)));
+        backup_->setText(files_ == 0
+                             ? wtr("The iPod was empty: nothing to back up")
+                             : wtr("Backup checked: %1 files, %2")
+                                   .arg(QLocale().toString(files_), backupSizeText(bytes_)));
     music_->setVisible(clean_ && hasBackup);
     ejected_ = false;
     ejectLine_->setText(wtr("Eject the iPod before you unplug it."));

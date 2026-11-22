@@ -3,7 +3,9 @@
 
 #include "wizard/diagnosepage.h"
 
+#include "helperconstants.h"
 #include "runner.h"
+#include "udevrule.h"
 #include "wizardconstants.h"
 #include "wizarderrors.h"
 
@@ -47,6 +49,7 @@ QString nameOf(const QString &id)
         {"udisks", QT_TRANSLATE_NOOP("wizard", "Disk service")},
         {"classic-build", QT_TRANSLATE_NOOP("wizard", "Classic support")},
         {"udev-rule", QT_TRANSLATE_NOOP("wizard", "USB permission")},
+        {"disk-access", QT_TRANSLATE_NOOP("wizard", "Disk permission")},
         {"backup-folder", QT_TRANSLATE_NOOP("wizard", "Backup folder")},
         {"backup-space", QT_TRANSLATE_NOOP("wizard", "Space for the backup")},
         {"model", QT_TRANSLATE_NOOP("wizard", "Model")},
@@ -105,14 +108,17 @@ QString errorText(const QString &code)
     return wtr("The rule could not be put in place. Type the commands below in a terminal.");
 }
 
-// Helper section 11.5: the two commands for those who prefer a terminal. The rule is the one
-// of the Classic in DFU mode, and of nothing else.
+// Helper section 11.5: the commands for those who prefer a terminal. Each file gets the text
+// built into the helper, so that the checks read it as in place.
 QString udevCommands()
 {
-    return QStringLiteral("echo 'SUBSYSTEM==\"usb\", ATTR{idVendor}==\"05ac\", "
-                          "ATTR{idProduct}==\"1223\", TAG+=\"uaccess\"' | sudo tee %1\n"
-                          "sudo udevadm control --reload-rules")
-        .arg(QString(kUdevRuleFile));
+    const auto put = [](const QLatin1String &file, const QString &text) {
+        return QStringLiteral("sudo tee %1 > /dev/null <<'TACETOS_RULE'\n%2TACETOS_RULE\n")
+            .arg(QString(file), text);
+    };
+    return put(helper::kUdevRulesFile, helper::udevRuleText()) +
+           put(helper::kPolkitRulesFile, helper::polkitRuleText()) +
+           QStringLiteral("sudo udevadm control --reload-rules");
 }
 
 QPushButton *makeButton(const QString &text, const char *role, const QString &name, QWidget *parent)
@@ -145,6 +151,11 @@ DiagnosePage::DiagnosePage(WizardRunner *runner, const QString &serial, const QS
     list_->setObjectName(QStringLiteral("diagnoseList"));
     new QVBoxLayout(list_);
     list_->layout()->setContentsMargins(0, 0, 0, 0);
+    checking_ = new QLabel(this);
+    checking_->setObjectName(QStringLiteral("diagnoseChecking"));
+    checking_->setAlignment(Qt::AlignHCenter);
+    checking_->setProperty("role", QStringLiteral("secondary"));
+    checking_->hide();
     note_ = new QLabel(this);
     note_->setObjectName(QStringLiteral("diagnoseNote"));
     note_->setWordWrap(true);
@@ -157,12 +168,17 @@ DiagnosePage::DiagnosePage(WizardRunner *runner, const QString &serial, const QS
     bottom->addWidget(again_button_, 0, Qt::AlignRight);
     layout->addWidget(title_);
     layout->addWidget(list_);
+    layout->addWidget(checking_);
     layout->addLayout(bottom);
     layout->addStretch();
 
     connect(runner_, &WizardRunner::checksReported, this, &DiagnosePage::setChecks);
     connect(runner_, &WizardRunner::stepStarted, this,
             [this](int, const QString &name) { onStarted(name); });
+    connect(runner_, &WizardRunner::stepProgress, this,
+            [this](const QString &name, const QString &stage, qint64 done, qint64 total) {
+                onProgress(name, stage, done, total);
+            });
     connect(
         runner_, &WizardRunner::stepWaiting, this,
         [this](const QString &name, WaitKind kind, const QJsonObject &) { onWaiting(name, kind); });
@@ -182,6 +198,8 @@ bool DiagnosePage::canGoOn() const
 
 void DiagnosePage::setChecks(const QList<Check> &checks)
 {
+    // The list is complete: every check has its result.
+    setChecking(false);
     checks_ = checks;
     rebuild();
     refresh();
@@ -273,9 +291,10 @@ void DiagnosePage::addRow(QVBoxLayout *group, const Check &check)
         line->addWidget(yes, 0, Qt::AlignTop);
     }
     if (check.action == QLatin1String("install-udev-rule")) {
-        auto *install =
-            makeButton(installing_ ? wtr("Waiting for your permission") : wtr("Install the rule"),
-                       "secondary", QStringLiteral("action-") + check.id, row);
+        const QString label = check.id == QLatin1String("disk-access") ? wtr("Allow TacetOS")
+                                                                       : wtr("Install the rule");
+        auto *install = makeButton(installing_ ? wtr("Waiting for your permission") : label,
+                                   "secondary", QStringLiteral("action-") + check.id, row);
         install->setEnabled(!installing_ && bool(installer_));
         connect(install, &QPushButton::clicked, this, &DiagnosePage::installRule);
         line->addWidget(install, 0, Qt::AlignTop);
@@ -344,7 +363,28 @@ void DiagnosePage::onStarted(const QString &name)
     stopped_ = false;
     asking_ = false;
     note_->clear();
+    setChecking(true, 0);
     refresh();
+}
+
+void DiagnosePage::onProgress(const QString &name, const QString &stage, qint64 done, qint64 total)
+{
+    if (name != step::diagnose || total <= 0)
+        return;
+    setChecking(true, int(done * 100 / total), stage);
+}
+
+// Section 3: while the checks run, the title ends with the percentage and a line under the
+// list names the check under way. Both go when the last check has its result.
+void DiagnosePage::setChecking(bool on, int percent, const QString &stage)
+{
+    QString title = wtr("Checking this computer and the iPod");
+    if (on)
+        title = wtr("%1, %2 %").arg(title).arg(percent);
+    title_->setText(title);
+    title_->setAccessibleName(title);
+    checking_->setVisible(on && !stage.isEmpty());
+    checking_->setText(on && !stage.isEmpty() ? wtr("Checking: %1").arg(nameOf(stage)) : QString());
 }
 
 void DiagnosePage::onWaiting(const QString &name, WaitKind kind)
@@ -352,6 +392,7 @@ void DiagnosePage::onWaiting(const QString &name, WaitKind kind)
     if (name != step::diagnose || kind != WaitKind::Battery)
         return;
     asking_ = true;
+    setChecking(false);
     rebuild();
     refresh();
 }
@@ -361,12 +402,14 @@ void DiagnosePage::onFailed(const QString &name, const QString &code)
     if (name != step::diagnose || code != QString(error::checkBlocking))
         return;
     failed_ = true;
+    setChecking(false);
     refresh();
 }
 
 void DiagnosePage::onStopped()
 {
     stopped_ = true;
+    setChecking(false);
     if (again_ && failed_) {
         again_ = false;
         resumeStep();
@@ -379,6 +422,7 @@ void DiagnosePage::onDone(const QString &name)
     if (name != step::diagnose)
         return;
     ready_ = true;
+    setChecking(false);
     note_->setText(wtr("Everything is ready"));
     note_->setAccessibleName(note_->text());
     pause_.start();
@@ -429,8 +473,15 @@ void DiagnosePage::installRule()
             rebuild();
             if (stopped_ && failed_)
                 resumeStep();
-            else
+            else {
+                // A warning does not stop the flow: the step waits for the battery, and
+                // gets a no, as with Check again, to run the checks again.
                 again_ = true;
+                if (asking_) {
+                    asking_ = false;
+                    runner_->answer(UserAnswer{false, false, QString()});
+                }
+            }
         } else {
             note_->setText(errorText(*result));
             rebuild();

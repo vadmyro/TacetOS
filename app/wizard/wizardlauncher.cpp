@@ -349,6 +349,12 @@ QString WizardLauncher::flowSerial(const device::DetectedIpod &ipod) const
     return apple.isEmpty() ? ipod.serial : apple;
 }
 
+bool WizardLauncher::lastRecordIsUninstall(const QString &serial) const
+{
+    return classicStateBefore(installRecordsOf(config_.backupRoot, serial), serial) ==
+           QLatin1String("absent");
+}
+
 void WizardLauncher::closeSession(const QString &serial)
 {
     const auto it = sessions_.find(serial);

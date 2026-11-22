@@ -57,6 +57,8 @@ public:
     // D45: the serial that names the iPod in the app (progress, backups, records, window).
     // A Classic under TacetOS gives another serial: its install record gives back Apple's.
     QString flowSerial(const device::DetectedIpod &ipod) const;
+    // Wizard section 9.3: the last install record of this serial is an uninstall.
+    bool lastRecordIsUninstall(const QString &serial) const;
     helper::HelperClient &client() { return *client_; }
 
     // Section 1.1: opens the window of the iPod of this port for an action of the home screen,
