@@ -224,8 +224,8 @@ private slots:
         QVERIFY(expected.ok);
         QVERIFY(m_device->received().startsWith(expected.image));
         QVERIFY(m_layer->unmountCalls >= 1);
-        QCOMPARE(hooks.stages,
-                 (QStringList{"check", "eject", "spin-down", "wait-device", "send", "resume"}));
+        QCOMPARE(hooks.stages, (QStringList{"check", "eject", "spin-down", "wait-device", "quiet",
+                                            "send", "resume"}));
         QVERIFY(hooks.firstWrite);
         QVERIFY2(!hooks.seconds.isEmpty(), "the waits give one progress per second");
     }
@@ -327,6 +327,25 @@ private slots:
         QVERIFY(!o.detail.isEmpty());
         QVERIFY(m_device->received().isEmpty());
         QVERIFY(!hooks.firstWrite);
+    }
+
+    // An open that fails: the user gets the message of the code, and the data keeps
+    // the words of the USB layer for the log, which the message replaces.
+    void openFailureKeepsTheUsbDetail()
+    {
+        FakeDfuScript script;
+        script.openFails = true;
+        script.openCode = UsbAccessError::Other;
+        m_device = std::make_unique<FakeDfuDevice>(script);
+        m_layer->device = m_device.get();
+        auto s = system();
+        Hooks hooks;
+        const CommandOutcome o = runClassicDfuOnDisk(installArgs(), *s, classic(), hooks);
+        QCOMPARE(o.error, QString(err::dfuFailed));
+        QVERIFY(o.detail.startsWith(QLatin1String("The iPod could not be opened.")));
+        QCOMPARE(o.data.value(QStringLiteral("usbDetail")).toString(),
+                 QStringLiteral("access denied"));
+        QVERIFY(m_device->received().isEmpty());
     }
 
     // A cancel during the waits: nothing is sent.
