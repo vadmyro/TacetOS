@@ -75,6 +75,9 @@ struct AroundOptions
     std::function<void(const QString &)> notify;
     // Each step of `runClassicDfu` as it starts.
     std::function<void(ClassicStage)> stage;
+    // The iPod is in DFU mode: the quiet time of section 16.1 starts, the buttons
+    // can go. Called again after each reset of the wait.
+    std::function<void()> quiet;
 };
 
 // Section 15.1, steps 1 and 2.

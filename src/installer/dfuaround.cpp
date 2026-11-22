@@ -260,6 +260,8 @@ DfuWaitResult waitForQuietDfu(ClassicSystemLayer &layer, const AroundOptions &op
 
         // Section 16.1: the buttons may still be held. Nothing is opened for 10 seconds,
         // and the iPod must stay at the same address.
+        if (options.quiet)
+            options.quiet();
         bool wasReset = false;
         for (int left = kReleaseButtonsSeconds; left > 0 && !wasReset; --left) {
             tell(options, QStringLiteral("Release the buttons now. %1").arg(left));
@@ -541,7 +543,11 @@ ClassicDfuOutcome runClassicDfu(ClassicSystemLayer &layer, const ClassicDfuJob &
     paused.resumeAll();
     if (!out.transfer.ok) {
         out.message = out.transfer.message;
-        if (out.transfer.access != UsbAccessError::None) {
+        // "Other" says only that the open failed: a request that fails with it keeps
+        // the message of the transfer.
+        const UsbAccessError access = out.transfer.access;
+        if (access != UsbAccessError::None &&
+            (access != UsbAccessError::Other || out.transfer.failure == DfuFailure::Open)) {
             const UsbAccessMessage m = describeAccessError(out.transfer.access, layer.hostSystem(),
                                                            namesOf(layer.findAppleProcesses()));
             out.message = m.message;

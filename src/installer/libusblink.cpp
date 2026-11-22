@@ -32,10 +32,12 @@ UsbAccessError mapError(int code)
     }
 }
 
+// With the name of the code too: the text alone is "Other error" for several codes.
 QString describe(const char *what, int code)
 {
-    return QStringLiteral("%1 failed: %2")
-        .arg(QLatin1String(what), QString::fromUtf8(libusb_strerror(code)));
+    return QStringLiteral("%1 failed: %2 (%3)")
+        .arg(QLatin1String(what), QString::fromUtf8(libusb_strerror(code)),
+             QLatin1String(libusb_error_name(code)));
 }
 
 bool isDfuOrWtf(quint16 vendor, quint16 product)

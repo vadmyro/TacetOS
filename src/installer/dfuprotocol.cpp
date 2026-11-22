@@ -64,6 +64,12 @@ private:
     bool checkIdle(bool *answered);
     // Steps 4.1 to 4.4: one block, and the wait until the device is done with it.
     bool sendBlock(int number, const QByteArray &block);
+    // Steps 4.2 and 4.3, and step 5 after the empty block: GETSTATUS until the state
+    // is no longer dfuDNBUSY, at most kDfuBusyMaxStatusRequests times. `goneAfterBusy`
+    // tells a request that failed after at least one busy answer.
+    bool statusWhenNotBusy(Status *status, bool *goneAfterBusy = nullptr);
+    // Step 7.
+    DfuTransferResult finished();
     DfuTransferResult recover(DfuFailure failure, const char *message, const QString &detail);
 
     UsbDfuLink &m_link;
@@ -171,13 +177,34 @@ bool Transfer::checkIdle(bool *answered)
 DfuTransferResult Transfer::recover(DfuFailure failure, const char *message, const QString &detail)
 {
     const QString kept = detail.isEmpty() ? m_result.detail : detail;
+    // A request of the recovery that fails is not the cause: its code is not kept.
+    const UsbAccessError access = m_result.access;
     if (sendOut(kDfuAbort, 0)) {
         int state = 0;
         if (getState(&state) && state == kDfuStateError)
             sendOut(kDfuClrStatus, 0);
     }
+    m_result.access = access;
     m_link.close();
     return fail(failure, message, kept);
+}
+
+bool Transfer::statusWhenNotBusy(Status *status, bool *goneAfterBusy)
+{
+    for (int tries = 1;; ++tries) {
+        if (!getStatus(status)) {
+            if (goneAfterBusy)
+                *goneAfterBusy = tries > 1;
+            return false;
+        }
+        if (status->state != kDfuStateDnBusy)
+            return true;
+        if (tries >= kDfuBusyMaxStatusRequests) {
+            m_result.detail = QStringLiteral("still busy after %1 requests").arg(tries);
+            return false;
+        }
+        wait(status->pollMs);
+    }
 }
 
 bool Transfer::sendBlock(int number, const QByteArray &block)
@@ -185,17 +212,8 @@ bool Transfer::sendBlock(int number, const QByteArray &block)
     if (!sendOut(kDfuDnload, quint16(number), block))
         return false;
     Status status;
-    for (int tries = 1;; ++tries) {
-        if (!getStatus(&status))
-            return false;
-        if (status.state != kDfuStateDnBusy)
-            break;
-        if (tries >= kDfuBusyMaxStatusRequests) {
-            m_result.detail = QStringLiteral("still busy after %1 requests").arg(tries);
-            return false;
-        }
-        wait(status.pollMs);
-    }
+    if (!statusWhenNotBusy(&status))
+        return false;
     if (status.state != kDfuStateDnloadIdle || status.status != 0) {
         m_result.detail =
             QStringLiteral("%1, state %2").arg(dfuStatusName(status.status)).arg(status.state);
@@ -235,10 +253,18 @@ DfuTransferResult Transfer::run(const QByteArray &image)
             return recover(DfuFailure::Interrupted, kMessageInterrupted, {});
     }
 
-    // Step 5: the empty block, and the answer to it.
+    // Step 5: the empty block, and the answer to it. The Classic answers dfuDNBUSY
+    // first; then it may answer dfuMANIFEST, or not at all because the payload runs
+    // already, which is the first case of step 6.
     Status status;
-    if (!sendOut(kDfuDnload, quint16(number)) || !getStatus(&status))
+    if (!sendOut(kDfuDnload, quint16(number)))
         return recover(DfuFailure::Interrupted, kMessageInterrupted, {});
+    bool goneAfterBusy = false;
+    if (!statusWhenNotBusy(&status, &goneAfterBusy)) {
+        if (goneAfterBusy)
+            return finished();
+        return recover(DfuFailure::Interrupted, kMessageInterrupted, {});
+    }
     if (status.status == kDfuStatusErrFirmware || status.status == kDfuStatusErrVerify)
         return recover(DfuFailure::Refused, kMessageRefused, dfuStatusName(status.status));
     if (status.status != 0 || status.state != kDfuStateManifest)
@@ -261,13 +287,19 @@ DfuTransferResult Transfer::run(const QByteArray &image)
         }
     }
 
-    // Step 7.
+    return finished();
+}
+
+DfuTransferResult Transfer::finished()
+{
     m_link.close();
     m_result.ok = true;
     m_result.failure = DfuFailure::None;
     m_result.message =
         QStringLiteral("The install file was sent. The iPod is writing it and will restart.");
     m_result.detail.clear();
+    // The request that found the device gone is the normal end, not a failure.
+    m_result.access = UsbAccessError::None;
     return m_result;
 }
 
