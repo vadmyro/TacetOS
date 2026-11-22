@@ -125,6 +125,20 @@ QList<Check> computerChecks(const DiagnoseInput &in)
         }
     }
 
+    // Section 4.2: the same sign as `udev-rule`, for the older iPods. A warning only: the
+    // system asks for the password each time without the polkit rule.
+    if (!classic && in.os == Os::Linux) {
+        Check access = make("disk-access", Side::Computer, false);
+        if (!in.udevRulePresent) {
+            fail(access,
+                 tr("Without this permission, the system asks for your password each time "
+                    "TacetOS opens the iPod"),
+                 CheckResult::Warn);
+            access.action = QStringLiteral("install-udev-rule");
+        }
+        checks << access;
+    }
+
     Check folder = make("backup-folder", Side::Computer, true);
     if (in.backup.onIpod)
         fail(folder, tr("The backup folder is on an iPod. Choose a folder on this computer"));
@@ -408,21 +422,39 @@ FolderInfo folderInfo(const QString &path, const QStringList &ipodRoots)
 StepOutcome DiagnoseStep::run(StepContext &context)
 {
     const FlowShape shape = context.shape();
+    const bool install = shape.kind == FlowKind::Install;
+    // Screens section 3: the gathering goes in the order of the checks, and each source says
+    // which check it is for, so that the screen shows "Checking: <name>" and how far it is.
+    const int total = install ? 10 : 8;
+    int done = 0;
+    const auto stage = [&](const char *id) {
+        context.progress(QString::fromLatin1(id), done++, total);
+    };
+
     DiagnoseInput in;
+    stage("system");
     in.os = m_sources.os();
     in.osRelease = m_sources.osRelease();
-    in.udisks = m_sources.udisks();
+    stage("helper");
     in.helper = m_sources.helper();
+    stage("udisks");
+    in.udisks = m_sources.udisks();
+    stage(shape.family == Family::Dfu ? "udev-rule" : "disk-access");
     in.udevRulePresent = m_sources.udevRulePresent();
+    stage("backup-folder");
     in.backup = m_sources.backupFolder();
+    stage("backup-space");
     in.backupNeedBytes = m_sources.backupNeedBytes(shape.path);
     in.family = shape.family;
     in.kind = shape.kind;
     in.path = shape.path;
+    stage("model");
     in.ipod = m_sources.ipod();
-    if (shape.kind == FlowKind::Install) {
+    if (install) {
+        stage("package");
         in.package =
             sameAsFlow(m_sources.package(context.packageManifest()), context.packageSha256());
+        stage("firmware-room");
         in.firmwareNeedBytes = m_sources.firmwareNeedBytes(in.package);
     }
 

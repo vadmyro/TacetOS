@@ -28,6 +28,10 @@ inline constexpr QLatin1String kOldestUdisks("2.7.3");
 // Section 4.2: the file of the DFU udev rule (helper.md section 14).
 inline constexpr QLatin1String kUdevRuleFile("/etc/udev/rules.d/70-tacetos-dfu.rules");
 
+// Section 4.2: the file of the polkit rule put in place with it (helper.md section 11.5). Only
+// its folder is looked at.
+inline constexpr QLatin1String kPolkitRuleFile("/etc/polkit-1/rules.d/70-tacetos-ipod.rules");
+
 // Section 4.3, check `apple-firmware`: the versions of Apple's firmware the
 // bootloader of the Classic works with, by capacity (bootloader-classic.md
 // section 3). The 160 GB was sold in three revisions.

@@ -279,6 +279,8 @@ StepOutcome ClassicDfuStep::run(StepContext &context)
     QString hint;
     // The USB detail of the last failed try, for the log of the app.
     QString usb;
+    // The stage of the helper where the last try failed (`send`, `wait-device`...).
+    QString failedStage;
     // Set while the step looks for the disk after a Start without it: the user
     // already said Start, the step sends again by itself.
     std::optional<QDeadlineTimer> diskWait;
@@ -291,6 +293,8 @@ StepOutcome ClassicDfuStep::run(StepContext &context)
             info.insert(QStringLiteral("hint"), hint);
             if (!usb.isEmpty())
                 info.insert(QStringLiteral("usb"), usb);
+            if (!failedStage.isEmpty())
+                info.insert(QStringLiteral("stage"), failedStage);
             const UserAnswer answer = context.waitForUser(WaitKind::ReadyForDfu, info);
             if (answer.cancelled)
                 return StepOutcome::cancelled();
@@ -358,6 +362,7 @@ StepOutcome ClassicDfuStep::run(StepContext &context)
                 reason = QString(error::noDisk);
                 hint.clear();
                 usb.clear();
+                failedStage.clear();
                 continue;
             }
             context.progress(kStageWaitDisk, 0, 0);
@@ -383,6 +388,7 @@ StepOutcome ClassicDfuStep::run(StepContext &context)
             reason = QString(error::diskModeInstead);
             hint.clear();
             usb.clear();
+            failedStage.clear();
             continue;
         }
         if (result.code == helper::err::cancelled)
@@ -392,6 +398,7 @@ StepOutcome ClassicDfuStep::run(StepContext &context)
             reason = QString(error::dfuFailed);
             hint = result.detail;
             usb = result.data.value(QStringLiteral("usbDetail")).toString();
+            failedStage = result.data.value(QStringLiteral("stage")).toString();
             continue;
         }
         if (!result.ok())

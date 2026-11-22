@@ -5,12 +5,15 @@
 
 #include "helperclient.h"
 #include "helperconstants.h"
+#include "messages.h"
 #include "package.h"
+#include "udevrule.h"
 #include "udisks.h"
 #include "wizardconstants.h"
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QRegularExpression>
 #include <QStorageInfo>
@@ -292,7 +295,16 @@ HelperInfo LinuxDiagnoseSources::helper() const
 
 bool LinuxDiagnoseSources::udevRulePresent() const
 {
-    return QFile::exists(m_config.udevRuleFile);
+    // Helper section 11.5 step 1: the rule of this helper, or the same without its last line
+    // on a system with no folder of polkit rules. A rule of an older build is missing.
+    QFile file(m_config.udevRuleFile);
+    if (!file.open(QIODevice::ReadOnly))
+        return false;
+    const QString inPlace = QString::fromUtf8(file.readAll());
+    if (inPlace == helper::udevRuleText())
+        return true;
+    return inPlace == helper::udevRuleTextWithoutPolkitLine() &&
+           !QFileInfo(m_config.polkitRuleFile).dir().exists();
 }
 
 FolderInfo LinuxDiagnoseSources::backupFolder() const
@@ -322,6 +334,9 @@ IpodFacts LinuxDiagnoseSources::ipod() const
     facts.capacityGb = capacityOf(m_config.model, ipod);
     facts.otherIpods = m_view.otherIpods();
     facts.volumeReady = ipod.state == device::IpodState::Ready && ipod.volume.has_value();
+    if (ipod.state == device::IpodState::ReadOnly)
+        facts.volumeMessage =
+            device::stateMessage(ipod, {}) + QLatin1Char(' ') + device::readOnlyAdvice();
     facts.volumeMountable = ipod.state == device::IpodState::NoVolume && ipod.disk.has_value();
     facts.filesystem = filesystemOf(ipod);
     if (ipod.volume) {

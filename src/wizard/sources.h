@@ -48,6 +48,7 @@ struct LinuxSourcesConfig
     // Section 4.4: the root the system release file is read under.
     QString osReleaseRoot = QStringLiteral("/");
     QString udevRuleFile = QString(kUdevRuleFile);
+    QString polkitRuleFile = QString(kPolkitRuleFile);
     QString appVersion;
     // Section 9.2 step 2: the `install-record.json` files of the Classics.
     QStringList installRecords;
