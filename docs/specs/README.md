@@ -12,3 +12,4 @@ Precise rules the code must follow (library sorting, install flow...), written b
 - [install-screens.md](install-screens.md): the screens of the wizard: the window, the paths, the checks, the erase, the DFU guide, the report
 - [library-rules.md](library-rules.md): how music is sorted and copied
 - [theme-format.md](theme-format.md): how a theme is written
+- [firmware-branding.md](firmware-branding.md): where the firmware base shows its name or logo and how each place is fixed, the plugins kept, the firmware folder of the Classic
