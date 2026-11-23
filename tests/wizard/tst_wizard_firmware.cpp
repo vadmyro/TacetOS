@@ -38,9 +38,9 @@ QString fw()
     return QString(device::kFirmwareFolder);
 }
 
-QByteArray zipName(const QString &inside)
+QByteArray zipName(const QString &inside, const QString &top = fw())
 {
-    return (fw() + QLatin1Char('/') + inside).toUtf8();
+    return (top + QLatin1Char('/') + inside).toUtf8();
 }
 
 bool writeFile(const QString &path, const QByteArray &bytes)
@@ -94,11 +94,13 @@ class Sources : public FirmwareSources
 public:
     QString volumeRoot() const override { return volume; }
     QString target() const override { return kTarget; }
+    QString firmwareFolder() const override { return folder; }
     qint64 freeBytes() const override { return free; }
     QString settingsBackup() const override { return backup; }
     installer::FileFault fault() const override { return injected; }
 
     QString volume;
+    QString folder = fw();
     qint64 free = -1;
     QString backup;
     installer::FileFault injected;
@@ -163,12 +165,13 @@ private:
 
     // A package in a folder of its own; the context of a flow that started
     // with it.
-    void makePackage(Context &context, const QMap<QString, QByteArray> &files = packageFiles())
+    void makePackage(Context &context, const QMap<QString, QByteArray> &files = packageFiles(),
+                     const QString &top = fw())
     {
         const QString folder = newFolder(QStringLiteral("package"));
-        QList<QPair<QByteArray, QByteArray>> entries{{zipName(QString()), QByteArray()}};
+        QList<QPair<QByteArray, QByteArray>> entries{{zipName(QString(), top), QByteArray()}};
         for (auto it = files.cbegin(); it != files.cend(); ++it)
-            entries.append({zipName(it.key()), it.value()});
+            entries.append({zipName(it.key(), top), it.value()});
         const QByteArray zip = storedZip(entries);
         const QByteArray bootloader(1000, 'b');
         writeFile(folder + QStringLiteral("/tacetos-ipod6g-0.2.0.zip"), zip);
@@ -250,6 +253,26 @@ private slots:
         QCOMPARE(context.stages, QStringList({QStringLiteral("unpack"), QStringLiteral("keep"),
                                               QStringLiteral("check")}));
         QVERIFY(context.waits.isEmpty());
+    }
+
+    // Branding section 8.2: a model with its own firmware folder gets the firmware
+    // there, and the check of section 11.1 reads it there.
+    void folderOfTheModel()
+    {
+        Context context;
+        makePackage(context, packageFiles(), QStringLiteral(".own"));
+        Sources sources;
+        sources.volume = newFolder(QStringLiteral("volume"));
+        sources.folder = QStringLiteral(".own");
+        FirmwareStep step(sources);
+        const StepOutcome out = step.run(context);
+        QVERIFY2(out.kind == StepOutcome::Kind::Done, qPrintable(out.code + out.detail));
+        QCOMPARE(snapshot(sources.volume + QStringLiteral("/.own")), packageFiles());
+        QVERIFY(!QFileInfo::exists(sources.volume + QLatin1Char('/') + fw()));
+        const QString zip =
+            QFileInfo(context.manifest).absoluteDir().filePath("tacetos-ipod6g-0.2.0.zip");
+        QVERIFY(firmwareFolderDifference(sources.volume, zip, kTarget, sources.folder).isEmpty());
+        QVERIFY(!firmwareFolderDifference(sources.volume, zip, kTarget, fw()).isEmpty());
     }
 
     // Section 7.3: the user's files stay byte for byte, the package's file wins

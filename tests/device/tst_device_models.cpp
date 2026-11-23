@@ -41,6 +41,8 @@ private slots:
     void modelListErrors_data();
     void modelListErrors();
 
+    void firmwareFolders();
+
     void classicNormal();
     void classicDfu();
     void miniHasTwoCandidates();
@@ -157,6 +159,12 @@ void TestDeviceModels::modelListErrors_data()
     QTest::newRow("usb id without colon")
         << QByteArray("[[model]]\nid = \"a\"\n[model.usb]\ndfu = [\"05ac1223\"]\n")
         << QStringLiteral("a: bad usb id '05ac1223' in usb.dfu");
+    QTest::newRow("firmware folder without its dot")
+        << QByteArray("[[model]]\nid = \"a\"\nfirmware_folder = \"own\"\n")
+        << QStringLiteral("a: bad firmware_folder 'own'");
+    QTest::newRow("firmware folder with a path")
+        << QByteArray("[[model]]\nid = \"a\"\nfirmware_folder = \".own/sub\"\n")
+        << QStringLiteral("a: bad firmware_folder '.own/sub'");
 }
 
 void TestDeviceModels::modelListErrors()
@@ -165,6 +173,18 @@ void TestDeviceModels::modelListErrors()
     QFETCH(QString, expected);
     const ModelList list = modelsFromDocument(parseTomlText(text));
     QVERIFY2(list.error.startsWith(expected), qPrintable(list.error));
+}
+
+// Only the Classic has its own folder (branding section 8.2); detection looks
+// there first, then in the default folder.
+void TestDeviceModels::firmwareFolders()
+{
+    const QString own = QStringLiteral(".tacetos");
+    const QString fallback = QString(kFirmwareFolder);
+    for (const Model &m : std::as_const(m_models))
+        QCOMPARE(m.firmwareFolder, m.id == QLatin1String("classic-6g") ? own : fallback);
+    QCOMPARE(::tacetos::device::firmwareFolders(m_models), (QStringList{own, fallback}));
+    QCOMPARE(::tacetos::device::firmwareFolders({}), QStringList{fallback});
 }
 
 void TestDeviceModels::classicNormal()

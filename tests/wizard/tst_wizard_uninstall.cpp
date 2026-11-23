@@ -255,9 +255,11 @@ public:
     qint64 volumeUsedBytes() const override { return 0; }
     FirmwarePartition *firmwarePartition() const override { return partition; }
     qint64 firmwarePartitionBytes() const override { return 0; }
+    QString firmwareFolder() const override { return folder; }
 
     QString volume;
     QString root;
+    QString folder = kFolder;
     FirmwarePartition *partition = nullptr;
 };
 
@@ -289,8 +291,10 @@ public:
         return readings <= mountedAfter ? QString() : volume;
     }
     qint64 volumeWaitMs() const override { return volumeWait; }
+    QString firmwareFolder() const override { return folder; }
     HelperCommands *commands = nullptr;
     QString volume;
+    QString folder = kFolder;
     int mountedAfter = 0;
     qint64 volumeWait = 0;
     mutable int readings = 0;
@@ -325,6 +329,7 @@ public:
     const DiagnoseSources &diagnose() const override { return *checks; }
     QString target() const override { return QStringLiteral("ipod6g"); }
     QString volumeRoot() const override { return volume; }
+    QString firmwareFolder() const override { return folder; }
     QString dataDir() const override { return data; }
     QString portPath() const override { return kPort; }
     QStringList installRecords() const override { return records; }
@@ -333,6 +338,7 @@ public:
     HelperCommands *commands = nullptr;
     RecordedSight *watch = nullptr;
     Checks *checks = nullptr;
+    QString folder = kFolder;
     QString volume;
     QString data;
     QStringList records;
@@ -676,7 +682,8 @@ private slots:
     {
         auto l = legacy(QStringLiteral("ipod-video"), false, false);
         QVERIFY(l);
-        QVERIFY(::tacetos::wizard::legacyNothingToDo(stateOf(*l), l->backup.volume));
+        QVERIFY(::tacetos::wizard::legacyNothingToDo(stateOf(*l), l->backup.volume,
+                                                     QString(device::kFirmwareFolder)));
         const QByteArray before = fileHash(l->image);
         QCOMPARE(run(l->flow), QString(error::nothingToDo));
         QCOMPARE(fileHash(l->image), before);
@@ -689,7 +696,8 @@ private slots:
     {
         auto l = legacy(QStringLiteral("ipod-video"), false, true);
         QVERIFY(l);
-        QVERIFY(!::tacetos::wizard::legacyNothingToDo(stateOf(*l), l->backup.volume));
+        QVERIFY(!::tacetos::wizard::legacyNothingToDo(stateOf(*l), l->backup.volume,
+                                                      QString(device::kFirmwareFolder)));
         const QByteArray before = fileHash(l->image);
         QCOMPARE(run(l->flow), QString());
         QVERIFY(!QDir(l->backup.volume + "/" + kFolder).exists());
@@ -781,6 +789,28 @@ private slots:
         QVERIFY(QFile::exists(record));
         QCOMPARE(classicStateBefore(c->sources.records + QStringList{record}, kSerial),
                  QStringLiteral("absent"));
+    }
+
+    // A Classic whose model has its own firmware folder, with the default one an older
+    // install left: the settings backup keeps both, and both go.
+    void classicOwnFolderAndOldOne()
+    {
+        auto c = classic(true, true);
+        QVERIFY(c);
+        const QString own = QStringLiteral(".own");
+        c->sources.folder = own;
+        c->backup.folder = own;
+        c->remove.folder = own;
+        put(c->sources.volume + "/" + own + "/config.cfg", "volume: 5\n");
+        put(c->sources.volume + "/" + own + "/" + kFolder + "x/a.cfg", "not kept\n");
+        QCOMPARE(run(c->flow), QString());
+        QVERIFY(!QDir(c->sources.volume + "/" + own).exists());
+        QVERIFY(!QDir(c->sources.volume + "/" + kFolder).exists());
+        QVERIFY(keptInBackup(c->backup.root));
+        const QString backup = backupVolumeFolder(settingsBackupOf(c->backup.root));
+        QVERIFY(QFile::exists(backup + "/" + own + "/config.cfg"));
+        QVERIFY(!QFile::exists(backup + "/" + own + "/" + kFolder + "x/a.cfg"));
+        QVERIFY(QFile::exists(c->sources.volume + "/music/a.mp3"));
     }
 
     // The Classic comes back from `classic-remove` before its volume is mounted (8 s on

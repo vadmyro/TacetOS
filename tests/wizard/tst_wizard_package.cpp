@@ -104,7 +104,8 @@ private slots:
     {
         const QString manifest = makePackage();
         PackageFiles found;
-        const PackageCheck check = checkPackage(manifest, kTarget, &found);
+        const PackageCheck check =
+            checkPackage(manifest, kTarget, QString(device::kFirmwareFolder), &found);
         QVERIFY2(check.code.isEmpty(), qPrintable(check.code + check.message));
         QCOMPARE(check.unpackedBytes, 4005);
         QFile f(manifest);
@@ -122,6 +123,19 @@ private slots:
         PackageCheck refused = check;
         refused.code = QString(error::packageDamaged);
         QCOMPARE(sameAsFlow(refused, sha("other")).code, QString(error::packageDamaged));
+    }
+
+    // A model with its own firmware folder takes only a zip in that folder.
+    void folderOfTheModel()
+    {
+        const QByteArray own =
+            storedZip({{".own/", QByteArray()}, {".own/tacetos.ipod", QByteArray(4000, 'f')}});
+        const QString ownPackage = makePackage({}, own);
+        QVERIFY(checkPackage(ownPackage, kTarget, QStringLiteral(".own")).code.isEmpty());
+        QCOMPARE(checkPackage(ownPackage, kTarget, QString(device::kFirmwareFolder)).code,
+                 QString(error::packageDamaged));
+        QCOMPARE(checkPackage(makePackage(), kTarget, QStringLiteral(".own")).code,
+                 QString(error::packageDamaged));
     }
 
     // Each check of section 7.1, in its order.
@@ -210,7 +224,8 @@ private slots:
         else if (problem == QLatin1String("no-manifest"))
             QFile::remove(manifest);
         PackageFiles found;
-        const PackageCheck check = checkPackage(manifest, kTarget, &found);
+        const PackageCheck check =
+            checkPackage(manifest, kTarget, QString(device::kFirmwareFolder), &found);
         QCOMPARE(check.code, code);
         QVERIFY(!check.message.isEmpty());
         QVERIFY(found.firmware.isEmpty());

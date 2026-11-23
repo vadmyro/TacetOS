@@ -64,6 +64,7 @@ private slots:
     void infoFileOfOneMebibyte();
     void infoFileIsAFolder();
     void firmwareFolderWithoutInfoFile();
+    void firmwareInTheFolderOfItsModel();
     void appleFolderOnly();
     void emptyVolume();
     void volumeVanishes();
@@ -225,6 +226,29 @@ void TstDeviceMarkers::firmwareFolderWithoutInfoFile()
     QVERIFY(QDir().mkpath(dir.filePath(kFolder)));
     QCOMPARE(readMarkerFile(dir.path(), kInfoPath).status, ReadStatus::Missing);
     QCOMPARE(readMarkers(dir.path(), testModels()).firmware.files, FirmwareFiles::Unknown);
+}
+
+// Branding section 8.2: a model with its own folder. Its firmware is found
+// there, and that folder wins over the default one an older install left.
+void TstDeviceMarkers::firmwareInTheFolderOfItsModel()
+{
+    QList<Model> models = testModels();
+    models[0].firmwareFolder = QStringLiteral(".own");
+    QTemporaryDir dir;
+    writeBytes(dir.filePath(".own/" + QString(kFirmwareInfoFile)), "Target: ipod6g\nVersion: 2\n");
+    MarkerReading r = readMarkers(dir.path(), models);
+    QCOMPARE(r.firmware.files, FirmwareFiles::Present);
+    QCOMPARE(r.modelsFromInfo, QStringList{"classic-6g"});
+    QCOMPARE(r.firmware.infoVersion, QStringLiteral("2"));
+
+    writeBytes(dir.filePath(kInfoPath), "Target: ipod6g\nVersion: 1\n");
+    r = readMarkers(dir.path(), models);
+    QCOMPARE(r.firmware.infoVersion, QStringLiteral("2"));
+
+    // Without the model's own folder, the default one is still read.
+    QVERIFY(QDir(dir.filePath(".own")).removeRecursively());
+    r = readMarkers(dir.path(), models);
+    QCOMPARE(r.firmware.infoVersion, QStringLiteral("1"));
 }
 
 void TstDeviceMarkers::appleFolderOnly()
