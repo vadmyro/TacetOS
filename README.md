@@ -50,9 +50,9 @@
 | **v0.1** | Device detection and live state | ✅ 7/7 |
 | Test devices | Disk image test devices, privileged helper | ✅ 6/6 |
 | **v0.2** | Install and reset wizard | ✅ 12/12 |
-| **v0.3** | TacetOS firmware | ⏳ 0/11 |
+| **v0.3** | TacetOS firmware | ⏳ 2/12 |
 | **v0.4** | Music library and sync | ⏳ 0/12 |
-| **v0.5** | Settings, fonts, menus | ⏳ 0/7 |
+| **v0.5** | Settings, fonts, menus | ⏳ 0/8 |
 | **v0.6** | Themes | ⏳ 0/11 |
 | **v0.7** | Translations | ⏳ 0/3 |
 | **v0.8** | Windows, macOS and Linux | ⏳ 0/6 |
@@ -61,14 +61,15 @@
 
 ### Now: TacetOS firmware
 
-- [ ] TacetOS name in the firmware, applied at build time
-- [ ] Custom boot logo read from the iPod (black by default), quiet bootloader
+- [x] TacetOS name in the firmware, applied at build time
+- [x] Lighter firmware: no test or developer plugins, games, emulators and visual demos kept
+- [ ] TacetOS boot logo, replaceable from the app by your own image or a black screen, quiet bootloader
 - [ ] Install progress on the iPod screen and in the app: logo and a progress bar
 - [ ] CI builds for every model, plus simulators
-- [ ] Update channel through GitHub Releases, settings and themes kept
+- [ ] Update channel through GitHub Releases (public from the beta), settings and themes kept
 - [ ] Weekly CI job to follow the base firmware
+- [ ] Language picked on the iPod at first start, each language written in its own words
 - [ ] Real-device test: boot, logo, update from the app
-- [ ] Voice files for the chosen language
 - [ ] Selected fixes from newer firmware development, one tested change at a time
 - [ ] Technical folder name on the iPod Classic
 - [ ] Health page: disk and battery state, with a warning when they wear out
