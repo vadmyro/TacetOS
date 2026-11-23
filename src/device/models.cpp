@@ -52,6 +52,16 @@ ModelList modelsFromDocument(const TomlDocument &doc)
         m.family = table.values.value(QStringLiteral("family")).toString();
         m.name = table.values.value(QStringLiteral("name")).toString();
         m.bootloaderTarget = table.values.value(QStringLiteral("bootloader_target")).toString();
+        const QVariant folder = table.values.value(QStringLiteral("firmware_folder"));
+        if (folder.isValid()) {
+            static const QRegularExpression folderRe(QStringLiteral("^\\.[A-Za-z0-9_-]+$"));
+            if (!folderRe.match(folder.toString()).hasMatch()) {
+                list.error =
+                    QStringLiteral("%1: bad firmware_folder '%2'").arg(m.id, folder.toString());
+                return list;
+            }
+            m.firmwareFolder = folder.toString();
+        }
 
         const TomlTable usb = table.children.value(QStringLiteral("usb"));
         if (!readUsbList(usb, QStringLiteral("normal"), m.id, &m.usbNormal, &list.error) ||
@@ -74,6 +84,18 @@ ModelList modelsFromDocument(const TomlDocument &doc)
         list.models.append(m);
     }
     return list;
+}
+
+QStringList firmwareFolders(const QList<Model> &models)
+{
+    QStringList folders;
+    for (const Model &m : models) {
+        if (m.firmwareFolder.compare(kFirmwareFolder, Qt::CaseInsensitive) != 0 &&
+            !folders.contains(m.firmwareFolder, Qt::CaseInsensitive))
+            folders << m.firmwareFolder;
+    }
+    folders << QString(kFirmwareFolder);
+    return folders;
 }
 
 ModelList loadModels(const QString &path)

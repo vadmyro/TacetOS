@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "constants.h"
 #include "flow.h"
 #include "progress.h"
 #include "report.h"
@@ -49,6 +50,8 @@ struct WizardTarget
     QString name;
     // The `bootloader_target` of the model, which a package must be for.
     QString bootloaderTarget;
+    // The firmware folder of the model, where the zip of a package must put its files.
+    QString firmwareFolder = QString(device::kFirmwareFolder);
     wizard::Family family = wizard::Family::Partition;
     bool macFormat = false;
     // Used space of the music volume, size of what Keep my music copies, and the firmware

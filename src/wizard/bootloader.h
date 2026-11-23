@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "constants.h"
 #include "format.h"
 #include "helpercalls.h"
 #include "step.h"
@@ -24,6 +25,9 @@ public:
     virtual VolumeWatch &volumes() const = 0;
     // The `bootloader_target` of the model of the iPod in `models.toml`.
     virtual QString target() const = 0;
+    // The hidden folder of the firmware of this model (`firmwareFolder` of its
+    // model in `models.toml`).
+    virtual QString firmwareFolder() const { return QString(device::kFirmwareFolder); }
     // Section 8.1: how long the iPod has to be ready again after the button:
     // the restart, then its volume.
     virtual qint64 returnMs() const { return kRestartWindowMs + kVolumeReturnMs; }

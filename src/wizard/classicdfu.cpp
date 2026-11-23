@@ -46,11 +46,10 @@ QJsonObject readRecord(const QString &path)
 
 // Section 7.4 step 6, in short: the folder of the firmware is on the volume and
 // its info file says it is for this model.
-bool firmwareCopied(const QString &root, const QString &target)
+bool firmwareCopied(const QString &root, const QString &target, const QString &folder)
 {
-    const device::MarkerRead info =
-        device::readMarkerFile(root, QString(device::kFirmwareFolder) + QLatin1Char('/') +
-                                         QString(device::kFirmwareInfoFile));
+    const device::MarkerRead info = device::readMarkerFile(
+        root, folder + QLatin1Char('/') + QString(device::kFirmwareInfoFile));
     const device::InfoFile parsed =
         device::parseInfoFile(info.text, QString(device::kDistributionKey));
     return parsed.target.compare(target, Qt::CaseInsensitive) == 0;
@@ -132,7 +131,7 @@ std::optional<StepOutcome> ClassicDfuStep::conditions(StepContext &context) cons
         }
     }
     if (m_operation == ClassicOperation::Install &&
-        !firmwareCopied(m_sources.volumeRoot(), m_sources.target()))
+        !firmwareCopied(m_sources.volumeRoot(), m_sources.target(), m_sources.firmwareFolder()))
         return StepOutcome::failed(QString(error::firmwareWriteFailed),
                                    QStringLiteral("the firmware is not on the music volume"));
     return std::nullopt;
@@ -253,7 +252,8 @@ StepOutcome ClassicDfuStep::run(StepContext &context)
     PackageFiles files;
     if (!uninstall) {
         const PackageCheck package =
-            sameAsFlow(checkPackage(context.packageManifest(), m_sources.target(), &files),
+            sameAsFlow(checkPackage(context.packageManifest(), m_sources.target(),
+                                    m_sources.firmwareFolder(), &files),
                        context.packageSha256());
         if (!package.code.isEmpty())
             return StepOutcome::failed(package.code, package.message);
@@ -264,7 +264,7 @@ StepOutcome ClassicDfuStep::run(StepContext &context)
     // Section 9.2 step 2.
     const QString before = classicStateBefore(m_sources.installRecords(), context.serial());
     if (uninstall && before != QLatin1String("present") &&
-        !QDir(m_sources.volumeRoot()).exists(QString(device::kFirmwareFolder))) {
+        !QDir(m_sources.volumeRoot()).exists(m_sources.firmwareFolder())) {
         // Section 10, "Nothing to do": the state of the NOR cannot be read.
         QJsonObject info;
         info.insert(QStringLiteral("offer"), QStringLiteral("remove-anyway"));

@@ -107,7 +107,8 @@ StepOutcome BootloaderStep::run(StepContext &context)
     // the flow, its sha256 read again (section 5.6).
     PackageFiles files;
     const PackageCheck package =
-        sameAsFlow(checkPackage(context.packageManifest(), m_sources.target(), &files),
+        sameAsFlow(checkPackage(context.packageManifest(), m_sources.target(),
+                                m_sources.firmwareFolder(), &files),
                    context.packageSha256());
     if (!package.code.isEmpty())
         return StepOutcome::failed(package.code, package.message);

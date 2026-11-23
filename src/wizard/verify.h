@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "constants.h"
 #include "detected.h"
 #include "helpercalls.h"
 #include "step.h"
@@ -25,6 +26,9 @@ public:
     virtual QString volumeRoot() const = 0;
     // The `bootloader_target` of the model of the iPod in `models.toml`.
     virtual QString target() const = 0;
+    // The hidden folder of the firmware of this model (`firmwareFolder` of its
+    // model in `models.toml`).
+    virtual QString firmwareFolder() const { return QString(device::kFirmwareFolder); }
     // The iPod of the flow as detection shows it now; empty `serial` when it
     // shows none.
     virtual device::DetectedIpod detected() const = 0;

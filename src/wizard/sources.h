@@ -37,7 +37,8 @@ struct LinuxSourcesConfig
 {
     // The iPod of the flow. Empty: the only iPod detection shows.
     QString serial;
-    // Its model in `models.toml`: `bootloaderTarget` and `name` are used.
+    // Its model in `models.toml`: `bootloaderTarget`, `firmwareFolder` and `name`
+    // are used.
     device::Model model;
     Family family = Family::Partition;
     // Section 5.1: the folder the user chose, without serial and date. Empty:
@@ -167,6 +168,7 @@ public:
     QString volumeRoot() const override;
     QString volumeLabel() const override;
     QString target() const override { return m_config.model.bootloaderTarget; }
+    QString firmwareFolder() const override { return m_config.model.firmwareFolder; }
     HelperCommands &helper() const override { return m_commands; }
     VolumeWatch &volumes() const override { return m_volumes; }
     qint64 freeBytes() const override;

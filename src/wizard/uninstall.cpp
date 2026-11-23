@@ -27,16 +27,16 @@ QString stateOf(const HelperAnswer &answer)
     return answer.data.value(QStringLiteral("state")).toString();
 }
 
-bool firmwareFolderExists(const QString &volumeRoot)
+bool firmwareFolderExists(const QString &volumeRoot, const QString &folder)
 {
-    return !volumeRoot.isEmpty() && QDir(volumeRoot).exists(QString(device::kFirmwareFolder));
+    return !volumeRoot.isEmpty() && QDir(volumeRoot).exists(folder);
 }
 
 } // namespace
 
-bool legacyNothingToDo(const QString &state, const QString &volumeRoot)
+bool legacyNothingToDo(const QString &state, const QString &volumeRoot, const QString &folder)
 {
-    return state == kClean && !firmwareFolderExists(volumeRoot);
+    return state == kClean && !firmwareFolderExists(volumeRoot, folder);
 }
 
 StepOutcome RemoveBootloaderStep::run(StepContext &context)
@@ -47,7 +47,8 @@ StepOutcome RemoveBootloaderStep::run(StepContext &context)
         return StepOutcome::failed(state.code, state.detail);
     const QString before = stateOf(state);
     if (before == kClean) {
-        if (!context.isResume() && legacyNothingToDo(before, m_sources.volumeRoot()))
+        if (!context.isResume() &&
+            legacyNothingToDo(before, m_sources.volumeRoot(), m_sources.firmwareFolder()))
             return StepOutcome::failed(QString(error::nothingToDo));
         return StepOutcome::done();
     }
@@ -142,9 +143,14 @@ StepOutcome RemoveFirmwareStep::run(StepContext &context)
     if (!back)
         return StepOutcome::failed(QString(error::volumeNotBack));
 
-    const QString folder = QString(device::kFirmwareFolder);
-    for (const QString &name :
-         {folder + QString(kNewSuffix), folder + QString(kOldSuffix), folder}) {
+    // The folder of the model, then the default one that an older install of it
+    // may have left.
+    QStringList names;
+    for (const QString &folder : {m_sources.firmwareFolder(), QString(device::kFirmwareFolder)}) {
+        if (!names.contains(folder, Qt::CaseInsensitive))
+            names << folder + QString(kNewSuffix) << folder + QString(kOldSuffix) << folder;
+    }
+    for (const QString &name : std::as_const(names)) {
         if (context.stopRequested())
             return StepOutcome::cancelled();
         const QString path = QDir(root).filePath(name);

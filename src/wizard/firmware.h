@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "constants.h"
 #include "filefault.h"
 #include "step.h"
 
@@ -23,6 +24,9 @@ public:
     virtual QString volumeRoot() const = 0;
     // The `bootloader_target` of the model of the iPod in `models.toml`.
     virtual QString target() const = 0;
+    // The hidden folder of the firmware of this model (`firmwareFolder` of its
+    // model in `models.toml`).
+    virtual QString firmwareFolder() const { return QString(device::kFirmwareFolder); }
     // The free bytes of the music volume, -1 when not known.
     virtual qint64 freeBytes() const = 0;
     // Section 7.3: the newest `settings` backup of this serial, offered when
@@ -46,9 +50,9 @@ private:
 
 // Section 11.1: the part of the check of section 7.4 step 6 that needs no
 // memory of the install. Every file of the firmware zip is in the firmware
-// folder of `volumeRoot` with its size and CRC-32, and the info file names
-// `target`. Empty when it all matches, else what differs.
+// folder `folder` of `volumeRoot` with its size and CRC-32, and the info file
+// names `target`. Empty when it all matches, else what differs.
 QString firmwareFolderDifference(const QString &volumeRoot, const QString &firmwareZip,
-                                 const QString &target);
+                                 const QString &target, const QString &folder);
 
 } // namespace tacetos::wizard

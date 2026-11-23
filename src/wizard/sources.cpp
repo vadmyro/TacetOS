@@ -321,7 +321,8 @@ qint64 LinuxDiagnoseSources::backupNeedBytes(InstallPath path) const
     if (path == InstallPath::Clean)
         return backupSpaceNeeded(BackupKind::Full, usedBytes(ipod), 0, partition);
     const BackupKind kind = path == InstallPath::Keep ? BackupKind::Keep : BackupKind::Settings;
-    return backupSpaceNeeded(kind, 0, planBackup(mountOf(ipod), kind).bytes, partition);
+    return backupSpaceNeeded(
+        kind, 0, planBackup(mountOf(ipod), kind, m_config.model.firmwareFolder).bytes, partition);
 }
 
 IpodFacts LinuxDiagnoseSources::ipod() const
@@ -374,7 +375,8 @@ IpodFacts LinuxDiagnoseSources::ipod() const
 
 PackageCheck LinuxDiagnoseSources::package(const QString &manifestPath) const
 {
-    return checkPackage(manifestPath, m_config.model.bootloaderTarget);
+    return checkPackage(manifestPath, m_config.model.bootloaderTarget,
+                        m_config.model.firmwareFolder);
 }
 
 qint64 LinuxDiagnoseSources::firmwareNeedBytes(const PackageCheck &package) const

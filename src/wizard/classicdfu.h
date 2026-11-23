@@ -40,6 +40,9 @@ public:
     virtual const DiagnoseSources &diagnose() const = 0;
     // The `bootloader_target` of the model of the iPod in `models.toml`.
     virtual QString target() const = 0;
+    // The hidden folder of the firmware of this model (`firmwareFolder` of its
+    // model in `models.toml`).
+    virtual QString firmwareFolder() const { return QString(device::kFirmwareFolder); }
     // The mount point of the music volume, where the firmware was copied.
     virtual QString volumeRoot() const = 0;
     // Section 9.2 step 3: the data folder of the app (not the backup).

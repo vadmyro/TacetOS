@@ -4,6 +4,7 @@
 #pragma once
 
 #include "classicdfu.h"
+#include "constants.h"
 #include "helpercalls.h"
 #include "step.h"
 
@@ -25,14 +26,18 @@ public:
     // The mount point of the music volume, asked when the step runs: an older
     // iPod gets a new one after Disk Mode.
     virtual QString volumeRoot() const = 0;
+    // The hidden folder of the firmware of this model (`firmwareFolder` of its
+    // model in `models.toml`).
+    virtual QString firmwareFolder() const { return QString(device::kFirmwareFolder); }
     // How long `remove-firmware` waits for the volume: the Classic comes back from
     // `classic-remove` before its volume is mounted.
     virtual qint64 volumeWaitMs() const = 0;
 };
 
 // Section 10, "Nothing to do" for an older iPod: `read-state` says `clean` and
-// there is no firmware folder. The screen asks it before the flow starts.
-bool legacyNothingToDo(const QString &state, const QString &volumeRoot);
+// there is no firmware folder (`folder`, the one of the model). The screen asks
+// it before the flow starts.
+bool legacyNothingToDo(const QString &state, const QString &volumeRoot, const QString &folder);
 
 // Section 10 step 2: `read-state`, `uninstall-bootloader`, `read-state` again,
 // which must say `clean`. A `clean` iPod is done at once (a resume after a cut

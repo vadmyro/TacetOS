@@ -85,6 +85,8 @@ inline constexpr qint64 kReleasedKeepMs = 30 * 1000;
 inline constexpr bool kMountOnArrival = true;
 
 // Section 7.3: the hidden folder of the firmware and the info file inside it.
+// The folder is the default one: a model can have its own (`firmware_folder` in
+// models/models.toml), and older installs of every model use this one.
 inline constexpr QLatin1String kFirmwareFolder(".rockbox");
 inline constexpr QLatin1String kFirmwareInfoFile("rockbox-info.txt");
 

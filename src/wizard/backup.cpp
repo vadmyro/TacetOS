@@ -51,6 +51,13 @@ bool sameName(const QString &a, const QString &b)
     return a.compare(b, Qt::CaseInsensitive) == 0;
 }
 
+// The firmware folder of the model, or the default one that an older install
+// may have left.
+bool isFirmwareFolder(const QString &name, const QString &folder)
+{
+    return sameName(name, folder) || sameName(name, device::kFirmwareFolder);
+}
+
 template <typename List> bool inList(const List &names, const QString &name)
 {
     return std::any_of(std::begin(names), std::end(names),
@@ -412,7 +419,7 @@ QString backupVolumeFolder(const QString &backupFolder)
     return QDir(backupFolder).filePath(kBackupVolumeFolder);
 }
 
-BackupPlan planBackup(const QString &volumeRoot, BackupKind kind)
+BackupPlan planBackup(const QString &volumeRoot, BackupKind kind, const QString &folder)
 {
     BackupPlan plan;
     if (kind == BackupKind::Full) {
@@ -422,7 +429,7 @@ BackupPlan planBackup(const QString &volumeRoot, BackupKind kind)
     const QFileInfoList root = sortedEntries(volumeRoot, &plan.symlinks);
     for (const QFileInfo &info : root) {
         const QString name = info.fileName();
-        const bool firmware = info.isDir() && sameName(name, device::kFirmwareFolder);
+        const bool firmware = info.isDir() && isFirmwareFolder(name, folder);
         if (kind == BackupKind::Keep) {
             if (firmware || (info.isDir() && sameName(name, device::kPlaylistsFolder)))
                 addFolder(volumeRoot, name, plan);
@@ -592,7 +599,7 @@ StepOutcome BackupStep::run(StepContext &context)
     const QDir source(m_sources.volumeRoot());
     const QString partialPath = backup.filePath(kManifestPartialFile);
 
-    const BackupPlan plan = planBackup(m_sources.volumeRoot(), m_kind);
+    const BackupPlan plan = planBackup(m_sources.volumeRoot(), m_kind, m_sources.firmwareFolder());
     m_report.symlinks = plan.symlinks;
 
     // Section 5.5: the files of a cut run whose copy still has its size are not
@@ -827,17 +834,17 @@ RestoreResult putSmallBack(const BackupManifest &m, const QDir &from, const QDir
     return result;
 }
 
-bool inFirmwareFolder(const QString &path)
+bool inFirmwareFolder(const QString &path, const QString &folder)
 {
-    return sameName(path.section(QLatin1Char('/'), 0, 0), device::kFirmwareFolder);
+    return isFirmwareFolder(path.section(QLatin1Char('/'), 0, 0), folder);
 }
 
-bool hasFirmwareFolder(const QString &volumeRoot)
+bool hasFirmwareFolder(const QString &volumeRoot, const QString &folder)
 {
     const QFileInfoList entries =
         QDir(volumeRoot).entryInfoList(QDir::Dirs | QDir::Hidden | QDir::NoDotAndDotDot);
-    return std::any_of(entries.cbegin(), entries.cend(), [](const QFileInfo &info) {
-        return sameName(info.fileName(), device::kFirmwareFolder);
+    return std::any_of(entries.cbegin(), entries.cend(), [&folder](const QFileInfo &info) {
+        return isFirmwareFolder(info.fileName(), folder);
     });
 }
 
@@ -849,17 +856,18 @@ RestoreResult putMusicBack(const BackupManifest &m, const QDir &from, const QDir
 {
     RestoreResult result;
     // The firmware folder of the backup is the old one.
-    const bool skipFirmware = hasFirmwareFolder(target.path());
+    const QString &firmware = options.firmwareFolder;
+    const bool skipFirmware = hasFirmwareFolder(target.path(), firmware);
     QList<BackupFile> files;
     qint64 total = 0;
     for (const BackupFile &file : m.files) {
-        if (skipFirmware && inFirmwareFolder(file.path))
+        if (skipFirmware && inFirmwareFolder(file.path, firmware))
             continue;
         files << file;
         total += file.size;
     }
     for (const QString &folder : m.folders) {
-        if (!(skipFirmware && inFirmwareFolder(folder)) && !target.mkpath(folder))
+        if (!(skipFirmware && inFirmwareFolder(folder, firmware)) && !target.mkpath(folder))
             return restoreFailed(result, QString(error::restoreWriteFailed));
     }
 

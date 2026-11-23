@@ -729,7 +729,8 @@ void WizardWindow::setBackupRoot(const QString &folder)
 void WizardWindow::setPackage(const QString &manifestPath)
 {
     PackageFiles files;
-    const PackageCheck check = checkPackage(manifestPath, target_.bootloaderTarget, &files);
+    const PackageCheck check =
+        checkPackage(manifestPath, target_.bootloaderTarget, target_.firmwareFolder, &files);
     packageOk_ = check.code.isEmpty();
     if (packageOk_) {
         packageManifest_ = manifestPath;

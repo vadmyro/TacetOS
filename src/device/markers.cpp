@@ -175,9 +175,16 @@ MarkerReading readMarkers(const QString &mountPoint, const QList<Model> &models,
             reading.appleModelFields.insert(key, value);
     }
 
-    // Sections 7.3 and 7.4.
-    const QString folder = QString(kFirmwareFolder);
-    if (findMarkerPath(mountPoint, folder).isEmpty()) {
+    // Sections 7.3 and 7.4. A model's own folder comes before the default one,
+    // which an older install may have left next to it.
+    QString folder;
+    for (const QString &candidate : firmwareFolders(models)) {
+        if (!findMarkerPath(mountPoint, candidate).isEmpty()) {
+            folder = candidate;
+            break;
+        }
+    }
+    if (folder.isEmpty()) {
         reading.firmware.files = FirmwareFiles::Absent;
     } else {
         reading.firmware.files = FirmwareFiles::Unknown;

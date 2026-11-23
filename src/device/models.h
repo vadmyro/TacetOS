@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "constants.h"
 #include "toml.h"
 
 #include <QList>
@@ -35,6 +36,9 @@ struct Model
     QString name;
     // The firmware build target of this model, as an info file names it.
     QString bootloaderTarget;
+    // The hidden folder of the firmware at the root of the music volume
+    // (`firmware_folder`): the default one when models.toml has none.
+    QString firmwareFolder = QString(kFirmwareFolder);
     // USB ids as "vendor:product", four lowercase hexadecimal digits each.
     QStringList usbNormal;
     QStringList usbDiskMode;
@@ -52,6 +56,11 @@ struct ModelList
 
 ModelList modelsFromDocument(const TomlDocument &doc);
 ModelList loadModels(const QString &path);
+
+// Every folder a firmware of these models can be in, each once: the models' own
+// folders in the order of models.toml, then the default one, which older
+// installs of every model use.
+QStringList firmwareFolders(const QList<Model> &models);
 
 // The `mode` field of a detected iPod. None is also what an id that is in no
 // model gives: the caller drops it.

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "constants.h"
 #include "diagnose.h"
 
 #include <QString>
@@ -24,9 +25,10 @@ struct PackageFiles
 
 // Section 7.1: the five checks, in their order, before anything is written to
 // the iPod. `target` is the `bootloader_target` of the model of the iPod in
-// `models.toml`. `files` is filled when the package can be used.
+// `models.toml`, `firmwareFolder` its firmware folder (`firmwareFolder`). `files` is
+// filled when the package can be used.
 PackageCheck checkPackage(const QString &manifestPath, const QString &target,
-                          PackageFiles *files = nullptr);
+                          const QString &firmwareFolder, PackageFiles *files = nullptr);
 
 // Section 7.1: a flow installs the package it started with. A check that
 // passed becomes `package-changed` when the sha256 of the manifest is not

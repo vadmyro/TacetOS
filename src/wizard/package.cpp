@@ -68,7 +68,8 @@ struct Listed
 
 } // namespace
 
-PackageCheck checkPackage(const QString &manifestPath, const QString &target, PackageFiles *files)
+PackageCheck checkPackage(const QString &manifestPath, const QString &target,
+                          const QString &firmwareFolder, PackageFiles *files)
 {
     // 1. A JSON object of at most `kPackageManifestMax`, of this format.
     QFile file(manifestPath);
@@ -120,14 +121,15 @@ PackageCheck checkPackage(const QString &manifestPath, const QString &target, Pa
             return damaged();
     }
 
-    // 5. A zip our reader takes, all in one top folder: the firmware folder.
+    // 5. A zip our reader takes, all in one top folder: the firmware folder of
+    // the model.
     archive::ZipReader zip(firmware.path);
     if (!zip.open({kZipEntryMax, kZipUnpackMax}))
         return damaged();
     for (const archive::ZipEntry &entry : zip.entries()) {
         const bool inside = entry.name.contains(QLatin1Char('/')) &&
                             entry.name.section(QLatin1Char('/'), 0, 0)
-                                    .compare(device::kFirmwareFolder, Qt::CaseInsensitive) == 0;
+                                    .compare(firmwareFolder, Qt::CaseInsensitive) == 0;
         if (!inside)
             return damaged();
     }

@@ -53,14 +53,17 @@ StepOutcome VerifyStep::run(StepContext &context)
     if (install) {
         PackageFiles files;
         const PackageCheck package =
-            sameAsFlow(checkPackage(context.packageManifest(), m_sources.target(), &files),
+            sameAsFlow(checkPackage(context.packageManifest(), m_sources.target(),
+                                    m_sources.firmwareFolder(), &files),
                        context.packageSha256());
         if (!package.code.isEmpty())
             return StepOutcome::failed(package.code, package.message);
-        const QString folder = firmwareFolderDifference(root, files.firmware, m_sources.target());
+        const QString folder = firmwareFolderDifference(root, files.firmware, m_sources.target(),
+                                                        m_sources.firmwareFolder());
         if (!folder.isEmpty())
             return differs(folder);
-    } else if (QDir(root).exists(QString(device::kFirmwareFolder))) {
+    } else if (QDir(root).exists(m_sources.firmwareFolder()) ||
+               QDir(root).exists(QString(device::kFirmwareFolder))) {
         return differs(QStringLiteral("the firmware folder is still there"));
     }
 
@@ -101,7 +104,8 @@ StepOutcome FinishStep::run(StepContext &context)
     context.setFact(QStringLiteral("backup"), context.backupFolder());
     if (context.shape().kind == FlowKind::Install) {
         PackageFiles files;
-        checkPackage(context.packageManifest(), m_sources.target(), &files);
+        checkPackage(context.packageManifest(), m_sources.target(), m_sources.firmwareFolder(),
+                     &files);
         context.setFact(QStringLiteral("version"), files.version);
         return StepOutcome::done();
     }

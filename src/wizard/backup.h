@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "constants.h"
 #include "filefault.h"
 #include "helpercalls.h"
 #include "step.h"
@@ -96,7 +97,9 @@ struct BackupPlan
     int symlinks = 0;
 };
 
-BackupPlan planBackup(const QString &volumeRoot, BackupKind kind);
+// `folder` is the firmware folder of the model; the default one counts as a
+// firmware folder too, an older install may have left it.
+BackupPlan planBackup(const QString &volumeRoot, BackupKind kind, const QString &folder);
 
 // Section 5.2: the bytes a backup needs on the computer: the used space of the
 // volume for `full`, the size of the files to copy for the others, plus the
@@ -169,6 +172,9 @@ public:
     // The mount point of the music volume.
     virtual QString volumeRoot() const = 0;
     virtual QString volumeLabel() const = 0;
+    // The hidden folder of the firmware of this model (`firmwareFolder` of its
+    // model in `models.toml`).
+    virtual QString firmwareFolder() const { return QString(device::kFirmwareFolder); }
     // Section 5.1: the folder the user chose, without serial and date.
     virtual QString backupRoot() const = 0;
     // The free bytes of a folder of the computer, -1 when not known.
@@ -221,6 +227,8 @@ struct RestoreOptions
     std::function<bool()> stop;
     // Bytes done and total, while a `full` backup is put back.
     std::function<void(qint64, qint64)> progress;
+    // The firmware folder of the model of the iPod; the default one counts too.
+    QString firmwareFolder = QString(device::kFirmwareFolder);
 };
 
 struct RestoreResult

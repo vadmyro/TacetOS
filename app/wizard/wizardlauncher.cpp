@@ -204,6 +204,7 @@ WizardWindow *WizardLauncher::open(const QString &port, HomeAction action)
     target.model = ipod.model;
     target.name = model.name.isEmpty() ? ipod.model : model.name;
     target.bootloaderTarget = model.bootloaderTarget;
+    target.firmwareFolder = model.firmwareFolder;
     target.family = family;
     target.macFormat = ipod.volume && (ipod.volume->filesystem == QLatin1String("hfsplus") ||
                                        ipod.volume->filesystem == QLatin1String("hfs"));
