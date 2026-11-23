@@ -1,0 +1,41 @@
+Subject: Remove the Credits item of the System menu
+
+The credits screen is removed.
+
+diff --git a/apps/menus/main_menu.c b/apps/menus/main_menu.c
+index f16fce94..e3e6e49c 100644
+--- a/apps/menus/main_menu.c
++++ b/apps/menus/main_menu.c
+@@ -114,13 +114,6 @@ MAKE_MENU(manage_settings, ID2P(LANG_MANAGE_MENU), NULL, Icon_Config,
+ /***********************************/
+ /*      INFO MENU                  */
+ 
+-static int show_credits(void)
+-{
+-    if (plugin_load(VIEWERS_DIR "/credits.rock", NULL) != PLUGIN_OK)
+-        show_info();
+-    return 0;
+-}
+-
+ static int show_legal(void)
+ {
+     if (plugin_load(VIEWERS_DIR "/text_viewer.rock", "/.rockbox/docs/COPYING.txt") != PLUGIN_OK)
+@@ -477,9 +470,6 @@ MENUITEM_FUNCTION(timedate_item, MENU_FUNC_CHECK_RETVAL, ID2P(LANG_TIME_MENU),
+                   time_screen,  NULL, Icon_Menu_setting );
+ #endif
+ 
+-MENUITEM_FUNCTION(show_credits_item, 0, ID2P(LANG_CREDITS),
+-                  show_credits, NULL, Icon_NOICON);
+-
+ MENUITEM_FUNCTION(show_runtime_item, 0, ID2P(LANG_RUNNING_TIME),
+                   view_runtime, NULL, Icon_NOICON);
+ 
+@@ -490,7 +480,7 @@ MENUITEM_FUNCTION(show_legal_item, 0, ID2P(LANG_LEGAL_NOTICES),
+                   show_legal, NULL, Icon_NOICON);
+ 
+ MAKE_MENU(info_menu, ID2P(LANG_SYSTEM), 0, Icon_System_menu,
+-          &show_info_item, &show_credits_item,
++          &show_info_item,
+           &show_runtime_item, &show_legal_item, &debug_menu_item);
+ /*      INFO MENU                  */
+ /***********************************/

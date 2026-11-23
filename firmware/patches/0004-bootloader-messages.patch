@@ -1,0 +1,85 @@
+Subject: Say TacetOS in the bootloader messages
+
+The title, loading and loaded lines and the reboot hint of the bootloaders
+for the iPod Classic and the older iPods. The error for a missing firmware
+file no longer prints the file name.
+
+diff --git a/bootloader/ipod-s5l87xx.c b/bootloader/ipod-s5l87xx.c
+index ed7287b5..af6d4843 100644
+--- a/bootloader/ipod-s5l87xx.c
++++ b/bootloader/ipod-s5l87xx.c
+@@ -163,7 +163,7 @@ void fatal_error(int err)
+             break;
+         case ERR_OF:
+             printf("Hold MENU+SELECT to reboot");
+-            printf("and enter Rockbox firmware");
++            printf("and enter TacetOS firmware");
+             break;
+     }
+ 
+@@ -686,7 +686,7 @@ void main(void)
+ 
+     verbose = true;
+ 
+-    printf("Rockbox boot loader");
++    printf("TacetOS boot loader");
+     printf("Version: %s", rbversion);
+ 
+     backlight_init(); /* Turns on the backlight */
+@@ -758,18 +758,18 @@ void main(void)
+         fatal_error(ERR_RB);
+     }
+ 
+-    printf("Loading Rockbox...");
++    printf("Loading TacetOS...");
+     unsigned char *loadbuffer = (unsigned char *)DRAM_ORIG;
+     rc = load_firmware(loadbuffer, BOOTFILE, MAX_LOADSIZE);
+ 
+     if (rc <= EFILE_EMPTY) {
+         printf("Error!");
+-        printf("Can't load " BOOTFILE ": ");
++        printf("Can't load the firmware file:");
+         printf(loader_strerror(rc));
+         fatal_error(ERR_RB);
+     }
+ 
+-    printf("Rockbox loaded.");
++    printf("TacetOS loaded.");
+ 
+     /* If we get here, we have a new firmware image at 0x08000000, run it */
+     disable_irq();
+diff --git a/bootloader/ipod.c b/bootloader/ipod.c
+index c7ea3ac3..7b3687a9 100644
+--- a/bootloader/ipod.c
++++ b/bootloader/ipod.c
+@@ -339,7 +339,7 @@ void* main(void)
+ 
+     lcd_setfont(FONT_SYSFIXED);
+ 
+-    printf("Rockbox boot loader");
++    printf("TacetOS boot loader");
+     printf("Version: %s", rbversion);
+     printf("IPOD version: 0x%08x", IPOD_HW_REVISION);
+ 
+@@ -415,10 +415,10 @@ void* main(void)
+             return (void*)DRAM_START;
+         }
+     } else {
+-        printf("Loading Rockbox...");
++        printf("Loading TacetOS...");
+         rc=load_firmware(loadbuffer, BOOTFILE, MAX_LOADSIZE);
+         if (rc > 0) {
+-            printf("Rockbox loaded.");
++            printf("TacetOS loaded.");
+             return (void*)DRAM_START;
+         } else if (rc == EFILE_NOT_FOUND) {
+             /* if rockbox.ipod doesn't exist, then check if there is a Rockbox
+@@ -431,7 +431,7 @@ void* main(void)
+         }
+ 
+         printf("Error!");
+-        printf("Can't load " BOOTFILE ": ");
++        printf("Can't load the firmware file:");
+         printf(loader_strerror(rc));
+     }
+ 

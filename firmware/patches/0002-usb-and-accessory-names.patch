@@ -1,0 +1,48 @@
+Subject: Show TacetOS in the USB strings and to accessories
+
+The USB manufacturer and product strings, and the device name sent to
+iPod accessories, say TacetOS.
+
+diff --git a/apps/iap/iap-lingo0.c b/apps/iap/iap-lingo0.c
+index a0c74ce0..d8828f65 100644
+--- a/apps/iap/iap-lingo0.c
++++ b/apps/iap/iap-lingo0.c
+@@ -297,7 +297,7 @@ void iap_handlepkt_mode0(const unsigned int len, const unsigned char *buf)
+         case 0x07:
+         {
+             IAP_TX_INIT(0x00, 0x08);
+-            IAP_TX_PUT_STRING("ROCKBOX");
++            IAP_TX_PUT_STRING("TACETOS");
+ 
+             iap_send_tx();
+             break;
+diff --git a/apps/iap/iap-lingo4.c b/apps/iap/iap-lingo4.c
+index f248f973..c8af877e 100644
+--- a/apps/iap/iap-lingo4.c
++++ b/apps/iap/iap-lingo4.c
+@@ -1040,7 +1040,7 @@ void iap_handlepkt_mode4(const unsigned int len, const unsigned char *buf)
+              */
+         {
+             IAP_TX_INIT4(0x04, 0x0015);
+-            IAP_TX_PUT_STRING("ROCKBOX");
++            IAP_TX_PUT_STRING("TACETOS");
+             iap_send_tx();
+             break;
+         }
+diff --git a/firmware/usbstack/usb_core.c b/firmware/usbstack/usb_core.c
+index 92cdeb9a..fa4cff51 100644
+--- a/firmware/usbstack/usb_core.c
++++ b/firmware/usbstack/usb_core.c
+@@ -120,10 +120,10 @@ static const struct usb_qualifier_descriptor __attribute__((aligned(2)))
+ };
+ 
+ static const struct usb_string_descriptor usb_string_iManufacturer =
+-USB_STRING_INITIALIZER(u"Rockbox.org");
++USB_STRING_INITIALIZER(u"TacetOS");
+ 
+ static const struct usb_string_descriptor usb_string_iProduct =
+-USB_STRING_INITIALIZER(u"Rockbox media player");
++USB_STRING_INITIALIZER(u"TacetOS media player");
+ 
+ static struct usb_string_descriptor usb_string_iSerial =
+ USB_STRING_INITIALIZER(u"00000000000000000000000000000000000000000");

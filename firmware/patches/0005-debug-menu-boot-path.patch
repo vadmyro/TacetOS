@@ -1,0 +1,17 @@
+Subject: Remove the boot path line of the debug menu
+
+The line showed the folder and the file name of the firmware.
+
+diff --git a/apps/debug_menu.c b/apps/debug_menu.c
+index b267930b..15972586 100644
+--- a/apps/debug_menu.c
++++ b/apps/debug_menu.c
+@@ -2598,8 +2598,6 @@ static bool dbg_boot_data(void)
+             simplelist_addline("Boot drive: %d", (int)boot_data.boot_drive);
+             simplelist_addline("Boot partition: %d", (int)boot_data.boot_partition);
+         }
+-        simplelist_setline("Boot path:");
+-        simplelist_addline(" %s%s/%s", root_realpath(), BOOTDIR, BOOTFILE);
+     }
+ 
+     simplelist_setline("Bootdata RAW:");

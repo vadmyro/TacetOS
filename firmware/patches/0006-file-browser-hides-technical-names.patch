@@ -1,0 +1,68 @@
+Subject: Hide the firmware folder and boot file, and plugin extensions
+
+At the root of the volume the browser skips the firmware folder (this build's
+and the one the bootloader looks for) and the boot file, whatever "Show files"
+says. Plugin files never show their extension.
+
+diff --git a/apps/filetree.c b/apps/filetree.c
+index 4d682166..d448cbf0 100644
+--- a/apps/filetree.c
++++ b/apps/filetree.c
+@@ -297,6 +297,30 @@ static int compare(const void* p1, const void* p2)
+ }
+ 
+ /* load and sort directory into the tree's cache. returns NULL on failure. */
++/* Technical names at the root of the volume that must never be seen: the
++   firmware folder (the one of this build and the one the bootloader looks
++   for) and the boot file. */
++static bool is_technical_name(const char *name)
++{
++    const char *plugdir = PLUGIN_DIR;
++    size_t len = strlen(plugdir + 1);
++    const char *slash = strchr(plugdir + 1, '/');
++    if (slash)
++        len = slash - (plugdir + 1);
++
++    if (strlen(name) == len && !strncasecmp(name, plugdir + 1, len))
++        return true;
++#ifdef BOOTDIR
++    if (!strcasecmp(name, BOOTDIR + 1))
++        return true;
++#endif
++#ifdef BOOTFILE
++    if (!strcasecmp(name, BOOTFILE))
++        return true;
++#endif
++    return false;
++}
++
+ int ft_load(struct tree_context* c, const char* tempdir)
+ {
+     if (c->out_of_tree > 0) /* something else is loaded */
+@@ -349,6 +373,11 @@ int ft_load(struct tree_context* c, const char* tempdir)
+         if (dir_attr && is_dotdir_name(entry->d_name))
+             continue;
+ 
++        /* hide the technical names at the root, whatever "Show files" says */
++        if (!tempdir && !strcmp(c->currdir, "/") &&
++            is_technical_name(entry->d_name))
++            continue;
++
+         /* filter out dotfiles and hidden files */
+         if (*c->dirfilter != SHOW_ALL &&
+             ((entry->d_name[0]=='.') ||
+diff --git a/apps/tree.c b/apps/tree.c
+index 8c558c67..2446c6d0 100644
+--- a/apps/tree.c
++++ b/apps/tree.c
+@@ -126,6 +126,10 @@ static bool ext_stripit(bool isdir, int attr, int dirfilter)
+ {
+     if(!isdir)
+     {
++        /* plugin files never show their extension */
++        if (dirfilter == SHOW_PLUGINS)
++            return true;
++
+         switch(global_settings.show_filename_ext)
+         {
+             case 0:
