@@ -29,6 +29,10 @@ CONFIGURE_SCRIPT=tools/configure
 TOOLCHAIN_ARCH=a
 # Where the toolchain installs its compiler binaries, relative to its prefix.
 TOOLCHAIN_BIN=bin
+# Variable the toolchain script reads for its GNU download mirror, and the mirror we
+# give it: its default one, over plain http, stopped answering from the CI runners.
+TOOLCHAIN_MIRROR_VAR=GNU_MIRROR
+TOOLCHAIN_MIRROR=https://ftp.gnu.org/gnu
 
 # Files produced by a build, per build type: N normal, B bootloader, S simulator.
 ARTIFACTS_N="rockbox.zip rockbox.ipod"

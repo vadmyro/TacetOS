@@ -8,13 +8,15 @@
 # 1. an output of a requested type is missing, or older than base.lock or than any file of patches/;
 # 2. a string of the firmware file, the bootloader file, any plugin or codec in the zip, or any
 #    compiled language file, contains a spelling of BRAND_NAMES that is not inside a
-#    BRAND_TOLERATED entry (strings of 4 printable characters or more, matched without regard to case);
+#    BRAND_TOLERATED entry, or that reads as text (two words or more with letters) (strings of
+#    4 printable characters or more, matched without regard to case);
 # 3. a path in the zip contains a spelling of the name outside a BRAND_TOLERATED entry, or a
 #    plugin file name (without its extension) contains "rock";
 # 4. an image of BRAND_LOGO_IMAGES or BRAND_ICON_SETS in the sources still has the SHA-256 of
 #    the base's file (BRAND_ORIGINAL_SHA256);
 # 5. with --plugins: the zip holds a plugin that is not in the plugin list, or lacks one that is;
-# 6. with a model whose firmware folder is set: the zip's top folder is not that name.
+# 6. with a model whose firmware folder is set (firmware_folder in models/models.toml):
+#    a path of the zip is not inside that folder.
 #
 # Usage: check-build.sh --target MODEL --types N,B,S [options] | --self-test
 #   --target MODEL   the iPod model, as given to build.sh
@@ -71,7 +73,11 @@ for entry in lines(env.get('BRAND_TOLERATED', '')):
         tolerated_pieces.append(('', entry))
 
 def tolerated(text, where):
-    """True when no spelling of the name is left once the pieces allowed in this file are taken out."""
+    """True when no spelling of the name is left once the pieces allowed in this file are taken out.
+    A string that reads as text (two words or more with letters) is never tolerated: a technical
+    name is never part of a message."""
+    if sum(1 for word in text.split() if re.search('[^\\W\\d_]', word)) >= 2:
+        return False
     for pattern, piece in tolerated_pieces:
         if not pattern or fnmatch.fnmatch(where, pattern) or fnmatch.fnmatch(os.path.basename(where), pattern):
             text = text.replace(piece, '')
@@ -130,7 +136,6 @@ for entry in lines(env.get('BRAND_ORIGINAL_SHA256', '')):
                 problems.append('%s: still the base file' % path)
 
 # Rule 5: the plugins of the zip are those of the plugin list, checked by plugins.sh.
-# Rule 6 applies once a model has its own firmware folder (section 8): no model has one yet.
 if env.get('CHECK_PLUGINS') == 'true':
     import subprocess
     for f in outputs:
@@ -140,6 +145,16 @@ if env.get('CHECK_PLUGINS') == 'true':
             problems += [l for l in (result.stdout + result.stderr).splitlines() if l]
             if result.returncode not in (0, 1):
                 problems.append('%s: plugins.sh could not read it' % os.path.basename(f))
+
+# Rule 6: with a model whose firmware folder is set, the zip has only that folder at the top.
+folder = env.get('CHECK_FOLDER', '').strip('/')
+if folder:
+    for f in outputs:
+        if f.endswith('.zip'):
+            with zipfile.ZipFile(f) as zf:
+                tops = sorted({p.lstrip('/').split('/')[0] for p in zf.namelist()} - {folder})
+            for top in tops:
+                problems.append('%s: top folder is %s, not %s' % (os.path.basename(f), top, folder))
 
 for p in problems:
     print(p)
@@ -190,7 +205,7 @@ def run(name, change, expect):
         os.utime(reference, (old, old))
         out, src = os.path.join(tmp, 'out'), os.path.join(tmp, 'src')
         content = {
-            'model-firmware.ipod': b'\0TacetOS 1.0\0/.base/boot.ipod\0Basebox ok\0',
+            'model-firmware.ipod': b'\0TacetOS 1.0\0/.base/boot.ipod\0Basebox_ok\0',
             'model-bootloader-model.ipod': b'\0Loading TacetOS\0',
             'model-package.zip': None,
         }
@@ -205,11 +220,12 @@ def run(name, change, expect):
             os.utime(os.path.join(out, f), (old - 60, old - 60))
         env = dict(os.environ,
                    BRAND_NAMES='basebo(x|ks)\n',
-                   BRAND_TOLERATED='.base # folder\n*.ipod:Basebox ok # only in the binaries\n',
+                   BRAND_TOLERATED='.base # folder\n*.ipod:Basebox_ok # only in the binaries\n',
                    BRAND_ORIGINAL_SHA256=hashlib.sha256(old_logo).hexdigest() + ' bitmaps/logo.bmp\n',
                    ARTIFACTS_N='package.zip firmware.ipod', ARTIFACTS_B='bootloader-*.ipod',
                    CHECK_TARGET='model', CHECK_TYPES=tree.get('types', 'N,B'), CHECK_OUT=out,
                    CHECK_SRC=src, CHECK_REFERENCES=reference, CHECK_PLUGINS=tree.get('plugins', 'false'),
+                   CHECK_FOLDER=tree.get('folder', ''),
                    CHECK_PLUGINS_SH=os.environ['plugins_sh'], CHECK_PLUGIN_LIST=plugin_list)
         result = subprocess.run([sys.executable, '-c', os.environ['check_py']], env=env,
                                 capture_output=True, text=True)
@@ -246,12 +262,21 @@ run('rule 2: any spelling of the name fails', put('out', 'model-bootloader-model
 run('rule 2: the name in a plugin fails', put('zip', '.base/rocks/games/blocks.rock', b'\0Basebox game\0'), "blocks.rock: string shows the name: 'Basebox game'")
 run('rule 2: the name in a codec fails', put('zip', '.base/codecs/mpa.codec', b'\0by basebox\0'), "mpa.codec: string shows the name")
 run('rule 2: the name in a language fails', put('zip', '.base/langs/english.lng', b'\0About Basebox\0'), "english.lng: string shows the name")
-run('rule 2: a piece allowed in one kind of file only fails elsewhere', put('zip', '.base/rocks/games/blocks.rock', b'\0Basebox ok\0'), "string shows the name: 'Basebox ok'")
+run('rule 2: a piece allowed in one kind of file only fails elsewhere', put('zip', '.base/rocks/games/blocks.rock', b'\0Basebox_ok\0'), "string shows the name: 'Basebox_ok'")
+run('rule 2: a tolerated piece inside a message fails', put('out', 'model-firmware.ipod', b'\0No Basebox_ok here\0'), "string shows the name: 'No Basebox_ok here'")
+run('rule 2: a tolerated piece after a symbol passes', put('out', 'model-firmware.ipod', b'\0#! Basebox_ok/2.0\0'), None)
 run('rule 2: a string with the name next to a tolerated piece fails', put('out', 'model-firmware.ipod', b'\0/.base/basebox.cfg\0'), "string shows the name: '/.base/basebox.cfg'")
 run('rule 3: the name in a zip path fails', put('zip', '.base/basebox_sounds/a.wav', b''), 'path shows the name: .base/basebox_sounds/a.wav')
 run('rule 3: "rock" in a plugin name fails', put('zip', '.base/rocks/games/rockgame.rock', b''), 'plugin name has "rock": .base/rocks/games/rockgame.rock')
 run('rule 3: "rock" in an overlay name fails', put('zip', '.base/rocks/games/spacerock.ovl', b''), 'plugin name has "rock"')
 run('rule 4: a logo left as the base file fails', put('src', 'bitmaps/logo.bmp', old_logo), 'bitmaps/logo.bmp: still the base file')
+def with_folder(*changes):
+    def change(tree):
+        tree['folder'] = '.base'
+        for c in changes:
+            c(tree)
+    return change
+
 def with_plugins(*changes):
     def change(tree):
         tree['plugins'] = 'true'
@@ -264,7 +289,9 @@ run('rule 5: a plugin not in the list fails', with_plugins(put('zip', '.base/roc
 run('rule 5: a listed plugin missing fails', with_plugins(setting('list', b'games/blocks\ngames/maze\n')), 'listed plugin missing: games/maze')
 run('rule 5: a plugin left with its old name fails', with_plugins(setting('list', b'games/oldblocks blocks\n'), put('zip', '.base/rocks/games/oldblocks.rock', b''), drop('zip', '.base/rocks/games/blocks.rock')), 'plugin not in the plugin list: games/oldblocks')
 run('rule 5: an association to a missing plugin fails', with_plugins(put('zip', '.base/viewers.config', b'txt,viewers/gone,1\n')), 'viewers.config names a missing plugin: viewers/gone')
-print('rule 6: not checked yet, no model has its own firmware folder')
+run('rule 6: a zip in the folder of the model passes', setting('folder', '.base'), None)
+run('rule 6: a zip in another folder fails', setting('folder', '.mine'), 'model-package.zip: top folder is .base, not .mine')
+run('rule 6: a file beside the folder fails', with_folder(put('zip', 'loose.txt', b'')), 'model-package.zip: top folder is loose.txt, not .base')
 
 print('check-build.sh --self-test: %d passed, %d failed' % (passed, failed))
 sys.exit(1 if failed else 0)
@@ -280,6 +307,8 @@ source "$here/base.lock"
 export BRAND_NAMES BRAND_TOLERATED BRAND_ORIGINAL_SHA256 ARTIFACTS_N ARTIFACTS_B ARTIFACTS_S
 export CHECK_TARGET="$target" CHECK_TYPES="$types" CHECK_OUT="$out" CHECK_SRC="$src" CHECK_PLUGINS="$plugins"
 export CHECK_PLUGINS_SH="$plugins_sh" CHECK_PLUGIN_LIST="$here/plugins.list"
+CHECK_FOLDER="$(bash "$here/firmware-folder.sh" "$target")"
+export CHECK_FOLDER
 CHECK_REFERENCES="$(printf '%s\n' "$here/base.lock" "$here"/patches/*)"
 export CHECK_REFERENCES
 

@@ -1,0 +1,269 @@
+Subject: Boot file in the firmware folder of the build, on the Classic
+
+The build's configure script also writes the firmware folder under the name
+FIRMWARE_DIR. On the Classic the boot file lives in that folder: the
+bootloader looks there first, then in the folder of older installs, then at
+the root, and the firmware watches that folder for a new boot file. Every
+model keeps its old search when its folders are the same. The legal texts and
+the games that wrote the old folder in their paths use FIRMWARE_DIR, and the
+message shown when the folder is missing no longer names it.
+
+diff --git a/apps/menus/main_menu.c b/apps/menus/main_menu.c
+index e3e6e49c..c2150f8b 100644
+--- a/apps/menus/main_menu.c
++++ b/apps/menus/main_menu.c
+@@ -116,9 +116,9 @@ MAKE_MENU(manage_settings, ID2P(LANG_MANAGE_MENU), NULL, Icon_Config,
+ 
+ static int show_legal(void)
+ {
+-    if (plugin_load(VIEWERS_DIR "/text_viewer.rock", "/.rockbox/docs/COPYING.txt") != PLUGIN_OK)
++    if (plugin_load(VIEWERS_DIR "/text_viewer.rock", FIRMWARE_DIR "/docs/COPYING.txt") != PLUGIN_OK)
+         show_info();
+-    if (plugin_load(VIEWERS_DIR "/text_viewer.rock", "/.rockbox/docs/LICENSES.txt") != PLUGIN_OK)
++    if (plugin_load(VIEWERS_DIR "/text_viewer.rock", FIRMWARE_DIR "/docs/LICENSES.txt") != PLUGIN_OK)
+         show_info();
+     return 0;
+ }
+diff --git a/apps/misc.c b/apps/misc.c
+index 8ce8ccbf..b824c5b2 100644
+--- a/apps/misc.c
++++ b/apps/misc.c
+@@ -813,12 +813,12 @@ void check_bootfile(bool do_rolo)
+     DIR* dir = NULL;
+     struct dirent* entry = NULL;
+ 
+-    /* 1. open BOOTDIR and find the BOOTFILE dir entry */
+-    dir = opendir(BOOTDIR);
++    /* 1. open BOOTDIR_FIRST and find the BOOTFILE dir entry */
++    dir = opendir(BOOTDIR_FIRST);
+ 
+     if(!dir) return; /* do we want an error splash? */
+ 
+-    /* loop all files in BOOTDIR */
++    /* loop all files in BOOTDIR_FIRST */
+     while(0 != (entry = readdir(dir)))
+     {
+         if(!strcasecmp(entry->d_name, BOOTFILE))
+@@ -836,7 +836,7 @@ void check_bootfile(bool do_rolo)
+                     if(gui_syncyesno_run(&message, NULL, NULL) == YESNO_YES)
+                     {
+                         audio_hard_stop();
+-                        rolo_load(BOOTDIR "/" BOOTFILE);
++                        rolo_load(BOOTDIR_FIRST "/" BOOTFILE);
+                     }
+                 }
+             }
+diff --git a/apps/plugins/random_folder_advance_config.c b/apps/plugins/random_folder_advance_config.c
+index 3d762c6d..4c49d1c5 100644
+--- a/apps/plugins/random_folder_advance_config.c
++++ b/apps/plugins/random_folder_advance_config.c
+@@ -84,7 +84,7 @@ static void traversedir(char* location, char* name)
+             {
+                 if (    !rb->strcmp(entry->d_name,".")
+                      || !rb->strcmp(entry->d_name,"..")
+-                     || !rb->strcmp(entry->d_name,".rockbox"))
++                     || !rb->strcmp(entry->d_name, FIRMWARE_DIR + 1))
+                     check = false;
+                 else check = true;
+             }
+diff --git a/apps/plugins/sdl/SDL_mixer/timidity/config.h b/apps/plugins/sdl/SDL_mixer/timidity/config.h
+index 32da0a83..ca3eacc2 100644
+--- a/apps/plugins/sdl/SDL_mixer/timidity/config.h
++++ b/apps/plugins/sdl/SDL_mixer/timidity/config.h
+@@ -164,16 +164,16 @@ typedef char int8;
+ 
+ /* You could specify a complete path, e.g. "/etc/timidity.cfg", and
+    then specify the library directory in the configuration file. */
+-#define CONFIG_FILE	"/.rockbox/timidity/timidity.cfg"
+-#define CONFIG_FILE_ETC "/.rockbox/timidity/timidity.cfg"
++#define CONFIG_FILE	FIRMWARE_DIR "/timidity/timidity.cfg"
++#define CONFIG_FILE_ETC FIRMWARE_DIR "/timidity/timidity.cfg"
+ 
+ #if defined(__WIN32__) || defined(__OS2__)
+ #define DEFAULT_PATH	"C:\\TIMIDITY"
+ #else
+-#define DEFAULT_PATH	"/.rockbox/patchset"
+-#define DEFAULT_PATH1	"/.rockbox/duke3d"
+-#define DEFAULT_PATH2	"/.rockbox/timidity"
+-#define DEFAULT_PATH3	"/.rockbox/midi"
++#define DEFAULT_PATH	FIRMWARE_DIR "/patchset"
++#define DEFAULT_PATH1	FIRMWARE_DIR "/duke3d"
++#define DEFAULT_PATH2	FIRMWARE_DIR "/timidity"
++#define DEFAULT_PATH3	FIRMWARE_DIR "/midi"
+ #endif
+ 
+ /* These affect general volume */
+diff --git a/apps/plugins/sdl/progs/duke3d/Engine/src/cache.c b/apps/plugins/sdl/progs/duke3d/Engine/src/cache.c
+index 2ac3bfe6..20419aaf 100644
+--- a/apps/plugins/sdl/progs/duke3d/Engine/src/cache.c
++++ b/apps/plugins/sdl/progs/duke3d/Engine/src/cache.c
+@@ -64,7 +64,7 @@ cactype cac[MAXCACHEOBJECTS];
+ int32_t lockrecip[200];
+ 
+ // TC game directory
+-char  game_dir[512] = "/.rockbox/duke3d";
++char  game_dir[512] = FIRMWARE_DIR "/duke3d";
+ 
+ void initcache(uint8_t* dacachestart, int32_t dacachesize)
+ {
+diff --git a/apps/plugins/sdl/progs/duke3d/Engine/src/engine.h b/apps/plugins/sdl/progs/duke3d/Engine/src/engine.h
+index d209396a..24c849b6 100644
+--- a/apps/plugins/sdl/progs/duke3d/Engine/src/engine.h
++++ b/apps/plugins/sdl/progs/duke3d/Engine/src/engine.h
+@@ -21,7 +21,7 @@
+ extern "C" {
+ #endif
+ 
+-#define ENGINE_DIR "/.rockbox/duke3d/"
++#define ENGINE_DIR FIRMWARE_DIR "/duke3d/"
+     
+ //#define SUPERBUILD  /* don't touch this. */
+ 
+diff --git a/apps/plugins/sdl/progs/duke3d/Engine/src/filesystem.c b/apps/plugins/sdl/progs/duke3d/Engine/src/filesystem.c
+index 641d954e..7089a8c7 100644
+--- a/apps/plugins/sdl/progs/duke3d/Engine/src/filesystem.c
++++ b/apps/plugins/sdl/progs/duke3d/Engine/src/filesystem.c
+@@ -868,7 +868,7 @@ void   setGameDir(char* gameDir){
+ 
+ char*  getGameDir(void){
+     //return game_dir;
+-    return "/.rockbox/duke3d";
++    return FIRMWARE_DIR "/duke3d";
+ }
+ 
+ int      getGRPcrc32(int grpID){
+diff --git a/apps/plugins/sdl/progs/duke3d/Game/src/config.c b/apps/plugins/sdl/progs/duke3d/Game/src/config.c
+index f3d05d09..d6ac1afb 100644
+--- a/apps/plugins/sdl/progs/duke3d/Game/src/config.c
++++ b/apps/plugins/sdl/progs/duke3d/Game/src/config.c
+@@ -77,7 +77,7 @@ int32 ScreenHeight = LCD_HEIGHT;
+ int32 mouseSensitivity_X;
+ int32 mouseSensitivity_Y;
+ 
+-static char  setupfilename[512] = "/.rockbox/duke3d/duke3d.cfg";
++static char  setupfilename[512] = FIRMWARE_DIR "/duke3d/duke3d.cfg";
+ static int32 scripthandle;
+ static int32 setupread=0;
+ /*
+diff --git a/apps/plugins/sdl/progs/quake/sys_sdl.c b/apps/plugins/sdl/progs/quake/sys_sdl.c
+index efc28591..1bfaf766 100644
+--- a/apps/plugins/sdl/progs/quake/sys_sdl.c
++++ b/apps/plugins/sdl/progs/quake/sys_sdl.c
+@@ -9,7 +9,7 @@ qboolean			isDedicated;
+ 
+ int noconinput = 0;
+ 
+-char *basedir = "/.rockbox/quake";
++char *basedir = FIRMWARE_DIR "/quake";
+ char *cachedir = NULL;
+ 
+ cvar_t  sys_linerefresh = {"sys_linerefresh","0"};// set for entity display
+diff --git a/apps/plugins/xworld/xworld.c b/apps/plugins/xworld/xworld.c
+index b0e701ce..ef9e962a 100644
+--- a/apps/plugins/xworld/xworld.c
++++ b/apps/plugins/xworld/xworld.c
+@@ -34,8 +34,8 @@ enum plugin_status plugin_start(const void* parameter)
+     (void) parameter;
+ 
+     /* no trailing slashes */
+-    const char *dataPath = "/.rockbox/xworld";
+-    const char *savePath = "/.rockbox/xworld";
++    const char *dataPath = FIRMWARE_DIR "/xworld";
++    const char *savePath = FIRMWARE_DIR "/xworld";
+     g_debugMask = XWORLD_DEBUGMASK;
+ 
+     engine_create(&e, &sys, dataPath, savePath);
+diff --git a/apps/tree.c b/apps/tree.c
+index 2446c6d0..b61da1ae 100644
+--- a/apps/tree.c
++++ b/apps/tree.c
+@@ -335,7 +335,7 @@ bool check_rockboxdir(void)
+            If .rockbox is missing, it wouldn't work anyway */
+         FOR_NB_SCREENS(i)
+             screens[i].clear_display();
+-        splash(HZ*2, "No .rockbox directory");
++        splash(HZ*2, "Firmware folder missing");
+         FOR_NB_SCREENS(i)
+             screens[i].clear_display();
+         splash(HZ*2, "Installation incomplete");
+diff --git a/firmware/common/rb-loader.c b/firmware/common/rb-loader.c
+index 2f5e06e1..6956be0c 100644
+--- a/firmware/common/rb-loader.c
++++ b/firmware/common/rb-loader.c
+@@ -20,6 +20,7 @@
+  ****************************************************************************/
+ 
+ #include <stdio.h>
++#include <string.h>
+ #include "config.h"
+ #include "system.h"
+ #include "file.h"
+@@ -123,15 +124,14 @@ int load_firmware(unsigned char* buf, const char* firmware, int buffer_size)
+ #endif
+         if (ret < 0) /* Check default volume, no valid firmware file loaded yet */
+         {
+-            /* First check in BOOTDIR */
+-            snprintf(filename, sizeof(filename), BOOTDIR "/%s",firmware);
+-
+-            ret = load_firmware_filename(buf, filename, buffer_size);
+-
+-            if (ret < 0)
++            /* The firmware folder of the build, BOOTDIR when it is another
++               folder, then the root of the volume. */
++            static const char * const folders[] = { BOOTDIR_FIRST, BOOTDIR, "" };
++            for (unsigned i = 0; ret < 0 && i < ARRAYLEN(folders); i++)
+             {
+-                /* Check in root dir */
+-                snprintf(filename, sizeof(filename),"/%s",firmware);
++                if (i == 1 && !strcmp(folders[0], folders[1]))
++                    continue;
++                snprintf(filename, sizeof(filename), "%s/%s", folders[i], firmware);
+                 ret = load_firmware_filename(buf, filename, buffer_size);
+             }
+ #ifdef HAVE_BOOTDATA
+diff --git a/firmware/export/config.h b/firmware/export/config.h
+index 4a33ae26..86a81013 100644
+--- a/firmware/export/config.h
++++ b/firmware/export/config.h
+@@ -932,6 +932,13 @@ Lyre prototype 1 */
+ 
+ #define NUM_VOLUMES (NUM_DRIVES * NUM_VOLUMES_PER_DRIVE)
+ 
++/* The folder searched first for the boot file, and the one the running
++   firmware watches for a new boot file. A model sets it when its firmware
++   folder is not BOOTDIR. */
++#if defined(BOOTDIR) && !defined(BOOTDIR_FIRST)
++#define BOOTDIR_FIRST BOOTDIR
++#endif
++
+ /* Sanity check sector size options */
+ #if defined(MAX_VARIABLE_LOG_SECTOR) && defined(MAX_VIRT_SECTOR_SIZE)
+ #if (MAX_VIRT_SECTOR_SIZE < MAX_VARIABLE_LOG_SECTOR)
+diff --git a/firmware/export/config/ipod6g.h b/firmware/export/config/ipod6g.h
+index e84c5a09..bea11550 100644
+--- a/firmware/export/config/ipod6g.h
++++ b/firmware/export/config/ipod6g.h
+@@ -212,6 +212,10 @@
+ 
+ #define BOOTFILE_EXT "ipod"
+ #define BOOTFILE "rockbox." BOOTFILE_EXT
++/* The boot file lives in the firmware folder chosen at build time. The
++   bootloader also looks in BOOTDIR, the folder of older installs, then at
++   the root, so that the iPod starts while the folder is being moved. */
++#define BOOTDIR_FIRST FIRMWARE_DIR
+ #define BOOTDIR "/.rockbox"
+ 
+ /* Define this for FM radio input available */
+diff --git a/tools/configure b/tools/configure
+index 629e2946..b63b8cbd 100755
+--- a/tools/configure
++++ b/tools/configure
+@@ -4761,6 +4761,8 @@ ${app_lcd_height}
+ 
+ /* root of Rockbox */
+ #define ROCKBOX_DIR "${rbdir}"
++/* the same folder, the name the TacetOS patches use */
++#define FIRMWARE_DIR "${rbdir}"
+ #define ROCKBOX_SHARE_PATH "${sharedir}"
+ #define ROCKBOX_BINARY_PATH "${bindir}"
+ #define ROCKBOX_LIBRARY_PATH "${libdir}"

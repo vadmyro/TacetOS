@@ -15,6 +15,8 @@
 #
 # The cross compiler is built once into the toolchain prefix if it is missing.
 # The simulator uses the host compiler and needs the SDL development files.
+# A model with `firmware_folder` in models/models.toml gets its firmware and its
+# bootloader built for that folder.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -59,6 +61,13 @@ esac
 
 [ -x "$src/$CONFIGURE_SCRIPT" ] || die "no prepared sources in $src (run apply.sh first)"
 
+# The firmware folder of the model, empty for the default one (branding section 8.2).
+folder="$(bash "$here/firmware-folder.sh" "$target")"
+configure_folder=()
+if [ -n "$folder" ] && [ "$type" != "S" ]; then
+    configure_folder=("--rbdir=$folder")
+fi
+
 if [ "$type" != "S" ]; then
     if ! compgen -G "$toolchain/$TOOLCHAIN_BIN/*-gcc" >/dev/null; then
         echo "== toolchain: building into $toolchain (once)"
@@ -66,7 +75,13 @@ if [ "$type" != "S" ]; then
         env "${TOOLCHAIN_ENV}_PREFIX=$toolchain" \
             "${TOOLCHAIN_ENV}_BUILD=$toolchain/build" \
             "${TOOLCHAIN_ENV}_DOWNLOAD=$toolchain/download" \
+            "$TOOLCHAIN_MIRROR_VAR=$TOOLCHAIN_MIRROR" \
             "$src/$TOOLCHAIN_SCRIPT" --target="$TOOLCHAIN_ARCH" --makeflags="-j$jobs"
+        # The toolchain script exits with 0 even when a download fails: check its result.
+        if ! compgen -G "$toolchain/$TOOLCHAIN_BIN/*-gcc" >/dev/null; then
+            echo "build.sh: no compiler in $toolchain/$TOOLCHAIN_BIN after the toolchain build (see above)" >&2
+            exit 1
+        fi
     fi
     export PATH="$toolchain/$TOOLCHAIN_BIN:$PATH"
 fi
@@ -84,9 +99,9 @@ builddir="$short/build"
 rm -rf "$builddir"
 mkdir -p "$builddir"
 
-echo "== configure: $target, type $type"
+echo "== configure: $target, type $type${configure_folder:+, folder $folder}"
 cd "$builddir"
-"$src/$CONFIGURE_SCRIPT" --target="$target" --type="$type"
+"$src/$CONFIGURE_SCRIPT" --target="$target" --type="$type" "${configure_folder[@]}"
 
 echo "== make"
 make -j"$jobs"

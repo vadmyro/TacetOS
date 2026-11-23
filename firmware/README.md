@@ -10,6 +10,7 @@ The TacetOS firmware is **not a diverging fork**: it is a short stack of patches
 | `apply.sh` | Downloads the base at the locked commit, applies the patches, then runs `brand.sh` |
 | `brand.sh` | Puts the TacetOS name and logo in place of the base's, in the language files and the images (needs Python 3 with Pillow) |
 | `build.sh` | Builds the firmware, bootloader or simulator for one model |
+| `firmware-folder.sh` | Prints the firmware folder of a model from `models/models.toml`, empty for the default one |
 | `plugins.list` | The plugins the firmware keeps, and their TacetOS names |
 | `plugins.sh` | Applies `plugins.list` to the zip of a firmware build; `build.sh` runs it |
 | `check-build.sh` | Checks that the outputs of a build never show the base's name or logo; `--self-test` proves each rule |
