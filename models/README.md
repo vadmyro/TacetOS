@@ -33,6 +33,7 @@ Every fact of a model lists the ids of the sources it was read in. A source is d
 | `family` | string | One of `ipod` (the full-size line: 1G to 4G, Color, Video), `mini`, `nano`, `classic` |
 | `name` | string | The name shown to the user |
 | `bootloader_target` | string | The name of the build target, as passed to `firmware/build.sh --target`. It also names the bootloader built for this model |
+| `firmware_folder` | string | Optional. The hidden folder of the firmware at the root of the music volume: a dot, then letters, digits, `-` or `_`. `firmware/build.sh` builds the firmware and the bootloader of the model for it, and the app looks for the firmware there. Without it, the default folder of `src/device/constants.h`, the one older bootloaders look for. A choice of TacetOS, not a fact: it needs no source |
 | `to_verify` | array of strings | Facts that still need a second source or a check on a real iPod. Empty when everything is confirmed. Entries are fact names (see below) |
 
 ### `[model.usb]`

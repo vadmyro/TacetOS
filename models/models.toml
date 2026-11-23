@@ -65,6 +65,9 @@ id = "classic-6g"
 family = "classic"
 name = "iPod Classic (6th generation)"
 bootloader_target = "ipod6g"
+# The hidden folder of the firmware on the music volume. Only the Classic has
+# its own (decision of docs/specs/firmware-branding.md section 8).
+firmware_folder = ".tacetos"
 
 # Facts with fewer than two checked sources, or that were assumed. They must
 # be confirmed (on a real iPod or in a second source) before the first
