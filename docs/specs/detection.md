@@ -177,7 +177,7 @@ The existing installer used to look for the root folder too, then turned that ch
 
 ### 7.3 The info file
 
-Every build of the TacetOS firmware puts a small text file in the firmware folder (names in the constants file). It is the best evidence of "TacetOS is installed here", of the version, and of the target the firmware was built for.
+Every build of the TacetOS firmware puts a small text file in the firmware folder (names in the constants file). The firmware folder is the model's own when `models.toml` gives one (`firmware_folder`, only the Classic), else the default one of the constants file. Detection looks in every model's own folder first, then in the default one, and reads the first it finds. It is the best evidence of "TacetOS is installed here", of the version, and of the target the firmware was built for.
 
 **Format.** Lines of `Key: value`. A line is a key, a colon, white space and a value. The key starts with an upper case letter and then has letters and spaces. Lines that do not have this shape are skipped (a build also writes lines of compiler names and the like; they are of no use here). The keys detection reads:
 

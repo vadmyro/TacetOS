@@ -29,6 +29,7 @@ Section 13 lists the errors, section 14 the constants, section 15 what the tests
 - **Manifest**: the file of a backup that lists every file copied with its size and sha256 (section 5.4).
 - **Package**: the three files of a firmware build: the firmware zip, the bootloader file and the manifest of the package (`firmware/README.md`, section "Package").
 - **Firmware folder**: the folder of the firmware on the music volume. Its name is in the one file of constants (`src/device/constants.h`), and nowhere else.
+- **Firmware folder**: the hidden folder of the firmware of the model (`firmware_folder` in `models.toml`, else the default one, `firmware-branding.md` section 8). Backups and `remove-firmware` also count the default folder, which an older install may have left.
 - **Kept files**: the files of the firmware folder that belong to the user and survive a new install (section 7.3).
 - **Serial**: the serial number of the iPod as detection gives it (the USB serial string, `detection.md` section 3.1).
 - **Data folder**: the folder of the app's data (`helper.md` section 5.4): the journal, the progress files, the state file of paused programs. Not the backup folder.

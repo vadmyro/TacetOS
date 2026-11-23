@@ -139,7 +139,7 @@ The plugin browser opens inside the firmware folder but never shows the name of 
 
 ## 5. Technical names that stay
 
-They stay because the boot chain, the firmware, or a game looks for them by name. None is seen: the folders and files are hidden (section 4.4), and the strings are never drawn or written. The list is key `BRAND_TOLERATED` of `base.lock`, one entry per line, each with its reason in a comment. An entry is a piece of text, optionally preceded by a file pattern and a colon (`*.ipod:text`) to allow it only in matching output files or zip paths. A string found by the check is tolerated when, once every tolerated piece that applies to its file is taken out of it, no spelling of the name is left. The first entries:
+They stay because the boot chain, the firmware, or a game looks for them by name. None is seen: the folders and files are hidden (section 4.4), and the strings are never drawn or written. The list is key `BRAND_TOLERATED` of `base.lock`, one entry per line, each with its reason in a comment. An entry is a piece of text, optionally preceded by a file pattern and a colon (`*.ipod:text`) to allow it only in matching output files or zip paths. A string found by the check is tolerated when, once every tolerated piece that applies to its file is taken out of it, no spelling of the name is left. A string that reads as text (two words or more with letters) is never tolerated, whatever it holds: a technical name is never part of a message, so a message that names a technical folder is a branding fault. The first entries:
 
 - the firmware folder name of the base, on every model except the Classic (its bootloader looks for it, D53);
 - the boot file name and the info file name;
@@ -156,11 +156,11 @@ One more is expected when the builds of the other models run: the magic word of 
 `firmware/check-build.sh --target MODEL --types N,B,S` reads the outputs in `firmware/work/out` and fails, listing each problem, when:
 
 1. an output of a requested type is missing, or older than `base.lock` or than any file of `patches/`;
-2. a string of the firmware file, the bootloader file, any plugin or codec in the zip, or any compiled language file, contains a spelling of `BRAND_NAMES` that is not inside a `BRAND_TOLERATED` entry (strings of 4 printable characters or more, matched without regard to case);
+2. a string of the firmware file, the bootloader file, any plugin or codec in the zip, or any compiled language file, contains a spelling of `BRAND_NAMES` that is not inside a `BRAND_TOLERATED` entry, or that reads as text: two words or more with letters, which a technical name never is (strings of 4 printable characters or more, matched without regard to case);
 3. a path in the zip contains a spelling of the name outside a `BRAND_TOLERATED` entry, or a plugin file name (without its extension) contains "rock";
 4. an image of `BRAND_LOGO_IMAGES` or `BRAND_ICON_SETS` in the sources used by the build still has the SHA-256 of the base's file (`BRAND_ORIGINAL_SHA256`);
 5. with `--plugins`: the zip holds a plugin that is not in the plugin list, or lacks one that is (section 7);
-6. with a model whose firmware folder is set (section 8): the zip's top folder is not that name.
+6. with a model whose firmware folder is set (section 8): a path of the zip is not inside that folder.
 
 `--self-test` proves each rule on small files made on the fly, and needs no build. The CI `firmware` job runs the check after each build.
 
@@ -246,9 +246,9 @@ Decision D53: on the Classic the firmware folder is `.tacetos`. The other models
 
 ### 8.2 What TacetOS does
 
-- **Build**: `build.sh` gives the folder option for the normal build and the bootloader build of a model that has `firmware_folder` in `models/models.toml`. Only the Classic has it. Models without it use the default folder of the constants file (the base's name, which only lives there and in `base.lock`).
-- **Patch** (Classic only): the boot file folder of the Classic is the folder of the build. The bootloader looks for the boot file in the new folder first, then in the base's folder, then at the root. The second step makes an update safe in any order (section 8.3).
-- **App and helper**: they read the folder of a model from `models.toml`, with the default of the constants file.
+- **Build**: `build.sh` gives the folder option for the normal build and the bootloader build of a model that has `firmware_folder` in `models/models.toml` (read by `firmware/firmware-folder.sh`). Only the Classic has it. Models without it use the default folder of the constants file (the base's name, which only lives there and in `base.lock`).
+- **Patch** (`0010`): the configure script also writes the folder of the build under a second name, `FIRMWARE_DIR`, so that our patches never spell the base's macro. On the Classic the boot file folder is the folder of the build. The bootloader looks for the boot file in the new folder first, then in the base's folder, then at the root; the second step makes an update safe in any order (section 8.3). The firmware watches the new folder for a new boot file. On the other models the two folders are the same and the search is the base's. The same patch gives `FIRMWARE_DIR` to the code that wrote the base's folder by hand (the legal texts, the folder skipped by the random folder tool, the data folders of three game engines and their music library), and the message shown when the folder is missing no longer names it.
+- **App**: it reads the folder of a model from `models.toml`, with the default of the constants file. Detection looks in every model's own folder first, then in the default one. The install writes the package into the folder of the model, and a package whose zip has another top folder is refused. A backup and `remove-firmware` also count the default folder, which an install made before this version left. The helper never deals with the firmware folder: it writes to the disk below the file system.
 
 ### 8.3 Moving an existing folder
 
