@@ -177,7 +177,11 @@ jobs:
         if: steps.toolchain-cache.outputs.cache-hit != 'true'
         run: sudo apt-get update && sudo apt-get install -y texinfo autoconf automake libtool libtool-bin flex bison
 
-      - name: Get the base sources and apply our patches
+      - name: Install Pillow
+        # brand.sh draws the TacetOS logo and icon into the base's images.
+        run: sudo apt-get update && sudo apt-get install -y python3-pil
+
+      - name: Get the base sources, apply our patches and our branding
         run: bash firmware/apply.sh --dest "$RUNNER_TEMP/fw/src"
 
       - name: Build the firmware
@@ -185,6 +189,11 @@ jobs:
 
       - name: Build the bootloader
         run: bash firmware/build.sh --target ipod6g --type B --src "$RUNNER_TEMP/fw/src" --out "$RUNNER_TEMP/fw/out" --toolchain "$RUNNER_TEMP/toolchain"
+
+      - name: Check the branding of the builds
+        run: |
+          bash firmware/check-build.sh --self-test
+          bash firmware/check-build.sh --target ipod6g --types N,B --plugins --src "$RUNNER_TEMP/fw/src" --out "$RUNNER_TEMP/fw/out"
 
       - name: Package
         run: bash firmware/package.sh --target ipod6g --in "$RUNNER_TEMP/fw/out" --out "$RUNNER_TEMP/fw/package"
