@@ -92,7 +92,13 @@ if ! compgen -G "$toolchain/$TOOLCHAIN_BIN/${REF_DFU_CROSS}gcc" >/dev/null; then
     env "${TOOLCHAIN_ENV}_PREFIX=$toolchain" \
         "${TOOLCHAIN_ENV}_BUILD=$toolchain/build" \
         "${TOOLCHAIN_ENV}_DOWNLOAD=$toolchain/download" \
+        "$TOOLCHAIN_MIRROR_VAR=$TOOLCHAIN_MIRROR" \
         "$sources/$TOOLCHAIN_SCRIPT" --target="$TOOLCHAIN_ARCH" --makeflags="-j$(nproc 2>/dev/null || echo 2)"
+    # The toolchain script exits with 0 even when a download fails: check its result.
+    if ! compgen -G "$toolchain/$TOOLCHAIN_BIN/${REF_DFU_CROSS}gcc" >/dev/null; then
+        echo "build-dfu-parts.sh: no ${REF_DFU_CROSS}gcc in $toolchain/$TOOLCHAIN_BIN after the toolchain build (see above)" >&2
+        exit 1
+    fi
 fi
 export PATH="$toolchain/$TOOLCHAIN_BIN:$PATH"
 
