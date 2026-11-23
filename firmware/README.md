@@ -7,8 +7,12 @@ The TacetOS firmware is **not a diverging fork**: it is a short stack of patches
 | `base.lock` | The base sources and the exact commit we build on |
 | `patches/` | Our patches, applied in order |
 | `backports.md` | Newer features brought in one at a time |
-| `apply.sh` | Downloads the base at the locked commit and applies the patches |
+| `apply.sh` | Downloads the base at the locked commit, applies the patches, then runs `brand.sh` |
+| `brand.sh` | Puts the TacetOS name and logo in place of the base's, in the language files and the images (needs Python 3 with Pillow) |
 | `build.sh` | Builds the firmware, bootloader or simulator for one model |
+| `plugins.list` | The plugins the firmware keeps, and their TacetOS names |
+| `plugins.sh` | Applies `plugins.list` to the zip of a firmware build; `build.sh` runs it |
+| `check-build.sh` | Checks that the outputs of a build never show the base's name or logo; `--self-test` proves each rule |
 | `package.sh` | Turns the firmware and bootloader of one model into a package the app installs |
 
 Firmware builds run in CI.
@@ -21,6 +25,7 @@ A package is what the app installs on an iPod. CI makes one for the iPod Classic
 bash firmware/apply.sh
 bash firmware/build.sh --target ipod6g --type N
 bash firmware/build.sh --target ipod6g --type B
+bash firmware/check-build.sh --target ipod6g --types N,B --plugins
 bash firmware/package.sh --target ipod6g
 ```
 

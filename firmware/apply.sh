@@ -3,7 +3,8 @@
 # Copyright (C) 2026 vadmyro
 #
 # Downloads the base sources at the commit pinned in base.lock, brings in the
-# listed backports, then applies our patches in order.
+# listed backports, applies our patches in order, then puts the TacetOS name
+# and logo in place of the base's (brand.sh).
 #
 # Usage: apply.sh [--dest DIR]
 #   --dest DIR   where to put the sources (default: firmware/work/src)
@@ -71,5 +72,10 @@ for patch in "$here"/patches/*.patch; do
     fi
     git_local commit -q -m "$(basename "$patch" .patch)"
 done
+
+echo "== branding"
+bash "$here/brand.sh" --src "$dest"
+git_local add -A
+git_local commit -q -m "branding"
 
 echo "== ready: $dest"

@@ -58,3 +58,58 @@ REF_DFU_BLOCKS_SOURCE=mkdfu.c
 REF_DFU_HEADER_VAR=s5l8702hdr
 REF_DFU_SIGNATURE_FIELD=info_sign
 REF_DFU_CERTIFICATE_VAR=s5l8702pwnage
+
+# Branding (docs/specs/firmware-branding.md). Every spelling of the base's name that
+# can be seen, as extended regular expressions, one per line. Latin ones are matched
+# without regard to case.
+BRAND_NAMES="
+rockbo(x|ks)
+ロックボックス
+록박스
+[Рр]окбокс
+רוקבוקס
+روكبوكس
+ركبوكس
+रोकबोकस
+"
+BRAND_NEW=TacetOS
+# The base's logo, one image per screen kind of our models (branding section 3.4).
+BRAND_LOGO_IMAGES="
+apps/bitmaps/native/rockboxlogo.320x98x16.bmp
+apps/bitmaps/native/rockboxlogo.220x68x16.bmp
+apps/bitmaps/native/rockboxlogo.176x54x16.bmp
+apps/bitmaps/native/rockboxlogo.160x53x2.bmp
+apps/bitmaps/native/rockboxlogo.138x46x2.bmp
+"
+# The main icon sets used by our models, whose 32nd icon is the base's mark.
+BRAND_ICON_SETS="
+icons/tango_icons.16x16.bmp
+icons/tango_icons.12x12.bmp
+icons/tango_small_mono.bmp
+apps/bitmaps/mono/default_icons.bmp
+"
+# Technical names that stay because something looks for them; never seen (section 5).
+# Optional file pattern before a colon. Each line has its reason after a #.
+BRAND_TOLERATED="
+.rockbox # firmware folder of the models other than the Classic, the bootloader looks for it
+rockbox.ipod # boot file, the bootloader looks for it
+rockbox-info.txt # info file, read by the app
+rockbox_default.wps # path the firmware builds for its built-in screen, no such file
+rockbox_default.rwps # same, remote screen
+rockbox-fonts.config # list file read by the theme remover
+rockbox/tagbrowser # header of the database navigation file, compared by its parser
+GOTROCKBOX # Doom lookup key, means box of rockets
+"
+
+# SHA-256 of the base images above, before branding: brand.sh --check fails while one is unchanged.
+BRAND_ORIGINAL_SHA256="
+5dd329e99beb8178e21013ea9c9ca65c4a4f563d2e0485de8fdecb8086200857 apps/bitmaps/native/rockboxlogo.320x98x16.bmp
+c15778944e3d66ca053ad5668e082a3f04101099ce2ff07c059e445a67e23696 apps/bitmaps/native/rockboxlogo.220x68x16.bmp
+e53a4cbf82831d4d961f9a0adf81fd052318d7dc85dfc3cb55f0e1b5696a9b96 apps/bitmaps/native/rockboxlogo.176x54x16.bmp
+e43dc8544e845b1b93194eca9f8f4e41dcf9ff0c02a48823e4f504796f7ff7aa apps/bitmaps/native/rockboxlogo.160x53x2.bmp
+36ce60caa897b3315041492e598ccffb0867df396465e8a90d401c3f6509d2f4 apps/bitmaps/native/rockboxlogo.138x46x2.bmp
+df14c9e486b50dcae3cf1250748413be389b626fbec0247e0c9b6c8c6cdbe3bf icons/tango_icons.16x16.bmp
+221f93d63119caec468e65eb364ac31c58bea5f7be4b161e4cf0e2b7f2247258 icons/tango_icons.12x12.bmp
+dfef2694e3efd27a706befdde77d7eeed56c942aaed13730e8826e1c35dd6cb9 icons/tango_small_mono.bmp
+a6f7fc52158b1cd4ec3945e0da3a4c2f26db3776629fcc91f3ff8a76929681cc apps/bitmaps/mono/default_icons.bmp
+"

@@ -1,0 +1,190 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 vadmyro
+#
+# The plugins of the TacetOS firmware (docs/specs/firmware-branding.md, section 7).
+# One plugin per line: its path in the plugins folder of the base build, without
+# extension, then its TacetOS name when it is renamed. Only these plugins reach the
+# zip; their overlays and data files go with them. Read by plugins.sh when the zip
+# is made, and by check-build.sh --plugins.
+#
+# Left out on purpose: the test and developer tools, the Lua demo scripts, the voice
+# announcer, the logo demo and the credits screen (section 7.2).
+
+# Top of the plugins folder
+tagcache
+
+# Applications
+apps/alarmclock
+apps/calculator
+apps/calendar
+apps/chessclock
+apps/clock
+apps/dart_scorer
+apps/db_commit
+apps/dict
+apps/disktidy
+apps/keybox
+apps/keyremap
+apps/lamp
+apps/lastfm_scrobbler
+apps/lrcplayer
+apps/main_menu_config
+apps/metronome
+apps/otp
+apps/periodic_table
+apps/pitch_detector
+apps/playing_time
+apps/random_folder_advance_config
+apps/resistor
+apps/rockpaint paint
+apps/stats
+apps/stopwatch
+apps/text_editor
+
+# Visual demos
+demos/bounce
+demos/cube
+demos/demystify
+demos/fft
+demos/fire
+demos/fireworks
+demos/fractals
+demos/matrix
+demos/mosaique
+demos/oscilloscope
+demos/pictureflow
+demos/plasma
+demos/rocklife life
+demos/snow
+demos/starfield
+demos/vu_meter
+
+# Games, game engines and their data
+games/2048
+games/amaze
+games/blackjack
+games/boomshine
+games/brickmania
+games/bubbles
+games/chessbox
+games/chopper
+games/clix
+games/codebuster
+games/dice
+games/doom
+games/duke3d
+games/flipit
+games/goban
+games/invadrox
+games/jackpot
+games/jewels
+games/maze
+games/mazezam
+games/minesweeper
+games/pacbox
+games/pegbox
+games/picross
+games/pixel-painter
+games/pong
+games/quake
+games/reversi
+games/robotfindskitten
+games/rockblox blocks
+games/rockblox1d blocks1d
+games/sliding_puzzle
+games/snake
+games/snake2
+games/sokoban
+games/solitaire
+games/spacerocks meteors
+games/star
+games/sudoku
+games/superdom
+games/wolf3d
+games/wormlet
+games/xobox
+games/xrick
+games/xworld
+
+# Puzzles
+games/sgt_puzzles/sgt-blackbox
+games/sgt_puzzles/sgt-bridges
+games/sgt_puzzles/sgt-cube
+games/sgt_puzzles/sgt-dominosa
+games/sgt_puzzles/sgt-fifteen
+games/sgt_puzzles/sgt-filling
+games/sgt_puzzles/sgt-flip
+games/sgt_puzzles/sgt-flood
+games/sgt_puzzles/sgt-galaxies
+games/sgt_puzzles/sgt-guess
+games/sgt_puzzles/sgt-inertia
+games/sgt_puzzles/sgt-keen
+games/sgt_puzzles/sgt-lightup
+games/sgt_puzzles/sgt-loopy
+games/sgt_puzzles/sgt-magnets
+games/sgt_puzzles/sgt-map
+games/sgt_puzzles/sgt-mines
+games/sgt_puzzles/sgt-mosaic
+games/sgt_puzzles/sgt-net
+games/sgt_puzzles/sgt-netslide
+games/sgt_puzzles/sgt-palisade
+games/sgt_puzzles/sgt-pattern
+games/sgt_puzzles/sgt-pearl
+games/sgt_puzzles/sgt-pegs
+games/sgt_puzzles/sgt-range
+games/sgt_puzzles/sgt-rect
+games/sgt_puzzles/sgt-samegame
+games/sgt_puzzles/sgt-signpost
+games/sgt_puzzles/sgt-singles
+games/sgt_puzzles/sgt-sixteen
+games/sgt_puzzles/sgt-slant
+games/sgt_puzzles/sgt-slide
+games/sgt_puzzles/sgt-sokoban
+games/sgt_puzzles/sgt-solo
+games/sgt_puzzles/sgt-tents
+games/sgt_puzzles/sgt-towers
+games/sgt_puzzles/sgt-tracks
+games/sgt_puzzles/sgt-twiddle
+games/sgt_puzzles/sgt-undead
+games/sgt_puzzles/sgt-unequal
+games/sgt_puzzles/sgt-unruly
+games/sgt_puzzles/sgt-untangle
+
+# Viewers and emulators
+viewers/bmp
+viewers/chip8
+viewers/cue_playlist
+viewers/db_folder_select
+viewers/file_picker
+viewers/frotz
+viewers/gif
+viewers/imageviewer
+viewers/jpeg
+viewers/jpegp
+viewers/lastfm_scrobbler_viewer
+viewers/lua
+viewers/midi
+viewers/mikmod
+viewers/mp3_encoder
+viewers/mpegplayer
+viewers/open_plugins
+viewers/pdbox
+viewers/pitch_screen
+viewers/png
+viewers/ppm
+viewers/properties
+viewers/rockboy gameboy
+viewers/search
+viewers/shopper
+viewers/shortcuts_append
+viewers/shortcuts_view
+viewers/sort
+viewers/speedread
+viewers/text_viewer
+viewers/theme_remove
+viewers/vbrfix
+viewers/view_text
+viewers/wav2wv
+viewers/wavview
+viewers/windows_lnk
+viewers/zxbox

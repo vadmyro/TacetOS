@@ -71,9 +71,18 @@ if [ "$type" != "S" ]; then
     export PATH="$toolchain/$TOOLCHAIN_BIN:$PATH"
 fi
 
-builddir="$(dirname "$src")/build-$target-$type"
+# The base's make passes every source path in a single shell command, which
+# overflows the system limit when the sources sit under a long path: the build
+# goes through a short link to them, and its build folder sits next to the link.
+src="$(cd "$src" && pwd)"
+out="$(mkdir -p "$out" && cd "$out" && pwd)"
+short="${TMPDIR:-/tmp}/tacetos-$target-$type"
+mkdir -p "$short"
+ln -sfn "$src" "$short/src"
+src="$short/src"
+builddir="$short/build"
 rm -rf "$builddir"
-mkdir -p "$builddir" "$out"
+mkdir -p "$builddir"
 
 echo "== configure: $target, type $type"
 cd "$builddir"
@@ -83,6 +92,10 @@ echo "== make"
 make -j"$jobs"
 if [ "$type" = "N" ]; then
     make zip
+    # Only the plugins of plugins.list reach the zip, renamed as it says.
+    for zip in *.zip; do
+        bash "$here/plugins.sh" --zip "$zip"
+    done
 fi
 
 echo "== artifacts"
