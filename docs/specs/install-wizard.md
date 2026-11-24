@@ -425,7 +425,7 @@ These names are names the firmware looks for. In the code they are in the one fi
 
 ### 7.4 The steps
 
-1. Check the package (section 7.1).
+1. Wait for the music volume, as long as the step before waited for the iPod: with `bootloaderFirst`, the Classic comes back from `classic-bootloader` before its volume is mounted. The step never writes without a mount point (an empty path would be the folder the app runs from). It fails with `volume-not-back` only when the wait is over. Then check the package (section 7.1).
 2. Clean up what a cut left (section 7.5). Then, for a model with its own firmware folder, move the default folder into it and rewrite the paths of its settings and screens (`firmware-branding.md` section 8.3, steps 2 and 3). Then check the space (section 7.2), only when the step unpacks: a run that goes straight to the check after writes nothing, and the folders a cut left would count against it.
 3. **Unpack** the zip into a folder next to the firmware folder, on the music volume: the name of the firmware folder followed by `NEW_SUFFIX`. The top folder of the zip is not kept in the path: its content goes straight into the new folder. Each file is written, flushed, closed, then read back and its CRC-32 compared with the zip.
 4. **Copy the kept files** from the old folder (or the backup) into the new folder, each one read back and compared with its sha256.
@@ -605,7 +605,7 @@ The wizard has its own codes, and passes on the codes of the helper (`helper.md`
 | `backup-damaged` | Section 5.7 | "This backup is damaged", how many files were put back |
 | `restore-write-failed` | Section 5.7 | "Some files could not be written back to the iPod. Check that it has room, then try again", how many files were put back |
 | `erase-failed` | Section 6.4 | "Some files of the iPod could not be erased. Unplug it, plug it in again, then press Resume" |
-| `volume-not-back` | Section 6.3 | "The iPod was formatted, but its volume did not come back. Unplug it, plug it in again, press Resume" |
+| `volume-not-back` | Sections 6.3, 7.4 and 10 | "The iPod was formatted, but its volume did not come back. Unplug it, plug it in again, press Resume" |
 | `package-format`, `package-wrong-model`, `package-incomplete`, `package-damaged`, `package-changed` | Section 7.1 | The message of the check, "Choose another package" |
 | `firmware-no-room` | Section 7.2 | "Not enough space on the iPod for TacetOS", the space needed |
 | `firmware-write-failed` | Section 7.4 | "The firmware could not be written to the iPod. Press Resume": section 7.5 cleans up |
