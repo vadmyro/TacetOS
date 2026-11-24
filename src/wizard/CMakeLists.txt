@@ -39,6 +39,8 @@ qt_add_library(tacet_wizard STATIC
     uninstall.h
     verify.cpp
     verify.h
+    wholeprogress.cpp
+    wholeprogress.h
     wizardconstants.h
     wizarderrors.h
 )
