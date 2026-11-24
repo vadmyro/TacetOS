@@ -8,7 +8,9 @@
 #include "home/homeaction.h"
 #include "package.h"
 #include "runner.h"
+#include "wholeprogress.h"
 #include "wizard/backuppage.h"
+#include "wizard/bigprogresspage.h"
 #include "wizard/dfututorial.h"
 #include "wizard/diagnosepage.h"
 #include "wizard/donepage.h"
@@ -273,6 +275,9 @@ void WizardWindow::build()
     addPage(QStringLiteral("backup"), backup_);
     format_ = new FormatPage(runner_);
     addPage(QStringLiteral("format"), format_);
+    // Boot screen section 10: one bar for the steps that write, over their own pages.
+    big_ = new BigProgressPage(runner_);
+    addPage(QStringLiteral("big"), big_);
     // The pages of the last steps (sections 6 to 9). Same rule: each follows the runner.
     dfu_ = new DfuTutorialPage(runner_);
     connect(dfu_, &DfuTutorialPage::retryRequested, this, &WizardWindow::retry);
@@ -488,10 +493,16 @@ void WizardWindow::connectRunner()
                 else if (stage == QLatin1String("send"))
                     dfuSent_ = true;
                 if (stage == QLatin1String("resume") && dfuSent_ && !restartSeen_ &&
-                    (name == step::classicBootloader || name == step::classicRemove)) {
+                    WholeProgress::isRestart(name)) {
                     restartSeen_ = true;
-                    showStepPage(name);
+                    showBig();
                 }
+                // Boot screen section 10.1: a step that writes shows the big bar while it runs;
+                // its own page comes back when it asks or fails. The Classic's steps keep the
+                // DFU guide until the restart.
+                if (name == currentStep_ && WholeProgress::isWriting(name) &&
+                    !WholeProgress::isRestart(name))
+                    showBig();
             });
     connect(runner_, &WizardRunner::stepFirstWrite, this, [this](const QString &) {
         writing_ = true;
@@ -526,7 +537,9 @@ void WizardWindow::connectRunner()
             setItemState(i, QStringLiteral("done"));
         stepTitle_->setText(wtr("Done"));
         const QString last = currentFlowPage();
-        if (last == QLatin1String("done") || last == QLatin1String("remove"))
+        if (last == QLatin1String("big"))
+            showStepPage(currentStep_);
+        else if (last == QLatin1String("done") || last == QLatin1String("remove"))
             showPage(last);
         else
             showPage(QStringLiteral("step"));
@@ -555,7 +568,7 @@ bool WizardWindow::isFlowPage(const QString &name) const
            name == QLatin1String("diagnose") || name == QLatin1String("backup") ||
            name == QLatin1String("format") || name == QLatin1String("dfu") ||
            name == QLatin1String("write") || name == QLatin1String("remove") ||
-           name == QLatin1String("done");
+           name == QLatin1String("done") || name == QLatin1String("big");
 }
 
 // The page of the step, also while the report shows over it.
@@ -591,6 +604,17 @@ void WizardWindow::showStepPage(const QString &name)
         return;
     }
     showPage(page);
+}
+
+// Boot screen section 10: the big bar, after the pause of the page before if there is one.
+void WizardWindow::showBig()
+{
+    if (holding_) {
+        pending_ = QStringLiteral("big");
+        return;
+    }
+    if (currentFlowPage() != QLatin1String("big"))
+        showPage(QStringLiteral("big"));
 }
 
 // The end line of the checks or of the backup has shown for its pause: the next page comes.
@@ -769,6 +793,7 @@ void WizardWindow::changeFolder()
 void WizardWindow::setItems(const QStringList &steps, int done)
 {
     steps_ = steps;
+    big_->setSteps(steps);
     list_->clear();
     itemOfStep_.clear();
     states_.clear();
@@ -834,6 +859,10 @@ void WizardWindow::onStarted(int index, const QString &name)
     stepText_->clear();
     bar_->setRange(0, 0);
     barText_->clear();
+    // From one writing step to the next, the big bar stays (boot screen section 10.1).
+    if (currentFlowPage() == QLatin1String("big") && !holding_ && WholeProgress::isWriting(name) &&
+        !WholeProgress::isRestart(name))
+        return;
     showStepPage(name);
 }
 
@@ -922,9 +951,12 @@ void WizardWindow::onStopped()
     restartSeen_ = dfuSent_ = false;
     // The page of a step keeps its failed or stopped state; the others go back to the bar.
     const QString page = currentFlowPage();
-    showPage(!stopped_ && isFlowPage(page) && page != QLatin1String("offer")
-                 ? page
-                 : QStringLiteral("step"));
+    if (!stopped_ && page == QLatin1String("big"))
+        showStepPage(currentStep_);
+    else
+        showPage(!stopped_ && isFlowPage(page) && page != QLatin1String("offer")
+                     ? page
+                     : QStringLiteral("step"));
     emit flowEnded();
 }
 

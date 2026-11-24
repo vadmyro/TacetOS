@@ -36,7 +36,7 @@ struct Palette
 //   QPushButton primary, secondary (the default look of a button is the secondary one), danger
 //               (the fill is `danger`, only for "Erase the iPod")
 //   QLabel      secondary, danger
-// and with the object names spaceBar and busyBar for the two progress bars.
+// and with the object names spaceBar, busyBar and bigProgressBar for the progress bars.
 QString styleSheet(const Palette &palette);
 
 } // namespace tacetos

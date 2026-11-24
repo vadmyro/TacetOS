@@ -26,6 +26,7 @@ class QStackedWidget;
 
 namespace tacetos {
 class BackupPage;
+class BigProgressPage;
 class DfuTutorialPage;
 class DiagnosePage;
 class DonePage;
@@ -113,6 +114,7 @@ public:
     // The pages of the steps, for the tests.
     DiagnosePage *diagnosePage() const { return diagnose_; }
     BackupPage *backupPage() const { return backup_; }
+    BigProgressPage *bigProgressPage() const { return big_; }
     FormatPage *formatPage() const { return format_; }
     DfuTutorialPage *dfuPage() const { return dfu_; }
     InstallPage *installPage() const { return install_; }
@@ -170,6 +172,7 @@ private:
     void showPage(const QString &name);
     bool isFlowPage(const QString &name) const;
     void showStepPage(const QString &name);
+    void showBig();
     void onPageReady();
     QString currentFlowPage() const;
     void retry();
@@ -240,6 +243,7 @@ private:
     QString pending_;
     DiagnosePage *diagnose_ = nullptr;
     BackupPage *backup_ = nullptr;
+    BigProgressPage *big_ = nullptr;
     FormatPage *format_ = nullptr;
     DfuTutorialPage *dfu_ = nullptr;
     InstallPage *install_ = nullptr;

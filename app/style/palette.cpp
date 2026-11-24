@@ -145,6 +145,11 @@ QPushButton:focus {
     border: 2px solid %6;
     padding: 5px 15px;
 }
+QLabel#bootLogoPreview {
+    border: 1px solid %5;
+    border-radius: 8px;
+    padding: 8px;
+}
 QProgressBar#spaceBar, QProgressBar#busyBar {
     background: %5;
     border: none;
@@ -155,6 +160,15 @@ QProgressBar#spaceBar, QProgressBar#busyBar {
 QProgressBar#spaceBar::chunk, QProgressBar#busyBar::chunk {
     background: %6;
     border-radius: 3px;
+}
+QProgressBar#bigProgressBar {
+    background: %5;
+    border: none;
+    border-radius: 6px;
+}
+QProgressBar#bigProgressBar::chunk {
+    background: %6;
+    border-radius: 6px;
 }
 )");
     return css.arg(p.window.name(),        // %1

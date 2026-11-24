@@ -5,6 +5,8 @@
 qt_add_library(tacetos_ui STATIC
     mainwindow.cpp
     mainwindow.h
+    home/bootlogodialog.cpp
+    home/bootlogodialog.h
     home/homeaction.h
     home/homescreen.cpp
     home/homescreen.h
@@ -12,6 +14,8 @@ qt_add_library(tacetos_ui STATIC
     home/ipodcard.h
     wizard/backuppage.cpp
     wizard/backuppage.h
+    wizard/bigprogresspage.cpp
+    wizard/bigprogresspage.h
     wizard/diagnosepage.cpp
     wizard/diagnosepage.h
     wizard/dfututorial.cpp
@@ -45,7 +49,8 @@ qt_add_library(tacetos_ui STATIC
 )
 target_include_directories(tacetos_ui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(tacetos_ui PUBLIC TACETOS_VERSION="${PROJECT_VERSION}")
-target_link_libraries(tacetos_ui PUBLIC Qt6::Widgets Qt6::Svg tacet_device tacet_journal tacet_wizard)
+target_link_libraries(tacetos_ui PUBLIC Qt6::Widgets Qt6::Svg tacet_device tacet_journal tacet_wizard
+    tacet_bootlogo)
 
 # The drawings of the models, read as :/models/<id>.svg (resources/models/README.md).
 qt_add_resources(tacetos_ui drawings
@@ -70,6 +75,19 @@ qt_add_resources(tacetos_ui dfudrawing
     PREFIX /dfu
     BASE resources/dfu
     FILES resources/dfu/wheel.svg
+)
+
+# The banners of the TacetOS logo, read as :/logo/banner-dark.png and :/logo/banner-light.png
+# for the preview of the boot logo and the big progress page (boot screen sections 8.2 and 10.2).
+set_source_files_properties(
+    "${PROJECT_SOURCE_DIR}/docs/assets/logo/banner-dark.png" PROPERTIES QT_RESOURCE_ALIAS banner-dark.png)
+set_source_files_properties(
+    "${PROJECT_SOURCE_DIR}/docs/assets/logo/banner-light.png" PROPERTIES QT_RESOURCE_ALIAS banner-light.png)
+qt_add_resources(tacetos_ui logobanners
+    PREFIX /logo
+    FILES
+        "${PROJECT_SOURCE_DIR}/docs/assets/logo/banner-dark.png"
+        "${PROJECT_SOURCE_DIR}/docs/assets/logo/banner-light.png"
 )
 
 # The list of the models, read as :/data/models.toml: the app never looks in the source tree.
