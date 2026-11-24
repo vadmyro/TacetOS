@@ -9,6 +9,7 @@
 #include <QList>
 #include <QString>
 #include <QStringList>
+#include <optional>
 
 // The part of models/models.toml that detection needs (docs/specs/detection.md
 // section 3.2): which USB ids belong to which models.
@@ -29,6 +30,14 @@ struct Variant
     QStringList appleModels;
 };
 
+// The screen of a model (`[model.screen]`).
+struct ModelScreen
+{
+    int width = 0;
+    int height = 0;
+    bool colour = false;
+};
+
 struct Model
 {
     QString id;
@@ -45,6 +54,8 @@ struct Model
     QStringList usbDfu;
     // Sorted by key.
     QList<Variant> variants;
+    // None when models.toml gives no size.
+    std::optional<ModelScreen> screen;
 };
 
 struct ModelList

@@ -90,6 +90,10 @@ inline constexpr bool kMountOnArrival = true;
 inline constexpr QLatin1String kFirmwareFolder(".rockbox");
 inline constexpr QLatin1String kFirmwareInfoFile("rockbox-info.txt");
 
+// docs/specs/boot-screen.md section 3.1: the boot logo file, kept by backups
+// and updates.
+inline constexpr QLatin1String kBootLogoFile("boot-logo.bin");
+
 // Section 7.3: the key of the info file line that names the distribution and
 // its own version. Not named yet (v0.3, with the firmware patches): while it is
 // empty, no info file can be taken for a TacetOS one.
@@ -105,6 +109,7 @@ inline constexpr QLatin1String kPlaylistsFolder("Playlists");
 inline constexpr const char *kKeptFirmwareFiles[] = {
     "config.cfg",        "fixed.cfg",         ".resume.cfg",
     ".playlist_control", "most-recent.bmark", "battery_levels.cfg",
+    "boot-logo.bin",
 };
 inline constexpr const char *kKeptFirmwareFolders[] = {
     "themes", "wps", "backdrops", "icons", "fonts", "eqs", "recpresets", "rocks.data",

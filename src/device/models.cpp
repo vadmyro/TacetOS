@@ -69,6 +69,13 @@ ModelList modelsFromDocument(const TomlDocument &doc)
             !readUsbList(usb, QStringLiteral("dfu"), m.id, &m.usbDfu, &list.error))
             return list;
 
+        const TomlTable screen = table.children.value(QStringLiteral("screen"));
+        const int width = screen.values.value(QStringLiteral("width")).toInt();
+        const int height = screen.values.value(QStringLiteral("height")).toInt();
+        if (width > 0 && height > 0)
+            m.screen =
+                ModelScreen{width, height, screen.values.value(QStringLiteral("colour")).toBool()};
+
         const TomlTable variants = table.children.value(QStringLiteral("variant"));
         for (auto it = variants.children.cbegin(); it != variants.children.cend(); ++it) {
             Variant v;
