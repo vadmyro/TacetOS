@@ -1,0 +1,358 @@
+diff --git a/utils/mks5lboot/dualboot/dualboot.c b/utils/mks5lboot/dualboot/dualboot.c
+--- a/utils/mks5lboot/dualboot/dualboot.c
++++ b/utils/mks5lboot/dualboot/dualboot.c
+@@ -30,6 +30,7 @@
+ #include "spi-s5l8702.h"
+ #include "norboot-target.h"
+ #include "piezo.h"
++#include "screen.h"
+ 
+ /* How it works:
+  *
+@@ -217,6 +218,7 @@
+ 
+     usec_timer_init();
+     piezo_seq(alive);
++    screen_start(); /* the logo; gives up by itself when the screen is silent */
+     spi_clkdiv(SPI_PORT, 4); /* SPI clock = 27/5 MHz. */
+ 
+     /* check for single boot installation, is is configured when
+diff --git a/utils/mks5lboot/dualboot/Makefile b/utils/mks5lboot/dualboot/Makefile
+--- a/utils/mks5lboot/dualboot/Makefile
++++ b/utils/mks5lboot/dualboot/Makefile
+@@ -56,6 +56,10 @@
+ # target/loader specific includes
+ $(foreach l,$(LOADERS),$(foreach t,$(TARGETS),$(eval INC_$(l)_$(t) = -I$(FW8702)/$(t))))
+ 
++# The install program shows the TacetOS logo: its screen code, and the tables of the
++# target's screen driver (every screen revision it knows).
++$(foreach t,$(TARGETS),$(eval SRC_install_$(t) += screen.c $(FW8702)/$(t)/lcd-$(subst ipod,,$(t)).c))
++
+ CFLAGS = $(INCLUDES) -mcpu=arm926ej-s -std=gnu99 -nostdlib -ffreestanding -Os -W -Wall\
+ 		-Wundef -Wstrict-prototypes -ffunction-sections -fdata-sections -Wl,--gc-sections $(DEFINES)
+ 
+diff --git a/utils/mks5lboot/dualboot/screen.c b/utils/mks5lboot/dualboot/screen.c
+new file mode 100644
+--- /dev/null
++++ b/utils/mks5lboot/dualboot/screen.c
+@@ -0,0 +1,300 @@
++/* SPDX-License-Identifier: GPL-3.0-or-later
++ * Copyright (C) 2026 vadmyro
++ *
++ * The screen of the install program (see the boot screen spec, section 9).
++ *
++ * The screen revision and its start sequences come from the driver tables of the
++ * target (lcd-6g.c, added to the build of the install program). The rest is ours:
++ * waits with a time limit, the pixels sent straight to the screen (no frame
++ * buffer: the memory of the program is a few kilobytes), the backlight.
++ */
++#include <stdint.h>
++#include <stdbool.h>
++
++#include "config.h"
++#include "s5l87xx.h"
++#include "clocking-s5l8702.h"
++#include "lcd-s5l8702.h"
++#include "tacetos_boot_logo.h"
++#include "screen.h"
++
++/* Longest wait for one thing the screen hardware does, in microseconds. */
++#define WAIT_US     50000
++
++/* Backlight, through the power chip on the first I2C bus. */
++#define PMU_SLAVE   0xe6
++#define PMU_LEDCTL  0x2a
++#define PMU_DIMSTEP 0x2b
++#define PMU_LEVEL   0x28
++#define PMU_SWITCH  0x29
++
++/* Modes of the screen interface: 8 bit commands, 16 bit commands, pixels. */
++#define MODE_CMD8   0x80000c20
++#define MODE_CMD16  0x80000da8
++#define MODE_PIXELS 0x80100db0
++
++/* One tick of the driver tables, in microseconds. */
++#define TICK_US     10000
++
++/* Set by the first wait that runs out: from then on nothing touches the screen. */
++static bool gave_up;
++
++/* True when cond holds, false when it still did not after us microseconds. */
++#define WAIT(cond, us) ({ \
++    bool ok_ = (cond); \
++    if (!ok_) { \
++        uint32_t t0_ = USEC_TIMER; \
++        while (!(ok_ = (cond)) && USEC_TIMER - t0_ < (us)); \
++    } \
++    ok_; })
++
++static void pause_us(uint32_t us)
++{
++    uint32_t t0 = USEC_TIMER;
++    while (USEC_TIMER - t0 < us);
++}
++
++/* A write to a register of the screen: only when the interface is ready. */
++static void lcd_put(volatile uint32_t *reg, uint32_t value, uint32_t busy)
++{
++    if (gave_up)
++        return;
++    if (!WAIT(!(LCD_STATUS & busy), WAIT_US)) {
++        gave_up = true;
++        return;
++    }
++    *reg = value;
++}
++
++static void lcd_mode(uint32_t mode)
++{
++    if (gave_up)
++        return;
++    if (!WAIT(LCD_STATUS & 0x2, WAIT_US)) {
++        gave_up = true;
++        return;
++    }
++    pause_us(1);
++    LCD_CON = mode;
++}
++
++static void lcd_cmd(uint16_t cmd)
++{
++    lcd_put(&LCD_WCMD, cmd, 0x10);
++}
++
++static void lcd_data(uint16_t data)
++{
++    lcd_put(&LCD_WDATA, data, 0x10);
++}
++
++static void lcd_reg(uint16_t reg, uint16_t value)
++{
++    lcd_cmd(reg);
++    lcd_data(value);
++}
++
++/* The start sequence of the driver table, with 8 bit entries: a command and its
++   bytes, or a pause in ticks. */
++static void run8(const uint8_t *seq)
++{
++    while (!gave_up) {
++        switch (*seq++) {
++        case CMD: {
++            uint8_t cmd = *seq++;
++            int len = *seq++;
++            lcd_cmd(cmd);
++            while (len--)
++                lcd_data(*seq++);
++            break;
++        }
++        case SLEEP:
++            pause_us(*seq++ * TICK_US);
++            break;
++        default:
++            return;
++        }
++    }
++}
++
++/* The same with 16 bit entries: the action in the low byte, its count in the
++   high byte. */
++static void run16(const uint16_t *seq)
++{
++    while (!gave_up) {
++        int action = *seq & 0xff;
++        int count = *seq++ >> 8;
++        switch (action) {
++        case CMD:
++            lcd_cmd(*seq++);
++            break;
++        case MREG: {
++            uint16_t reg = *seq++;
++            while (count--)
++                lcd_reg(reg++, *seq++);
++            break;
++        }
++        case SLEEP:
++            pause_us(count * TICK_US);
++            break;
++        case DELAY:
++            pause_us(count << 6);
++            break;
++        default:
++            return;
++        }
++    }
++}
++
++/* The whole screen is the window the pixels go to. */
++static void lcd_window(bool cmd16)
++{
++    if (cmd16) {
++        lcd_reg(0x210, 0);
++        lcd_reg(0x211, LCD_WIDTH - 1);
++        lcd_reg(0x212, 0);
++        lcd_reg(0x213, LCD_HEIGHT - 1);
++        lcd_reg(0x200, 0);
++        lcd_reg(0x201, 0);
++        lcd_cmd(0x202);
++    } else {
++        lcd_cmd(0x2a);
++        lcd_data(0);
++        lcd_data(0);
++        lcd_data((LCD_WIDTH - 1) >> 8);
++        lcd_data((LCD_WIDTH - 1) & 0xff);
++        lcd_cmd(0x2b);
++        lcd_data(0);
++        lcd_data(0);
++        lcd_data((LCD_HEIGHT - 1) >> 8);
++        lcd_data((LCD_HEIGHT - 1) & 0xff);
++        lcd_cmd(0x2c);
++    }
++}
++
++#define PALETTE_SIZE ((int)(sizeof(tacetos_boot_logo_palette) / sizeof(tacetos_boot_logo_palette[0])))
++#define DATA_SIZE    ((int)sizeof(tacetos_boot_logo_data))
++#define LOGO_X       ((LCD_WIDTH - TACETOS_BOOT_LOGO_WIDTH) / 2)
++#define LOGO_Y       ((LCD_HEIGHT - TACETOS_BOOT_LOGO_HEIGHT) / 2)
++
++/* True when the runs give exactly the pixels of the logo, with known colours. */
++static bool logo_ok(void)
++{
++    int pixels = 0;
++    for (int i = 0; i < DATA_SIZE; i++) {
++        if ((tacetos_boot_logo_data[i] >> 4) >= PALETTE_SIZE)
++            return false;
++        pixels += (tacetos_boot_logo_data[i] & 15) + 1;
++    }
++    return pixels == TACETOS_BOOT_LOGO_WIDTH * TACETOS_BOOT_LOGO_HEIGHT;
++}
++
++/* One frame: the background everywhere, the logo in the middle, row by row. */
++static void draw_frame(void)
++{
++    int at = 0;         /* next run of the logo */
++    int left = 0;       /* pixels left in that run */
++    uint16_t colour = 0;
++
++    for (int y = 0; y < LCD_HEIGHT && !gave_up; y++) {
++        bool in_logo_row = y >= LOGO_Y && y < LOGO_Y + TACETOS_BOOT_LOGO_HEIGHT;
++        for (int x = 0; x < LCD_WIDTH; x++) {
++            uint16_t pixel = tacetos_boot_logo_palette[0];
++            if (in_logo_row && x >= LOGO_X && x < LOGO_X + TACETOS_BOOT_LOGO_WIDTH) {
++                if (left == 0) {
++                    colour = tacetos_boot_logo_palette[tacetos_boot_logo_data[at] >> 4];
++                    left = (tacetos_boot_logo_data[at++] & 15) + 1;
++                }
++                left--;
++                pixel = colour;
++            }
++            lcd_data(pixel);
++        }
++    }
++}
++
++/* Waits for the byte on the I2C bus to go out, or for the stop. */
++static bool iic_done(void)
++{
++    if (!WAIT(!(IICSTAT(0) & (1 << 5)) || (IICSTA2(0) & ((1 << 8) | (1 << 13))), WAIT_US))
++        return false;
++    IICSTA2(0) |= (1 << 8) | (1 << 13);
++    return true;
++}
++
++/* A write to a register of the I2C controller, when it is ready for one. */
++static bool iic_put(volatile uint32_t *reg, uint32_t value)
++{
++    if (!WAIT(IICUNK10(0) == 0, WAIT_US))
++        return false;
++    *reg = value;
++    return true;
++}
++
++/* One byte to the device that was started: true when it was acknowledged. */
++static bool iic_byte(uint8_t byte)
++{
++    return iic_put(&IICDS(0), byte) && (pause_us(5), true)
++        && iic_put(&IICCON(0), IICCON(0)) && iic_done() && !(IICSTAT(0) & 1);
++}
++
++/* Writes one register of the power chip. */
++static bool pmu_write_reg(uint8_t reg, uint8_t value)
++{
++    bool ok = iic_put(&IICCON(0), 0x80)
++        && iic_put(&IICSTAT(0), 0xc0)
++        && iic_put(&IICDS(0), PMU_SLAVE)
++        && iic_put(&IICSTAT(0), 0xf0)
++        && iic_done() && !(IICSTAT(0) & 1)
++        && iic_byte(reg) && iic_byte(value);
++    /* Stop, whatever happened. */
++    ok = iic_put(&IICSTAT(0), IICSTAT(0) & ~0x20u) && iic_put(&IICCON(0), 0x10) && iic_done() && ok;
++    return ok;
++}
++
++static void backlight_on(void)
++{
++    PCON3 = (PCON3 & ~0x00000ff0) | 0x00000220;
++    clockgate_enable(I2CCLKGATE(0), true);
++    bool ok = iic_put(&IICADD(0), 0x40)
++        && iic_put(&IICUNK14(0), 1)
++        && iic_put(&IICUNK18(0), 0)
++        && iic_put(&IICSTAT(0), 0x80)
++        && iic_put(&IICCON(0), 0)
++        && iic_put(&IICSTA2(0), 0x3f00)
++        && pmu_write_reg(PMU_LEDCTL, 0x05)
++        && pmu_write_reg(PMU_DIMSTEP, 0x14)
++        && pmu_write_reg(PMU_LEVEL, DEFAULT_BRIGHTNESS_SETTING)
++        && pmu_write_reg(PMU_SWITCH, 1);
++    if (!ok)
++        gave_up = true;
++    iic_put(&IICSTAT(0), 0);
++    clockgate_enable(I2CCLKGATE(0), false);
++}
++
++void screen_start(void)
++{
++    const struct lcd_info_rec *lcd = lcd_target_get_info();
++    bool cmd16 = lcd->cmdset == LCD_CMDSET_16BIT;
++
++    if (!logo_ok())
++        return;
++
++    clockgate_enable(CLOCKGATE_LCD, true);
++    LCD_PHTIME = 0x33;
++
++    lcd_mode(cmd16 ? MODE_CMD16 : MODE_CMD8);
++    if (cmd16)
++        run16(lcd->seq_init);
++    else
++        run8(lcd->seq_init);
++
++    lcd_window(cmd16);
++    lcd_mode(MODE_PIXELS);
++    draw_frame();
++    /* Back to commands: this waits for the last pixels to be taken. */
++    lcd_mode(cmd16 ? MODE_CMD16 : MODE_CMD8);
++
++    if (!gave_up)
++        backlight_on();
++}
+diff --git a/utils/mks5lboot/dualboot/screen.h b/utils/mks5lboot/dualboot/screen.h
+new file mode 100644
+--- /dev/null
++++ b/utils/mks5lboot/dualboot/screen.h
+@@ -0,0 +1,15 @@
++/* SPDX-License-Identifier: GPL-3.0-or-later
++ * Copyright (C) 2026 vadmyro
++ *
++ * The screen of the install program: the TacetOS logo, centred. It never stops
++ * the install: every wait has a time limit, and a screen that does not answer
++ * is given up for good.
++ */
++#ifndef SCREEN_H
++#define SCREEN_H
++
++/* Starts the screen, draws the logo, then lights the backlight. Needs the
++   microsecond timer. Does nothing more when the screen does not answer. */
++void screen_start(void);
++
++#endif /* SCREEN_H */

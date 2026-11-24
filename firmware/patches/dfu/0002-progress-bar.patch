@@ -1,0 +1,276 @@
+diff --git a/utils/mks5lboot/dualboot/dualboot.c b/utils/mks5lboot/dualboot/dualboot.c
+--- a/utils/mks5lboot/dualboot/dualboot.c
++++ b/utils/mks5lboot/dualboot/dualboot.c
+@@ -208,6 +208,46 @@ static uint32_t get_uint32le(unsigned char *p)
+     return p[0] | (p[1] << 8) | (p[2] << 16) | (p[3] << 24);
+ }
+ 
++/* The division of the runtime library calls this on a division by zero. It cannot
++   happen here (the divisors are sizes of images), so the answer is a reset. */
++void __div0(void)
++{
++    WDTCON = 0x100000;
++    while (1);
++}
++
++/* Writes an IM3 image like im3_write() does, a sector at a time, and moves the bar
++   from the percent 'from' to the percent 'to' on the way. The check is a separate
++   step (im3_check), so that the bar can show it as the last part of the install. */
++static void im3_write_bar(int offset, void *im3_addr, int from, int to)
++{
++    struct Im3Info *hinfo = (struct Im3Info *)im3_addr;
++    uint32_t size = get_uint32le(hinfo->data_sz) + IM3HDR_SZ;
++    uint32_t done = 0;
++
++    bootflash_init(SPI_PORT);
++    while (done < size) {
++        uint32_t part = MIN(0x1000 - ((offset + done) & 0xfff), size - done);
++        bootflash_write(SPI_PORT, offset + done, (uint8_t *)im3_addr + done, part);
++        done += part;
++        screen_progress(from + (to - from) * done / size);
++    }
++    bootflash_close(SPI_PORT);
++}
++
++/* True when the IM3 image in the NOR is what is in memory. */
++static bool im3_check(int offset, void *im3_addr)
++{
++    struct Im3Info *hinfo = (struct Im3Info *)im3_addr;
++    bool res;
++
++    bootflash_init(SPI_PORT);
++    res = !(bootflash_compare(SPI_PORT, offset, im3_addr,
++                              get_uint32le(hinfo->data_sz) + IM3HDR_SZ) & 1);
++    bootflash_close(SPI_PORT);
++    return res;
++}
++
+ void main(void)
+ {
+     uint16_t *status = happy;
+@@ -232,7 +272,8 @@ void main(void)
+     im3_sign(HWKEYAES_UKEY, &bl_hinfo, IM3INFOSIGN_SZ, bl_hinfo.info_sign);
+ 
+     if (single_boot) {
+-        if (!im3_write(NORBOOT_OFF, &bl_hinfo))
++        im3_write_bar(NORBOOT_OFF, &bl_hinfo, 0, 90);
++        if (!im3_check(NORBOOT_OFF, &bl_hinfo))
+             status = sad;
+         goto bye;
+     }
+@@ -255,6 +296,7 @@ void main(void)
+             goto bye; /* OF not found, use iTunes to restore */
+         }
+     }
++    screen_progress(10);
+ 
+     bl_nor_sz = im3_nor_sz(&bl_hinfo);
+     /* safety check - verify we are not going to overwrite useful data */
+@@ -263,10 +305,13 @@ void main(void)
+         goto bye; /* no space if flash, use iTunes to restore */
+     }
+ 
+-    /* write decrypted OF and RB bootloader, if any of these fails we
+-       will try to retore OF to its original place */
+-    if (!im3_write(NORBOOT_OFF + bl_nor_sz, hinfo)
+-                                || !im3_write(NORBOOT_OFF, &bl_hinfo)) {
++    /* write decrypted OF and RB bootloader, then check both (the bar: 10 to 60,
++       60 to 90, 90 to 100 percent); if any of these fails we will try to
++       retore OF to its original place */
++    im3_write_bar(NORBOOT_OFF + bl_nor_sz, hinfo, 10, 60);
++    im3_write_bar(NORBOOT_OFF, &bl_hinfo, 60, 90);
++    if (!im3_check(NORBOOT_OFF + bl_nor_sz, hinfo)
++                                || (screen_progress(95), !im3_check(NORBOOT_OFF, &bl_hinfo))) {
+         im3_crypt(HWKEYAES_ENCRYPT, hinfo, fw_addr);
+         if (!im3_write(NORBOOT_OFF, hinfo)) {
+             /* corrupted NOR, use iTunes to restore */
+@@ -280,6 +325,10 @@ void main(void)
+     }
+ 
+ bye:
++    if (status == happy)
++        screen_progress(100);
++    else
++        screen_error();
+     /* minimum time between the initial and the final beeps */
+     while (USEC_TIMER < 2000000);
+     piezo_seq(status);
+diff --git a/utils/mks5lboot/dualboot/screen.c b/utils/mks5lboot/dualboot/screen.c
+--- a/utils/mks5lboot/dualboot/screen.c
++++ b/utils/mks5lboot/dualboot/screen.c
+@@ -6,7 +6,7 @@
+  * The screen revision and its start sequences come from the driver tables of the
+  * target (lcd-6g.c, added to the build of the install program). The rest is ours:
+  * waits with a time limit, the pixels sent straight to the screen (no frame
+- * buffer: the memory of the program is a few kilobytes), the backlight.
++ * buffer: the memory of the program is a few kilobytes), the backlight, the bar.
+  */
+ #include <stdint.h>
+ #include <stdbool.h>
+@@ -36,9 +36,24 @@
+ /* One tick of the driver tables, in microseconds. */
+ #define TICK_US     10000
+ 
++/* The bar of the boot screen spec, section 9.1: 192 x 6 pixels, in RGB565. */
++#define BAR_X       64
++#define BAR_Y       193
++#define BAR_W       192
++#define BAR_H       6
++#define BAR_TRACK   0x39e8  /* #3A3D44 */
++#define BAR_DONE    0xffff  /* #FFFFFF */
++#define BAR_ERROR   0xe249  /* #E5484D */
++
+ /* Set by the first wait that runs out: from then on nothing touches the screen. */
+ static bool gave_up;
+ 
++/* True once the logo is on the screen: only then can the bar be drawn. */
++static bool shown;
++
++/* Columns of the bar that are already drawn as the done part. */
++static int bar_done;
++
+ /* True when cond holds, false when it still did not after us microseconds. */
+ #define WAIT(cond, us) ({ \
+     bool ok_ = (cond); \
+@@ -146,28 +161,31 @@ static void run16(const uint16_t *seq)
+     }
+ }
+ 
+-/* The whole screen is the window the pixels go to. */
+-static void lcd_window(bool cmd16)
++/* The window the pixels go to, in the commands of the screen. */
++static void lcd_window(bool cmd16, int x, int y, int width, int height)
+ {
++    int xe = x + width - 1;
++    int ye = y + height - 1;
++
+     if (cmd16) {
+-        lcd_reg(0x210, 0);
+-        lcd_reg(0x211, LCD_WIDTH - 1);
+-        lcd_reg(0x212, 0);
+-        lcd_reg(0x213, LCD_HEIGHT - 1);
+-        lcd_reg(0x200, 0);
+-        lcd_reg(0x201, 0);
++        lcd_reg(0x210, x);
++        lcd_reg(0x211, xe);
++        lcd_reg(0x212, y);
++        lcd_reg(0x213, ye);
++        lcd_reg(0x200, x);
++        lcd_reg(0x201, y);
+         lcd_cmd(0x202);
+     } else {
+         lcd_cmd(0x2a);
+-        lcd_data(0);
+-        lcd_data(0);
+-        lcd_data((LCD_WIDTH - 1) >> 8);
+-        lcd_data((LCD_WIDTH - 1) & 0xff);
++        lcd_data(x >> 8);
++        lcd_data(x & 0xff);
++        lcd_data(xe >> 8);
++        lcd_data(xe & 0xff);
+         lcd_cmd(0x2b);
+-        lcd_data(0);
+-        lcd_data(0);
+-        lcd_data((LCD_HEIGHT - 1) >> 8);
+-        lcd_data((LCD_HEIGHT - 1) & 0xff);
++        lcd_data(y >> 8);
++        lcd_data(y & 0xff);
++        lcd_data(ye >> 8);
++        lcd_data(ye & 0xff);
+         lcd_cmd(0x2c);
+     }
+ }
+@@ -189,7 +207,7 @@ static bool logo_ok(void)
+     return pixels == TACETOS_BOOT_LOGO_WIDTH * TACETOS_BOOT_LOGO_HEIGHT;
+ }
+ 
+-/* One frame: the background everywhere, the logo in the middle, row by row. */
++/* One frame: the background everywhere, the logo in the middle, the empty bar, row by row. */
+ static void draw_frame(void)
+ {
+     int at = 0;         /* next run of the logo */
+@@ -198,8 +216,11 @@ static void draw_frame(void)
+ 
+     for (int y = 0; y < LCD_HEIGHT && !gave_up; y++) {
+         bool in_logo_row = y >= LOGO_Y && y < LOGO_Y + TACETOS_BOOT_LOGO_HEIGHT;
++        bool in_bar_row = y >= BAR_Y && y < BAR_Y + BAR_H;
+         for (int x = 0; x < LCD_WIDTH; x++) {
+             uint16_t pixel = tacetos_boot_logo_palette[0];
++            if (in_bar_row && x >= BAR_X && x < BAR_X + BAR_W)
++                pixel = BAR_TRACK;
+             if (in_logo_row && x >= LOGO_X && x < LOGO_X + TACETOS_BOOT_LOGO_WIDTH) {
+                 if (left == 0) {
+                     colour = tacetos_boot_logo_palette[tacetos_boot_logo_data[at] >> 4];
+@@ -289,12 +310,44 @@ void screen_start(void)
+     else
+         run8(lcd->seq_init);
+ 
+-    lcd_window(cmd16);
++    lcd_window(cmd16, 0, 0, LCD_WIDTH, LCD_HEIGHT);
+     lcd_mode(MODE_PIXELS);
+     draw_frame();
+     /* Back to commands: this waits for the last pixels to be taken. */
+     lcd_mode(cmd16 ? MODE_CMD16 : MODE_CMD8);
+ 
+-    if (!gave_up)
+-        backlight_on();
++    if (gave_up)
++        return;
++    shown = true;
++    backlight_on();
++}
++
++/* Paints the columns from first to last (not included) of the bar in one colour. */
++static void bar_fill(int first, int last, uint16_t colour)
++{
++    bool cmd16 = lcd_target_get_info()->cmdset == LCD_CMDSET_16BIT;
++
++    lcd_window(cmd16, BAR_X + first, BAR_Y, last - first, BAR_H);
++    lcd_mode(MODE_PIXELS);
++    for (int i = (last - first) * BAR_H; i > 0 && !gave_up; i--)
++        lcd_data(colour);
++    /* Back to commands: this waits for the last pixels to be taken. */
++    lcd_mode(cmd16 ? MODE_CMD16 : MODE_CMD8);
++}
++
++void screen_progress(int percent)
++{
++    int columns = percent >= 100 ? BAR_W : percent * BAR_W / 100;
++
++    if (!shown || gave_up || columns <= bar_done)
++        return;
++    bar_fill(bar_done, columns, BAR_DONE);
++    bar_done = columns;
++}
++
++void screen_error(void)
++{
++    if (!shown || gave_up || bar_done == 0)
++        return;
++    bar_fill(0, bar_done, BAR_ERROR);
+ }
+diff --git a/utils/mks5lboot/dualboot/screen.h b/utils/mks5lboot/dualboot/screen.h
+--- a/utils/mks5lboot/dualboot/screen.h
++++ b/utils/mks5lboot/dualboot/screen.h
+@@ -1,7 +1,8 @@
+ /* SPDX-License-Identifier: GPL-3.0-or-later
+  * Copyright (C) 2026 vadmyro
+  *
+- * The screen of the install program: the TacetOS logo, centred. It never stops
++ * The screen of the install program: the TacetOS logo, centred, and a progress
++ * bar under it (the boot screen spec, section 9.1). It never stops
+  * the install: every wait has a time limit, and a screen that does not answer
+  * is given up for good.
+  */
+@@ -12,4 +13,11 @@
+    microsecond timer. Does nothing more when the screen does not answer. */
+ void screen_start(void);
+ 
++/* The done part of the bar, from 0 to 100 percent. It only grows: a smaller value
++   than the one shown is ignored. Does nothing when there is no screen. */
++void screen_progress(int percent);
++
++/* The done part of the bar turns red, for good. Does nothing when there is no screen. */
++void screen_error(void);
++
+ #endif /* SCREEN_H */

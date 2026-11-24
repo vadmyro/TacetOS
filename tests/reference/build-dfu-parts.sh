@@ -19,6 +19,10 @@
 #                    the pinned sources, which takes a while (default: ~/.cache/tacetos/toolchain,
 #                    a folder that CI keeps in its cache).
 #
+# The programs are built from the base sources with our patches of firmware/patches/dfu/
+# applied and the built-in logo written (firmware/brand.sh --boot-logo, needs Pillow).
+# The installer payload may not exceed 24576 bytes.
+#
 # Written to DIR: header-signature.bin, certificate.bin, installer-payload.bin,
 # uninstaller-payload.bin (the four inputs of src/installer/dfuimage.cpp), dfu-tool
 # (the reference tool, built from the same two programs) and manifest.txt (name,
@@ -102,18 +106,34 @@ if ! compgen -G "$toolchain/$TOOLCHAIN_BIN/${REF_DFU_CROSS}gcc" >/dev/null; then
 fi
 export PATH="$toolchain/$TOOLCHAIN_BIN:$PATH"
 
-# 2. The two programs for the iPod. They are built in a copy of the tool's folder,
-# so that the sources given with --sources are never written to. The make of the
-# tool also turns them into the C file that the reference tool is built from, so the
-# tool and our parts carry the very same programs.
+# 2. The two programs for the iPod. They are built in a copy of the folders they need
+# (the tool, the firmware part, the tools), so that the sources given with --sources
+# are never written to. Our patches of firmware/patches/dfu/ are applied to the copy
+# (the boot screen spec, section 9.3), and so is the built-in logo header they include.
+# The make of the tool also turns the programs into the C file that the reference
+# tool is built from, so the tool and our parts carry the very same programs.
 work="$out/work"
 rm -rf "$work"
 mkdir -p "$work/$REF_DFU_TOOL_DIR"
 cp -R "$tool_src/." "$work/$REF_DFU_TOOL_DIR/"
+for d in $REF_DFU_FETCH_DIRS; do
+    mkdir -p "$work/$d"
+    cp -R "$sources/$d/." "$work/$d/"
+done
+shopt -s nullglob
+for patch in "$here"/../../firmware/patches/dfu/*.patch; do
+    echo "== applying $(basename "$patch")"
+    (cd "$work" && git apply "$patch") || {
+        echo "build-dfu-parts.sh: $(basename "$patch") does not apply" >&2
+        exit 1
+    }
+done
+shopt -u nullglob
+"$here/../../firmware/brand.sh" --boot-logo "$work" >/dev/null
 payload_dir="$work/$REF_DFU_PAYLOAD_DIR"
 mkdir -p "$payload_dir/build"
 echo "== building the programs for the iPod"
-make -C "$payload_dir" ROOTDIR="$sources" CROSS="$REF_DFU_CROSS" $REF_DFU_PAYLOAD_TARGETS >"$work/payloads.log" 2>&1 || {
+make -C "$payload_dir" ROOTDIR="$work" CROSS="$REF_DFU_CROSS" $REF_DFU_PAYLOAD_TARGETS >"$work/payloads.log" 2>&1 || {
     tail -n 30 "$work/payloads.log" >&2
     exit 1
 }
@@ -133,6 +153,14 @@ pad4() {
 }
 pad4 "$payload_dir/$install_target" "$out/installer-payload.bin"
 pad4 "$payload_dir/$uninstall_target" "$out/uninstaller-payload.bin"
+
+# The install program has room for the screen, no more (the boot screen spec, section 11).
+max_installer=24576
+installer_size="$(wc -c <"$out/installer-payload.bin" | tr -d ' ')"
+if [ "$installer_size" -gt "$max_installer" ]; then
+    echo "build-dfu-parts.sh: the installer payload is $installer_size bytes, over the limit of $max_installer" >&2
+    exit 1
+fi
 
 # 3. The reference tool, from the same two programs (the make of the tool does it
 # with its own C converter, which is built and run here in the copy).
