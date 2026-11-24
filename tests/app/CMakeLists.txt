@@ -106,3 +106,10 @@ target_include_directories(tst_wizardwindow_e2e PRIVATE ${CMAKE_CURRENT_SOURCE_D
 
 add_test(NAME tst_wizardwindow_e2e COMMAND tst_wizardwindow_e2e)
 set_tests_properties(tst_wizardwindow_e2e PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The Boot logo button of the card and its dialog, on a temporary folder as the iPod volume.
+qt_add_executable(tst_bootlogodialog tst_bootlogodialog.cpp)
+target_link_libraries(tst_bootlogodialog PRIVATE tacetos_ui Qt6::Test)
+
+add_test(NAME tst_bootlogodialog COMMAND tst_bootlogodialog)
+set_tests_properties(tst_bootlogodialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

@@ -13,6 +13,7 @@ endif()
 
 add_subdirectory(app)
 add_subdirectory(archive)
+add_subdirectory(bootlogo)
 add_subdirectory(device)
 add_subdirectory(fakepod)
 add_subdirectory(journal)
