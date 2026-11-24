@@ -118,7 +118,7 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: ${{ runner.temp }}/dfu-parts
-          key: dfu-parts-${{ hashFiles('firmware/base.lock', 'tests/reference/build-dfu-parts.sh', 'tests/reference/extract-dfu-blocks.c') }}
+          key: dfu-parts-${{ hashFiles('firmware/base.lock', 'firmware/brand.sh', 'firmware/patches/dfu/*.patch', 'tests/reference/build-dfu-parts.sh', 'tests/reference/extract-dfu-blocks.c') }}
 
       - name: Build the Classic DFU parts
         # The two fixed blocks, the two programs for the iPod and the reference tool that
