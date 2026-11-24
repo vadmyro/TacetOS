@@ -34,6 +34,10 @@ public:
     virtual QString settingsBackup() const { return QString(); }
     // For the tests: a write to the volume that fails as a full disk.
     virtual installer::FileFault fault() const { return {}; }
+    // How long the step waits for the music volume. After `classic-bootloader`
+    // (branding section 8.3, `bootloaderFirst`) the iPod restarts, and its volume
+    // comes back a few seconds after the step ends.
+    virtual qint64 volumeWaitMs() const { return 0; }
 };
 
 // Section 7.4. Facts: `swapped` once the new folder took the place of the old

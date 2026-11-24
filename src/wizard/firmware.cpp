@@ -174,8 +174,8 @@ QString backupFirmwareFolder(const QString &backup, const QString &folder)
 class Install
 {
 public:
-    Install(const FirmwareSources &sources, StepContext &context)
-        : m_sources(sources), m_context(context), m_root(sources.volumeRoot()),
+    Install(const FirmwareSources &sources, StepContext &context, const QString &root)
+        : m_sources(sources), m_context(context), m_root(root),
           m_folder(m_root.filePath(sources.firmwareFolder())), m_new(m_folder + kNewSuffix),
           m_old(m_folder + kOldSuffix)
     {
@@ -483,7 +483,18 @@ StepOutcome Install::checkAfter(const QList<Kept> &kept)
 
 StepOutcome FirmwareStep::run(StepContext &context)
 {
-    Install install(m_sources, context);
+    // Never a path relative to the folder of the app: with no volume, the step
+    // waits for it, then fails.
+    QString root;
+    const bool back = waitUntil(context, m_sources.volumeWaitMs(), [&] {
+        root = m_sources.volumeRoot();
+        return !root.isEmpty();
+    });
+    if (context.stopRequested())
+        return StepOutcome::cancelled();
+    if (!back)
+        return StepOutcome::failed(QString(error::volumeNotBack));
+    Install install(m_sources, context, root);
     return install.run();
 }
 
