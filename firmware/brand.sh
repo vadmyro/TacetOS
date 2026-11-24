@@ -3,12 +3,14 @@
 # Copyright (C) 2026 vadmyro
 #
 # Puts the TacetOS name and logo in place of the base's, in the sources made by
-# apply.sh (docs/specs/firmware-branding.md, sections 4.1 and 4.2). Every name and
-# file it works on is read from base.lock. Running it twice gives the same files.
+# apply.sh (docs/specs/firmware-branding.md, sections 4.1 and 4.2), and writes the
+# built-in boot logo (docs/specs/boot-screen.md, section 4). Every name and file it
+# works on is read from base.lock. Running it twice gives the same files.
 #
-# Usage: brand.sh [--src DIR] | --check DIR
-#   --src DIR    the sources to change (default: firmware/work/src)
-#   --check DIR  change nothing; exit 1 and list what still shows the base in DIR
+# Usage: brand.sh [--src DIR] | --check DIR | --boot-logo DIR
+#   --src DIR        the sources to change (default: firmware/work/src)
+#   --check DIR      change nothing; exit 1 and list what still shows the base in DIR
+#   --boot-logo DIR  only write the boot logo header into the sources at DIR
 #
 # Needs Python 3 with Pillow.
 set -euo pipefail
@@ -21,12 +23,17 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --src) src="${2:?--src needs a directory}"; shift 2 ;;
         --check) src="${2:?--check needs a directory}"; mode=check; shift 2 ;;
+        --boot-logo) src="${2:?--boot-logo needs a directory}"; mode=boot-logo; shift 2 ;;
         -h|--help) sed -n '2,/^set /p' "$0" | sed -e '$d' -e 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "brand.sh: unknown option: $1" >&2; exit 2 ;;
     esac
 done
 
-[ -d "$src/apps/lang" ] || { echo "brand.sh: $src does not hold the base sources" >&2; exit 2; }
+if [ "$mode" = boot-logo ]; then
+    [ -d "$src/firmware/export" ] || { echo "brand.sh: $src does not hold the base sources" >&2; exit 2; }
+else
+    [ -d "$src/apps/lang" ] || { echo "brand.sh: $src does not hold the base sources" >&2; exit 2; }
+fi
 python3 -c 'import PIL' 2>/dev/null || { echo "brand.sh: needs Python 3 with Pillow" >&2; exit 2; }
 
 # shellcheck source=base.lock
@@ -77,6 +84,15 @@ def brand_lang(path, fix):
         with open(path, 'w', encoding='utf-8', newline='') as f:
             f.writelines(text)
 
+# Our banner at a logo size: the dark one on colour screens, the light one on grey ones.
+def logo_canvas(width, height, colour):
+    banner = Image.open(os.path.join(logo_dir, 'banner-dark.png' if colour else 'banner-light.png')).convert('RGB')
+    scale = min(width / banner.width, height / banner.height)
+    fitted = banner.resize((max(1, round(banner.width * scale)), max(1, round(banner.height * scale))), Image.Resampling.LANCZOS)
+    canvas = Image.new('RGB', (width, height), banner.getpixel((0, 0)))
+    canvas.paste(fitted, ((width - fitted.width) // 2, (height - fitted.height) // 2))
+    return canvas
+
 # Logos: a new BMP at the size and depth written in the file name, built from our banner.
 def brand_logo(rel):
     m = re.search(r'\.(\d+)x(\d+)x(\d+)\.bmp$', rel)
@@ -84,11 +100,7 @@ def brand_logo(rel):
         sys.exit('brand.sh: no size in the logo name %s' % rel)
     width, height, depth = map(int, m.groups())
     colour = depth >= 16
-    banner = Image.open(os.path.join(logo_dir, 'banner-dark.png' if colour else 'banner-light.png')).convert('RGB')
-    scale = min(width / banner.width, height / banner.height)
-    fitted = banner.resize((max(1, round(banner.width * scale)), max(1, round(banner.height * scale))), Image.Resampling.LANCZOS)
-    canvas = Image.new('RGB', (width, height), banner.getpixel((0, 0)))
-    canvas.paste(fitted, ((width - fitted.width) // 2, (height - fitted.height) // 2))
+    canvas = logo_canvas(width, height, colour)
     if colour:
         canvas.save(os.path.join(src, rel), 'BMP')
     else:
@@ -142,6 +154,64 @@ def brand_icon_set(rel):
                 data[pos] = (data[pos] & 0x0f) | (index << 4) if x % 2 == 0 else (data[pos] & 0xf0) | index
     open(path, 'wb').write(bytes(data))
 
+# The built-in boot logo (boot-screen.md section 4.2), one per screen kind of the
+# logo images: a palette of at most 16 entries, entry 0 the background, and runs
+# of 1 to 16 pixels (high 4 bits the entry, low 4 bits the length minus 1).
+BOOT_LOGO_HEADER = 'firmware/export/tacetos_boot_logo.h'
+
+def boot_logo_runs(rel):
+    width, height, depth = map(int, re.search(r'\.(\d+)x(\d+)x(\d+)\.bmp$', rel).groups())
+    colour = depth >= 16
+    canvas = logo_canvas(width, height, colour)
+    if colour:
+        indexed = canvas.quantize(colors=16, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE)
+        flat = indexed.getpalette()[:3 * 16]
+        rgb = [tuple(flat[3 * i:3 * i + 3]) for i in range(len(flat) // 3)]
+        values = [((r * 31 + 127) // 255) << 11 | ((g * 63 + 127) // 255) << 5 | ((b * 31 + 127) // 255) for r, g, b in rgb]
+        pixels = list(indexed.tobytes())
+    else:
+        pixels = [round(v / 85) for v in canvas.convert('L').tobytes()]
+        values = [0, 1, 2, 3]
+    # Entry 0 is the background; the other entries keep their order.
+    order = [pixels[0]] + [i for i in sorted(set(pixels)) if i != pixels[0]]
+    entry = {old: new for new, old in enumerate(order)}
+    palette = [values[i] for i in order]
+    runs = []
+    for p in pixels:
+        if runs and runs[-1][0] == entry[p] and runs[-1][1] < 16:
+            runs[-1][1] += 1
+        else:
+            runs.append([entry[p], 1])
+    return width, height, depth, palette, bytes(e << 4 | (n - 1) for e, n in runs)
+
+def boot_logo_text():
+    out = ['/* Made by brand.sh from docs/assets/logo: the built-in TacetOS boot logo of',
+           '   each screen kind, as runs of palette entries. Do not edit. */',
+           '#ifndef TACETOS_BOOT_LOGO_H', '#define TACETOS_BOOT_LOGO_H', '']
+    for n, rel in enumerate(logos):
+        width, height, depth, palette, data = boot_logo_runs(rel)
+        out.append('#%s LCD_WIDTH == %d && LCD_DEPTH == %d' % ('if' if n == 0 else 'elif', width, depth))
+        out.append('#define TACETOS_BOOT_LOGO_WIDTH %d' % width)
+        out.append('#define TACETOS_BOOT_LOGO_HEIGHT %d' % height)
+        out.append('static const unsigned short tacetos_boot_logo_palette[] = {')
+        out.append('    ' + ', '.join('0x%04x' % v for v in palette) + ',')
+        out.append('};')
+        out.append('static const unsigned char tacetos_boot_logo_data[] = {')
+        for i in range(0, len(data), 16):
+            out.append('    ' + ', '.join('0x%02x' % b for b in data[i:i + 16]) + ',')
+        out.append('};')
+    out += ['#endif', '', '#endif /* TACETOS_BOOT_LOGO_H */', '']
+    return '\n'.join(out)
+
+def write_boot_logo():
+    with open(os.path.join(src, BOOT_LOGO_HEADER), 'w', encoding='ascii', newline='\n') as f:
+        f.write(boot_logo_text())
+
+if mode == 'boot-logo':
+    write_boot_logo()
+    print('brand.sh: boot logo written in %s' % src)
+    sys.exit(0)
+
 def sha256(path):
     return hashlib.sha256(open(path, 'rb').read()).hexdigest()
 
@@ -158,6 +228,11 @@ for rel in logos + icon_sets:
         (brand_logo if rel in logos else brand_icon_set)(rel)
     elif sha256(path) == originals[rel]:
         problems.append("%s: still the base's image" % rel)
+
+if mode == 'apply':
+    write_boot_logo()
+elif not os.path.isfile(os.path.join(src, BOOT_LOGO_HEADER)):
+    problems.append('%s: missing' % BOOT_LOGO_HEADER)
 
 for p in problems:
     print(p)

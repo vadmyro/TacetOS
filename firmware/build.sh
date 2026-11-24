@@ -111,6 +111,10 @@ if [ "$type" = "N" ]; then
     for zip in *.zip; do
         bash "$here/plugins.sh" --zip "$zip"
     done
+    # The language list of the first start screen goes into the firmware folder.
+    for zip in *.zip; do
+        bash "$here/languages.sh" --zip "$zip"
+    done
 fi
 
 echo "== artifacts"

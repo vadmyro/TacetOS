@@ -1,0 +1,172 @@
+Subject: Quiet bootloader for the iPod Classic, with the boot logo
+
+The bootloader of the iPod Classic draws no text in normal use, not even into
+the drawing buffer. It draws the built-in TacetOS logo, then turns the
+backlight on, and once the music volume is mounted it draws what the logo file
+asks for (boot_logo.c, built into this bootloader only). A low battery shows
+its lines, then the screen goes back to the logo. An error that stops the start,
+and the USB mode, clear the screen and show the title, the version, then their
+own lines.
+
+diff --git a/bootloader/ipod-s5l87xx.c b/bootloader/ipod-s5l87xx.c
+index af6d4843..ddb5fc46 100644
+--- a/bootloader/ipod-s5l87xx.c
++++ b/bootloader/ipod-s5l87xx.c
+@@ -41,6 +41,7 @@
+ #include "power.h"
+ #include "file.h"
+ #include "common.h"
++#include "boot_logo.h"
+ #include "rb-loader.h"
+ #include "loader_strerror.h"
+ #include "version.h"
+@@ -80,14 +81,35 @@ extern uint32_t start_loc;
+ 
+ extern int line;
+ 
++#ifndef S5L87XX_DEVELOPMENT_BOOTLOADER
++/* The bootloader is quiet: while `quiet` is set, printf draws nothing, not even
++   into the drawing buffer. The cases that must be read (low battery, USB mode,
++   an error that stops the start) call text_screen_begin() first. */
++static bool quiet = true;
++#define printf(...) (quiet ? 0 : (printf)(__VA_ARGS__))
++
++/* Clears the screen, then writes the title and the version line, and lets
++   the lines that follow show. Does nothing when messages already show. */
++static void text_screen_begin(void)
++{
++    if (!quiet)
++        return;
++    quiet = false;
++    verbose = true;
++    reset_screen();
++    lcd_set_foreground(LCD_WHITE);
++    printf("TacetOS boot loader");
++    printf("Version: %s", rbversion);
++}
++#endif
++
+ #ifndef S5L87XX_DEVELOPMENT_BOOTLOADER
+ #ifdef HAVE_BOOTLOADER_USB_MODE
+ static void usb_mode(void)
+ {
+     int button;
+ 
+-    verbose = true;
+-
++    text_screen_begin();
+     printf("Entering USB mode...");
+ 
+     powermgmt_init();
+@@ -145,7 +167,7 @@ static void usb_mode(void)
+ 
+ void fatal_error(int err)
+ {
+-    verbose = true;
++    text_screen_begin();
+ 
+     /* System font is 6 pixels wide */
+     line++;
+@@ -187,6 +209,7 @@ static void battery_trap(void)
+ {
+     int vbat, old_verb;
+     int th = 50;
++    bool shown = false;
+ 
+     old_verb = verbose;
+     verbose = true;
+@@ -210,6 +233,11 @@ static void battery_trap(void)
+             break;
+         th = 200;
+ 
++        if (!shown) {
++            shown = true;
++            text_screen_begin();
++        }
++
+         if (power_input_status() != POWER_INPUT_NONE) {
+             lcd_set_foreground(LCD_RBYELLOW);
+             printf("Low battery: %d mV, charging...     ", vbat);
+@@ -239,8 +267,13 @@ static void battery_trap(void)
+     }
+ 
+     verbose = old_verb;
+-    lcd_set_foreground(LCD_WHITE);
+-    printf("Battery status ok: %d mV            ", vbat);
++
++    /* Back to the logo before the disk spins up */
++    if (shown) {
++        quiet = true;
++        lcd_set_foreground(LCD_WHITE);
++        boot_logo_draw_builtin();
++    }
+ }
+ #endif /* CONFIG_STORAGE & STORAGE_ATA */
+ #endif /* S5L87XX_DEVELOPMENT_BOOTLOADER */
+@@ -684,10 +717,16 @@ void main(void)
+     lcd_update();
+     sleep(HZ/40);  /* wait for lcd update */
+ 
++#ifdef S5L87XX_DEVELOPMENT_BOOTLOADER
+     verbose = true;
+ 
+     printf("TacetOS boot loader");
+     printf("Version: %s", rbversion);
++#else
++    /* The logo first, then the backlight: no lit empty screen */
++    verbose = false;
++    boot_logo_draw_builtin();
++#endif
+ 
+     backlight_init(); /* Turns on the backlight */
+ 
+@@ -718,6 +757,7 @@ void main(void)
+ 
+         rc = storage_init();
+         if (rc != 0) {
++            text_screen_begin();
+             printf("Storage error: %d", rc);
+             fatal_error(ERR_STORAGE);
+         }
+@@ -735,6 +775,7 @@ void main(void)
+     }
+ 
+     if (rc != 0) {
++        text_screen_begin();
+         printf("Load OF error: %d", rc);
+         fatal_error(ERR_OF);
+     }
+@@ -754,15 +795,20 @@ void main(void)
+ 
+     rc = disk_mount_all();
+     if (rc <= 0) {
++        text_screen_begin();
+         printf("No partition found");
+         fatal_error(ERR_RB);
+     }
+ 
++    /* The music volume is mounted: the logo file can be read */
++    boot_logo_draw_choice();
++
+     printf("Loading TacetOS...");
+     unsigned char *loadbuffer = (unsigned char *)DRAM_ORIG;
+     rc = load_firmware(loadbuffer, BOOTFILE, MAX_LOADSIZE);
+ 
+     if (rc <= EFILE_EMPTY) {
++        text_screen_begin();
+         printf("Error!");
+         printf("Can't load the firmware file:");
+         printf(loader_strerror(rc));
+diff --git a/firmware/SOURCES b/firmware/SOURCES
+index 8c1c8137..dc9f18fc 100644
+--- a/firmware/SOURCES
++++ b/firmware/SOURCES
+@@ -249,7 +249,7 @@ common/linked_list.c
+ common/rb_namespace.c
+ #endif
+ common/rectangle.c
+-#ifndef BOOTLOADER
++#if !defined(BOOTLOADER) || defined(IPOD_6G)
+ common/boot_logo.c
+ #endif
+ common/strcasecmp.c

@@ -16,7 +16,9 @@
 #    the base's file (BRAND_ORIGINAL_SHA256);
 # 5. with --plugins: the zip holds a plugin that is not in the plugin list, or lacks one that is;
 # 6. with a model whose firmware folder is set (firmware_folder in models/models.toml):
-#    a path of the zip is not inside that folder.
+#    a path of the zip is not inside that folder;
+# 7. with a model whose bootloader has a size limit (boot-screen.md, section 11): the
+#    bootloader file is larger than that limit (both sizes are in the message).
 #
 # Usage: check-build.sh --target MODEL --types N,B,S [options] | --self-test
 #   --target MODEL   the iPod model, as given to build.sh
@@ -96,6 +98,7 @@ target, out_dir = env['CHECK_TARGET'], env['CHECK_OUT']
 # Rule 1: the outputs of each requested type are present and newer than base.lock and patches/.
 newest = max(os.path.getmtime(f) for f in env['CHECK_REFERENCES'].splitlines() if f)
 outputs = []
+bootloaders = set()
 for kind in env['CHECK_TYPES'].split(','):
     patterns = env.get('ARTIFACTS_' + kind, '').split()
     if not patterns:
@@ -106,6 +109,8 @@ for kind in env['CHECK_TYPES'].split(','):
             problems.append('output missing: %s-%s' % (target, pattern))
         for f in found:
             outputs.append(f)
+            if kind == 'B':
+                bootloaders.add(f)
             if os.path.getmtime(f) < newest:
                 problems.append('%s: older than base.lock or a patch, build again' % os.path.basename(f))
 
@@ -155,6 +160,14 @@ if folder:
                 tops = sorted({p.lstrip('/').split('/')[0] for p in zf.namelist()} - {folder})
             for top in tops:
                 problems.append('%s: top folder is %s, not %s' % (os.path.basename(f), top, folder))
+
+# Rule 7: the bootloader file stays under the limit of the model, if it has one.
+limit = env.get('CHECK_BOOTLOADER_LIMIT', '')
+if limit:
+    for f in outputs:
+        size = os.path.getsize(f)
+        if f in bootloaders and size > int(limit):
+            problems.append('%s: %d bytes, over the limit of %s bytes' % (os.path.basename(f), size, limit))
 
 for p in problems:
     print(p)
@@ -225,7 +238,7 @@ def run(name, change, expect):
                    ARTIFACTS_N='package.zip firmware.ipod', ARTIFACTS_B='bootloader-*.ipod',
                    CHECK_TARGET='model', CHECK_TYPES=tree.get('types', 'N,B'), CHECK_OUT=out,
                    CHECK_SRC=src, CHECK_REFERENCES=reference, CHECK_PLUGINS=tree.get('plugins', 'false'),
-                   CHECK_FOLDER=tree.get('folder', ''),
+                   CHECK_FOLDER=tree.get('folder', ''), CHECK_BOOTLOADER_LIMIT=tree.get('limit', ''),
                    CHECK_PLUGINS_SH=os.environ['plugins_sh'], CHECK_PLUGIN_LIST=plugin_list)
         result = subprocess.run([sys.executable, '-c', os.environ['check_py']], env=env,
                                 capture_output=True, text=True)
@@ -292,6 +305,8 @@ run('rule 5: an association to a missing plugin fails', with_plugins(put('zip', 
 run('rule 6: a zip in the folder of the model passes', setting('folder', '.base'), None)
 run('rule 6: a zip in another folder fails', setting('folder', '.mine'), 'model-package.zip: top folder is .base, not .mine')
 run('rule 6: a file beside the folder fails', with_folder(put('zip', 'loose.txt', b'')), 'model-package.zip: top folder is loose.txt, not .base')
+run('rule 7: a bootloader under its limit passes', setting('limit', '1000'), None)
+run('rule 7: a bootloader over its limit fails with both sizes', setting('limit', '10'), 'model-bootloader-model.ipod: 17 bytes, over the limit of 10 bytes')
 
 print('check-build.sh --self-test: %d passed, %d failed' % (passed, failed))
 sys.exit(1 if failed else 0)
@@ -309,6 +324,12 @@ export CHECK_TARGET="$target" CHECK_TYPES="$types" CHECK_OUT="$out" CHECK_SRC="$
 export CHECK_PLUGINS_SH="$plugins_sh" CHECK_PLUGIN_LIST="$here/plugins.list"
 CHECK_FOLDER="$(bash "$here/firmware-folder.sh" "$target")"
 export CHECK_FOLDER
+# Size limit of the bootloader file in bytes, with its 8 byte prefix (boot-screen.md, section 11).
+case "$target" in
+    ipod6g) CHECK_BOOTLOADER_LIMIT=103752 ;;
+    *)      CHECK_BOOTLOADER_LIMIT="" ;;
+esac
+export CHECK_BOOTLOADER_LIMIT
 CHECK_REFERENCES="$(printf '%s\n' "$here/base.lock" "$here"/patches/*)"
 export CHECK_REFERENCES
 

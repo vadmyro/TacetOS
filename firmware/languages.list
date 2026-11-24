@@ -1,0 +1,4 @@
+# The languages the firmware offers at its first start (docs/specs/boot-screen.md, section 7).
+# UTF-8, one language per line, two fields separated by a tab: the name of its language
+# file without the extension, then its name written in that language.
+english	English

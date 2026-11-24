@@ -1,0 +1,280 @@
+Subject: Language screen at the first start
+
+When no settings file was found at the start, the firmware shows a list of
+languages before its first screen: no title, the wheel moves, Select picks,
+Menu and the other buttons do nothing. The list comes from languages.txt in the
+language folder. The language is set as the Language setting would set it, and
+the settings file is written at once, so the screen does not come back.
+
+diff --git a/apps/SOURCES b/apps/SOURCES
+index 2c002b51..01a43bb5 100644
+--- a/apps/SOURCES
++++ b/apps/SOURCES
+@@ -12,6 +12,7 @@ debug_menu.c
+ filetypes.c
+ fileop.c
+ language.c
++language_screen.c
+ main.c
+ menu.c
+ menus/menu_common.c
+diff --git a/apps/language_screen.c b/apps/language_screen.c
+new file mode 100644
+index 00000000..8137db5e
+--- /dev/null
++++ b/apps/language_screen.c
+@@ -0,0 +1,153 @@
++/*
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ * Copyright (C) 2026 vadmyro
++ *
++ * The language screen of the first start. The languages come from the list file
++ * of the language folder: one language per line, the name of its language file
++ * without the extension, a tab, then its name written in that language. A line
++ * starting with # is a comment. A language is offered when its file is there
++ * (English is built in, so it always is).
++ */
++#include <stdbool.h>
++#include <stdio.h>
++#include <string.h>
++#include <string-extra.h>
++#include "config.h"
++#include "action.h"
++#include "file.h"
++#include "kernel.h"
++#include "lang.h"
++#include "language.h"
++#include "list.h"
++#include "misc.h"
++#include "rbpaths.h"
++#include "settings.h"
++#include "talk.h"
++#include "viewport.h"
++#include "language_screen.h"
++
++#define LANGUAGE_LIST_FILE LANG_DIR "/languages.txt"
++#define LANGUAGE_BUILTIN   "english"
++#define LANGUAGE_MAX       24
++
++struct language_entry {
++    char file[sizeof(((struct user_settings *)0)->lang_file)];
++    char name[48];
++};
++
++static struct language_entry entries[LANGUAGE_MAX];
++static int entry_count;
++
++static const char *entry_name(int selected, void *data, char *buffer, size_t buffer_len)
++{
++    (void)data;
++    (void)buffer;
++    (void)buffer_len;
++    return entries[selected].name;
++}
++
++/* No way out: the buttons that leave a list do nothing. */
++static int entry_action(int action, struct gui_synclist *lists)
++{
++    (void)lists;
++    if (action == ACTION_STD_CANCEL || action == ACTION_STD_MENU)
++        return ACTION_NONE;
++    return action;
++}
++
++static void add_entry(char *line)
++{
++    char *name = strchr(line, '\t');
++    if (!name || entry_count >= LANGUAGE_MAX)
++        return;
++    *name++ = '\0';
++
++    char *file = line;
++    while (*file == ' ')
++        file++;
++    while (*name == ' ')
++        name++;
++    size_t file_len = strlen(file);
++    while (file_len > 0 && file[file_len - 1] == ' ')
++        file[--file_len] = '\0';
++    size_t name_len = strlen(name);
++    while (name_len > 0 && name[name_len - 1] == ' ')
++        name[--name_len] = '\0';
++
++    struct language_entry *entry = &entries[entry_count];
++    if (file_len == 0 || file_len >= sizeof(entry->file) || name_len == 0
++        || name_len >= sizeof(entry->name) || strchr(file, '/'))
++        return;
++
++    if (strcmp(file, LANGUAGE_BUILTIN) != 0) {
++        char path[MAX_PATH];
++        snprintf(path, sizeof(path), LANG_DIR "/%s.lng", file);
++        if (!file_exists(path))
++            return;
++    }
++    strcpy(entry->file, file);
++    strcpy(entry->name, name);
++    entry_count++;
++}
++
++static void read_entries(void)
++{
++    char line[96];
++    int fd = open_utf8(LANGUAGE_LIST_FILE, O_RDONLY);
++
++    entry_count = 0;
++    if (fd < 0)
++        return;
++    while (read_line(fd, line, sizeof(line)) > 0) {
++        if (line[0] != '#')
++            add_entry(line);
++    }
++    close(fd);
++}
++
++/* Sets the language of an entry as the Language setting would. False when its
++   file cannot be loaded. */
++static bool choose(const struct language_entry *entry)
++{
++    if (strcmp(entry->file, LANGUAGE_BUILTIN) == 0) {
++        global_settings.lang_file[0] = '\0';
++        return true;
++    }
++
++    char path[MAX_PATH];
++    snprintf(path, sizeof(path), LANG_DIR "/%s.lng", entry->file);
++    if (lang_core_load(path))
++        return false;
++    strlcpy((char *)global_settings.lang_file, entry->file, sizeof(global_settings.lang_file));
++    talk_init();
++    viewportmanager_theme_changed(THEME_LANGUAGE);
++    settings_apply_skins();
++    return true;
++}
++
++void language_screen_first_start(void)
++{
++    read_entries();
++    if (entry_count == 0)
++        return;
++
++    for (;;) {
++        struct simplelist_info info;
++        bool usb;
++
++        simplelist_info_init(&info, NULL, entry_count, NULL);
++        info.get_name = entry_name;
++        info.action_callback = entry_action;
++        info.speak_onshow = false;
++        usb = simplelist_show_list(&info);
++        if (usb) {
++            /* The USB screen came and went: the list leaves without undoing its viewports. */
++            FOR_NB_SCREENS(i)
++                viewportmanager_theme_undo(i, false);
++            continue;
++        }
++        if (info.selection >= 0 && info.selection < entry_count && choose(&entries[info.selection]))
++            break;
++    }
++    settings_save_now();
++}
+diff --git a/apps/language_screen.h b/apps/language_screen.h
+new file mode 100644
+index 00000000..13c97353
+--- /dev/null
++++ b/apps/language_screen.h
+@@ -0,0 +1,15 @@
++/*
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ * Copyright (C) 2026 vadmyro
++ *
++ * The language screen of the first start.
++ */
++#ifndef LANGUAGE_SCREEN_H
++#define LANGUAGE_SCREEN_H
++
++/* Shows the list of languages of the language list file, with no title and no
++   way out but a choice, sets the language chosen and saves the settings at
++   once. Does nothing when the list file is missing or offers no language. */
++void language_screen_first_start(void);
++
++#endif
+diff --git a/apps/main.c b/apps/main.c
+index be8bcab5..163ad830 100644
+--- a/apps/main.c
++++ b/apps/main.c
+@@ -78,6 +78,7 @@
+ #include "statusbar-skinned.h"
+ #include "bootchart.h"
+ #include "logdiskf.h"
++#include "language_screen.h"
+ #include "bootdata.h"
+ #if defined(HAVE_DEVICEDATA)
+ #include "devicedata.h"
+@@ -750,6 +751,10 @@ static void init(void)
+     CHART("<settings_apply_skins");
+     settings_apply_skins();
+     CHART(">settings_apply_skins");
++
++    /* No settings file: this is the first start, the language comes first */
++    if (!settings_file_was_read())
++        language_screen_first_start();
+ }
+ 
+ #ifdef CPU_PP
+diff --git a/apps/settings.c b/apps/settings.c
+index 239cd726..6dfb1856 100644
+--- a/apps/settings.c
++++ b/apps/settings.c
+@@ -79,6 +79,7 @@
+ struct user_settings global_settings;
+ struct system_status global_status;
+ static uint32_t user_settings_crc;
++static bool config_file_read;
+ static long next_status_update_tick;
+ static long lasttime = 0;
+ 
+@@ -191,7 +192,7 @@ void settings_load(void)
+     rename_temp_file(RESUMEFILE_TEMP, RESUMEFILE, RESUMEFILE".old");
+     rename_temp_file(CONFIGFILE_TEMP, CONFIGFILE, CONFIGFILE".old");
+ 
+-    settings_load_config(CONFIGFILE, false); /* load user_settings items */
++    config_file_read = settings_load_config(CONFIGFILE, false); /* load user_settings items */
+     settings_load_config(RESUMEFILE, false); /* load system_status items */
+ 
+     /* fixed settings file has final say on user_settings AND system_status items */
+@@ -658,6 +659,20 @@ static void flush_config_block_callback(void)
+     unregister_storage_idle_func(flush_global_status_callback, true);
+ }
+ 
++bool settings_file_was_read(void)
++{
++    return config_file_read;
++}
++
++bool settings_save_now(void)
++{
++    unregister_storage_idle_func(flush_config_block_callback, false);
++    if (!settings_write_config(CONFIGFILE_TEMP, SETTINGS_SAVE_CHANGED))
++        return false;
++    settings_crc_changed();
++    return true;
++}
++
+ void reset_runtime(void)
+ {
+     update_runtime(); /* in case this is > topruntimetime */
+diff --git a/apps/settings.h b/apps/settings.h
+index f3932a07..dd08b930 100644
+--- a/apps/settings.h
++++ b/apps/settings.h
+@@ -265,6 +265,10 @@ bool settings_load_config(const char* file, bool apply);
+ 
+ void status_save(bool force);
+ int settings_save(void);
++/* writes the settings file now, even when no setting changed; false when it fails */
++bool settings_save_now(void);
++/* true when the settings file was found at this start */
++bool settings_file_was_read(void);
+ void reset_runtime(void);
+ /* defines for the options paramater */
+ enum {

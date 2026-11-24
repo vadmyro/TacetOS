@@ -1,0 +1,360 @@
+Subject: Boot logo: built-in TacetOS logo, or the picture of the logo file
+
+The firmware draws the built-in TacetOS logo before its disk is ready (on the
+iPod Classic it keeps what the bootloader drew), then, once the disk is mounted,
+what the logo file of the firmware folder asks for: the user's picture or a
+black screen. A missing or damaged file leaves the TacetOS logo. No version
+and no text at boot. The logo data is written by brand.sh.
+
+diff --git a/apps/main.c b/apps/main.c
+index 454ff90..be8bcab 100644
+--- a/apps/main.c
++++ b/apps/main.c
+@@ -27,6 +27,7 @@
+ #include "disk.h"
+ #include "file_internal.h"
+ #include "lcd.h"
++#include "boot_logo.h"
+ #include "rtc.h"
+ #include "debug.h"
+ #include "led.h"
+@@ -236,44 +237,12 @@ int main(void)
+     root_menu();
+ }
+ 
+-/* The disk isn't ready at boot, rblogo is stored in bin and erased after boot */
++/* The boot logo: the built-in TacetOS logo until the disk is ready, then what the
++   logo file of the firmware folder asks for (boot_logo.c). No version, no text. */
+ int show_logo_boot( void ) INIT_ATTR;
+ int show_logo_boot( void )
+ {
+-    unsigned char version[32];
+-    int font_h, ver_w;
+-    snprintf(version, sizeof(version), "Ver. %s", rbversion);
+-    ver_w = font_getstringsize(version, NULL, &font_h, FONT_SYSFIXED);
+-    lcd_clear_display();
+-    lcd_setfont(FONT_SYSFIXED);
+-#if defined(SANSA_CLIP) || defined(SANSA_CLIPV2) || defined(SANSA_CLIPPLUS)
+-    /* display the logo in the blue area of the screen (bottom 48 pixels) */
+-    if (ver_w > LCD_WIDTH)
+-        lcd_putsxy(0, 0, rbversion);
+-    else
+-        lcd_putsxy((LCD_WIDTH/2) - (ver_w/2), 0, version);
+-    lcd_bmp(&bm_rockboxlogo, (LCD_WIDTH - BMPWIDTH_rockboxlogo) / 2, 16);
+-#else
+-    lcd_bmp(&bm_rockboxlogo, (LCD_WIDTH - BMPWIDTH_rockboxlogo) / 2, 10);
+-    if (ver_w > LCD_WIDTH)
+-        lcd_putsxy(0, LCD_HEIGHT-font_h, rbversion);
+-    else
+-        lcd_putsxy((LCD_WIDTH/2) - (ver_w/2), LCD_HEIGHT-font_h, version);
+-#endif
+-    lcd_setfont(FONT_UI);
+-    lcd_update();
+-#ifdef HAVE_REMOTE_LCD
+-    lcd_remote_clear_display();
+-    lcd_remote_bmp(&bm_remote_rockboxlogo, 0, 10);
+-    lcd_remote_setfont(FONT_SYSFIXED);
+-    if (ver_w > LCD_REMOTE_WIDTH)
+-        lcd_remote_putsxy(0, LCD_REMOTE_HEIGHT-font_h, rbversion);
+-    else
+-        lcd_remote_putsxy((LCD_REMOTE_WIDTH/2) - (ver_w/2),
+-                      LCD_REMOTE_HEIGHT-font_h, version);
+-    lcd_remote_setfont(FONT_UI);
+-    lcd_remote_update();
+-#endif
++    boot_logo_show();
+ #ifdef SIMULATOR
+     sleep(HZ); /* sim is too fast to see logo */
+ #endif
+@@ -432,6 +401,7 @@ static void init(void)
+     viewportmanager_init();
+ 
+     storage_init();
++    boot_logo_disk_ready();
+     pcm_init();
+     dsp_init();
+     settings_reset();
+@@ -677,6 +647,9 @@ static void init(void)
+         }
+     }
+ 
++    /* The disk is mounted: the logo file can be read */
++    boot_logo_disk_ready();
++
+     pcm_init();
+     dsp_init();
+ 
+diff --git a/firmware/SOURCES b/firmware/SOURCES
+index f147ff7..8c1c813 100644
+--- a/firmware/SOURCES
++++ b/firmware/SOURCES
+@@ -249,6 +249,9 @@ common/linked_list.c
+ common/rb_namespace.c
+ #endif
+ common/rectangle.c
++#ifndef BOOTLOADER
++common/boot_logo.c
++#endif
+ common/strcasecmp.c
+ common/strcasestr.c
+ common/strnatcmp.c
+diff --git a/firmware/common/boot_logo.c b/firmware/common/boot_logo.c
+new file mode 100644
+index 0000000..2b3a110
+--- /dev/null
++++ b/firmware/common/boot_logo.c
+@@ -0,0 +1,222 @@
++/*
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ * Copyright (C) 2026 vadmyro
++ *
++ * The boot logo. The logo file holds a 16 byte header (the bytes "TLGO",
++ * version 1, a kind, width, height, two reserved bytes, the zip CRC-32 of the
++ * pixels), then the pixels of the whole screen, a row at a time: RGB565
++ * little-endian on colour screens, one byte from 0 (black) to 3 (white) on
++ * grey screens. Kind 0 is a black screen with no pixels.
++ */
++#include <stdbool.h>
++#include <stdint.h>
++#include <string.h>
++#include "config.h"
++#include "system.h"
++#include "lcd.h"
++#include "file.h"
++#include "boot_logo.h"
++#include "tacetos_boot_logo.h"
++
++#define HEADER_SIZE 16
++#define KIND_BLACK  0
++#define KIND_COLOUR 1
++#define KIND_GREY   2
++
++#if defined(TACETOS_BOOT_LOGO_WIDTH) && LCD_DEPTH > 1
++
++#ifdef HAVE_LCD_COLOR
++#define SCREEN_KIND KIND_COLOUR
++#define PIXEL_BYTES 2
++#else
++#define SCREEN_KIND KIND_GREY
++#define PIXEL_BYTES 1
++#endif
++
++/* A palette entry or a pixel of the file (RGB565, or a grey level 0 to 3) in
++   the colour format of the screen. */
++static unsigned screen_colour(unsigned value)
++{
++#ifdef HAVE_LCD_COLOR
++    unsigned r = (value >> 11) & 0x1f, g = (value >> 5) & 0x3f, b = value & 0x1f;
++    return LCD_RGBPACK((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2));
++#else
++    return LCD_BRIGHTNESS((value & 3) * 85);
++#endif
++}
++
++static void fill_screen(unsigned colour)
++{
++    lcd_set_drawmode(DRMODE_SOLID);
++    lcd_set_foreground(colour);
++    lcd_fillrect(0, 0, LCD_WIDTH, LCD_HEIGHT);
++}
++
++/* The built-in logo is kept as runs: the high 4 bits of a byte are a palette
++   entry, the low 4 bits the length of the run minus 1. */
++static bool builtin_is_whole(void)
++{
++    long pixels = 0;
++    for (size_t i = 0; i < sizeof(tacetos_boot_logo_data); i++) {
++        if ((tacetos_boot_logo_data[i] >> 4) >= ARRAYLEN(tacetos_boot_logo_palette))
++            return false;
++        pixels += (tacetos_boot_logo_data[i] & 0x0f) + 1;
++    }
++    return pixels == (long)TACETOS_BOOT_LOGO_WIDTH * TACETOS_BOOT_LOGO_HEIGHT;
++}
++
++static void draw_builtin(void)
++{
++    const int width = TACETOS_BOOT_LOGO_WIDTH;
++    const int left = (LCD_WIDTH - width) / 2;
++    const int top = (LCD_HEIGHT - TACETOS_BOOT_LOGO_HEIGHT) / 2;
++    int x = 0, y = 0;
++
++    fill_screen(screen_colour(tacetos_boot_logo_palette[0]));
++    if (!builtin_is_whole())
++        return;
++    for (size_t i = 0; i < sizeof(tacetos_boot_logo_data); i++) {
++        int run = (tacetos_boot_logo_data[i] & 0x0f) + 1;
++        lcd_set_foreground(screen_colour(tacetos_boot_logo_palette[tacetos_boot_logo_data[i] >> 4]));
++        while (run > 0) {
++            int n = MIN(run, width - x);
++            lcd_hline(left + x, left + x + n - 1, top + y);
++            x += n;
++            run -= n;
++            if (x == width) {
++                x = 0;
++                y++;
++            }
++        }
++    }
++}
++
++static uint32_t crc32_zip(uint32_t crc, const unsigned char *p, size_t n)
++{
++    while (n--) {
++        crc ^= *p++;
++        for (int k = 0; k < 8; k++)
++            crc = (crc >> 1) ^ (0xEDB88320u & (0u - (crc & 1)));
++    }
++    return crc;
++}
++
++static unsigned get16(const unsigned char *p)
++{
++    return p[0] | (p[1] << 8);
++}
++
++static uint32_t get32(const unsigned char *p)
++{
++    return p[0] | (p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
++}
++
++/* Draws the file into the frame buffer, a row at a time. False when there is
++   no file or it cannot be used: the frame buffer may then hold part of it. */
++static bool draw_file(void)
++{
++    static unsigned char row[LCD_WIDTH * PIXEL_BYTES];
++#ifdef HAVE_LCD_COLOR
++    static fb_data line[LCD_WIDTH];
++#endif
++    unsigned char header[HEADER_SIZE];
++    unsigned kind, width, height;
++    uint32_t crc, sum = 0xffffffffu;
++    off_t size;
++    bool used = false;
++
++    int fd = open(BOOT_LOGO_FILE, O_RDONLY);
++    if (fd < 0)
++        return false;
++
++    size = filesize(fd);
++    if (read(fd, header, HEADER_SIZE) != HEADER_SIZE || memcmp(header, "TLGO", 4) != 0
++        || header[4] != 1 || header[10] != 0 || header[11] != 0)
++        goto out;
++
++    kind = header[5];
++    width = get16(header + 6);
++    height = get16(header + 8);
++    crc = get32(header + 12);
++
++    if (kind == KIND_BLACK) {
++        used = width == 0 && height == 0 && crc == 0 && size == HEADER_SIZE;
++        if (used)
++            fill_screen(screen_colour(0));
++        goto out;
++    }
++    if (kind != SCREEN_KIND || width != LCD_WIDTH || height != LCD_HEIGHT
++        || size != HEADER_SIZE + (off_t)LCD_WIDTH * LCD_HEIGHT * PIXEL_BYTES)
++        goto out;
++
++    lcd_set_drawmode(DRMODE_SOLID);
++    for (int y = 0; y < LCD_HEIGHT; y++) {
++        if (read(fd, row, sizeof(row)) != (ssize_t)sizeof(row))
++            goto out;
++        sum = crc32_zip(sum, row, sizeof(row));
++#ifdef HAVE_LCD_COLOR
++        for (int x = 0; x < LCD_WIDTH; x++)
++            line[x] = screen_colour(get16(row + 2 * x));
++        lcd_bitmap(line, 0, y, LCD_WIDTH, 1);
++#else
++        for (int x = 0; x < LCD_WIDTH; x++) {
++            lcd_set_foreground(screen_colour(row[x]));
++            lcd_drawpixel(x, y);
++        }
++#endif
++    }
++    used = (sum ^ 0xffffffffu) == crc;
++out:
++    close(fd);
++    return used;
++}
++
++void boot_logo_draw_builtin(void)
++{
++    unsigned foreground = lcd_get_foreground();
++    draw_builtin();
++    lcd_set_foreground(foreground);
++    lcd_update();
++}
++
++void boot_logo_draw_choice(void)
++{
++    unsigned foreground = lcd_get_foreground();
++    if (!draw_file())
++        draw_builtin();
++    lcd_set_foreground(foreground);
++    lcd_update();
++}
++
++#else /* no built-in logo for this screen */
++
++void boot_logo_draw_builtin(void)
++{
++    lcd_clear_display();
++    lcd_update();
++}
++
++void boot_logo_draw_choice(void)
++{
++    boot_logo_draw_builtin();
++}
++
++#endif
++
++static bool disk_ready = false;
++
++void boot_logo_show(void)
++{
++    if (disk_ready)
++        boot_logo_draw_choice();
++#if !defined(IPOD_6G) || defined(SIMULATOR)
++    else
++        boot_logo_draw_builtin();
++#endif
++}
++
++void boot_logo_disk_ready(void)
++{
++    disk_ready = true;
++    boot_logo_draw_choice();
++}
+diff --git a/firmware/export/boot_logo.h b/firmware/export/boot_logo.h
+new file mode 100644
+index 0000000..72fbc6a
+--- /dev/null
++++ b/firmware/export/boot_logo.h
+@@ -0,0 +1,26 @@
++/*
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ * Copyright (C) 2026 vadmyro
++ *
++ * The boot logo: the built-in TacetOS logo, or what the logo file of the
++ * firmware folder asks for (the user's picture, or a black screen).
++ */
++#ifndef BOOT_LOGO_H
++#define BOOT_LOGO_H
++
++/* The logo file, written by the app. */
++#define BOOT_LOGO_FILE FIRMWARE_DIR "/boot-logo.bin"
++
++/* Draws the built-in logo centred on its background, and updates the screen. */
++void boot_logo_draw_builtin(void);
++
++/* Draws what the logo file asks for, or the built-in logo when there is no
++   file or it cannot be used, and updates the screen. Needs the disk. */
++void boot_logo_draw_choice(void);
++
++/* For the firmware: before boot_logo_disk_ready(), the built-in logo (nothing
++   on the iPod Classic, whose bootloader already drew it); after, the choice. */
++void boot_logo_show(void);
++void boot_logo_disk_ready(void);
++
++#endif /* BOOT_LOGO_H */
