@@ -447,6 +447,125 @@ private slots:
         QCOMPARE(snapshot(folder), expectedAfterUpgrade());
     }
 
+    // Branding section 8.3: the default folder of an older install, with paths to
+    // itself in the settings and the screens.
+    static QMap<QString, QByteArray> oldFolderFiles()
+    {
+        const QByteArray f = fw().toUtf8();
+        QMap<QString, QByteArray> all;
+        all.insert(QStringLiteral("config.cfg"),
+                   "volume: 12\nwps: /" + f + "/wps/\xc3\x89t\xc3\xa9/x.wps\n");
+        all.insert(QStringLiteral("themes/mine.cfg"),
+                   "font: /" + f + "/fonts/a.fnt\nbackdrop: /Music/" + f + "/no.bmp\n");
+        all.insert(QStringLiteral("wps/\u00c9t\u00e9/x.wps"),
+                   "%xl(A,/" + f + "/wps/a.bmp,0,0)\n%X(/" + f.toUpper() + "/b.bmp)\n");
+        all.insert(QStringLiteral("rocks.data/game.sav"), "score /" + f + "/ 42");
+        all.insert(QStringLiteral("database_0.tcd"), QByteArray(400, 'd'));
+        all.insert(QStringLiteral("old.rock"), "old plugin");
+        all.insert(QString(device::kFirmwareInfoFile), "Target: ipod6g\n");
+        return all;
+    }
+
+    // `oldFolderFiles()` with the paths of step 4 rewritten to `.own`.
+    static QMap<QString, QByteArray> rewrittenFiles()
+    {
+        QMap<QString, QByteArray> all = oldFolderFiles();
+        all.insert(QStringLiteral("config.cfg"),
+                   "volume: 12\nwps: /.own/wps/\xc3\x89t\xc3\xa9/x.wps\n");
+        all.insert(QStringLiteral("themes/mine.cfg"),
+                   "font: /.own/fonts/a.fnt\nbackdrop: /Music/" + fw().toUtf8() + "/no.bmp\n");
+        all.insert(QStringLiteral("wps/\u00c9t\u00e9/x.wps"),
+                   "%xl(A,/.own/wps/a.bmp,0,0)\n%X(/.own/b.bmp)\n");
+        return all;
+    }
+
+    static void writeAll(const QString &folder, const QMap<QString, QByteArray> &files)
+    {
+        for (auto it = files.cbegin(); it != files.cend(); ++it)
+            QVERIFY(writeFile(folder + QLatin1Char('/') + it.key(), it.value()));
+    }
+
+    // Branding section 8.3: only the old folder, both folders after a cut move,
+    // and a cut at each later step. The end is the same: the folder of the model
+    // holds the package and the kept files with their paths rewritten, the old
+    // folder is gone, the music is as it was.
+    void movesTheOldFolder_data()
+    {
+        QTest::addColumn<QString>("cut");
+        QTest::newRow("old folder only") << "none";
+        QTest::newRow("both folders, the new copy wins") << "merge";
+        QTest::newRow("cut after the rename") << "renamed";
+        QTest::newRow("cut during the rewrite") << "rewrite";
+        QTest::newRow("cut during the unpack") << "unpack";
+        QTest::newRow("cut after the swap") << "swap";
+    }
+
+    void movesTheOldFolder()
+    {
+        QFETCH(QString, cut);
+        Context context;
+        makePackage(context, packageFiles(), QStringLiteral(".own"));
+        Sources sources;
+        sources.volume = newFolder(QStringLiteral("move"));
+        sources.folder = QStringLiteral(".own");
+        const QString old = sources.volume + QLatin1Char('/') + fw();
+        const QString own = sources.volume + QStringLiteral("/.own");
+        QVERIFY(writeFile(sources.volume + QStringLiteral("/Music/a.mp3"), QByteArray(1000, 'm')));
+
+        QMap<QString, QByteArray> kept = rewrittenFiles();
+        kept.remove(QStringLiteral("database_0.tcd"));
+        kept.remove(QStringLiteral("old.rock"));
+        kept.remove(QString(device::kFirmwareInfoFile));
+        if (cut == QLatin1String("none")) {
+            writeAll(old, oldFolderFiles());
+        } else if (cut == QLatin1String("merge")) {
+            // Half of the files moved, and one in both: the copy of the new folder stays.
+            QMap<QString, QByteArray> moved = oldFolderFiles();
+            QMap<QString, QByteArray> left;
+            for (const QString &name :
+                 {QStringLiteral("old.rock"), QStringLiteral("themes/mine.cfg"),
+                  QStringLiteral("rocks.data/game.sav")})
+                left.insert(name, moved.take(name));
+            moved.insert(QStringLiteral("themes/mine.cfg"), "font: /.own/fonts/new.fnt\n");
+            writeAll(own, moved);
+            writeAll(old, left);
+            kept.insert(QStringLiteral("themes/mine.cfg"), "font: /.own/fonts/new.fnt\n");
+        } else if (cut == QLatin1String("renamed")) {
+            writeAll(own, oldFolderFiles());
+        } else if (cut == QLatin1String("rewrite")) {
+            QMap<QString, QByteArray> half = oldFolderFiles();
+            half.insert(QStringLiteral("config.cfg"),
+                        rewrittenFiles().value(QStringLiteral("config.cfg")));
+            writeAll(own, half);
+        } else if (cut == QLatin1String("unpack")) {
+            writeAll(own, rewrittenFiles());
+            QVERIFY(writeFile(own + QString(kNewSuffix) + QStringLiteral("/a.txt"), "half"));
+        } else {
+            QMap<QString, QByteArray> after = packageFiles();
+            after.insert(kept);
+            writeAll(own, after);
+            writeAll(own + QString(kOldSuffix), rewrittenFiles());
+            context.facts.insert(QStringLiteral("swapped"), true);
+        }
+
+        const StepOutcome out = FirmwareStep(sources).run(context);
+        QVERIFY2(out.kind == StepOutcome::Kind::Done, qPrintable(out.code + out.detail));
+        QMap<QString, QByteArray> expected = packageFiles();
+        expected.insert(kept);
+        QCOMPARE(snapshot(own), expected);
+        QVERIFY(!QFileInfo::exists(old));
+        QVERIFY(!QFileInfo::exists(own + QString(kNewSuffix)));
+        QVERIFY(!QFileInfo::exists(own + QString(kOldSuffix)));
+        QCOMPARE(snapshot(sources.volume + QStringLiteral("/Music")).size(), 1);
+
+        // Run again: nothing left to do, nothing changes.
+        Context again;
+        again.manifest = context.manifest;
+        again.manifestSha = context.manifestSha;
+        QCOMPARE(FirmwareStep(sources).run(again).kind, StepOutcome::Kind::Done);
+        QCOMPARE(snapshot(own), expected);
+    }
+
     // Section 7.3: no firmware folder, but a settings backup of this iPod.
     void settingsOffer_data()
     {

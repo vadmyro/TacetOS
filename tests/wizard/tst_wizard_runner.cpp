@@ -187,6 +187,7 @@ private slots:
     void factsSurviveACut();
     void refusedFiles_data();
     void refusedFiles();
+    void bootloaderFirstKept();
     void noProgress();
     void otherFamilyIsMismatch();
     void twoFlowsOnOneIpod();
@@ -444,6 +445,36 @@ void TstWizardRunner::refusedFiles_data()
     o = validProgress(1);
     o.insert(QStringLiteral("path"), QStringLiteral("everything"));
     QTest::newRow("unknown path") << json(o);
+    o = validProgress(1);
+    o.insert(QStringLiteral("bootloaderFirst"), QStringLiteral("yes"));
+    QTest::newRow("bootloaderFirst not a boolean") << json(o);
+    o = validProgress(1);
+    o.insert(QStringLiteral("bootloaderFirst"), true);
+    QTest::newRow("bootloader first, steps of the other order") << json(o);
+}
+
+// Section 3.2: `bootloaderFirst` is kept, and a file written before the key
+// existed reads as false.
+void TstWizardRunner::bootloaderFirstKept()
+{
+    FlowShape shape = kClassicKeep;
+    shape.bootloaderFirst = true;
+    Progress progress;
+    progress.appVersion = QStringLiteral("0.0.1");
+    progress.serial = kSerial;
+    progress.model = kModel;
+    progress.shape = shape;
+    progress.steps = stepsFor(shape);
+    progress.started = progress.updated = QDateTime::currentDateTimeUtc();
+    Progress read;
+    QCOMPARE(parseProgress(QJsonDocument(toJson(progress)).toJson(), kSerial, &read), QString());
+    QVERIFY(read.shape.bootloaderFirst);
+    QCOMPARE(read.steps, progress.steps);
+
+    QJsonObject before = validProgress(1);
+    before.remove(QStringLiteral("bootloaderFirst"));
+    QCOMPARE(parseProgress(QJsonDocument(before).toJson(), kSerial, &read), QString());
+    QVERIFY(!read.shape.bootloaderFirst);
 }
 
 void TstWizardRunner::refusedFiles()

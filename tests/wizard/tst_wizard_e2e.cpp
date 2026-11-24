@@ -15,6 +15,7 @@
 #include "fakedfudevice.h"
 #include "fakepod.h"
 #include "fakesystemlayer.h"
+#include "foldermove.h"
 #include "helperclient.h"
 #include "helperconstants.h"
 #include "progress.h"
@@ -50,6 +51,8 @@ namespace {
 
 const QString kPort = QStringLiteral("1-2");
 const QString kFolder = QString(device::kFirmwareFolder);
+// The own firmware folder of a model, as the Classic has in models.toml.
+const QString kOwnFolder = QStringLiteral(".own");
 
 QByteArray pattern(int size, int seed)
 {
@@ -376,6 +379,10 @@ private:
         QString serial;
         QString modelId;
         QString target;
+        // The firmware folder of the model.
+        QString folder = kFolder;
+        // Whether the default folder was on the volume when the bootloader was sent.
+        bool oldAtDfu = false;
         QString image;
         int sectorSize = 512;
         QString volume;
@@ -463,6 +470,7 @@ private:
         config.model.id = r.modelId;
         config.model.name = r.classic ? QStringLiteral("iPod Classic") : QStringLiteral("iPod");
         config.model.bootloaderTarget = r.target;
+        config.model.firmwareFolder = r.folder;
         device::Variant variant;
         variant.key = QStringLiteral("e2e");
         variant.capacityGb = r.classic ? 120 : 30;
@@ -516,6 +524,7 @@ private:
             r.classicCommands->onResult = [this, rig](const HelperAnswer &answer) {
                 if (!answer.ok())
                     return;
+                rig->oldAtDfu = QFileInfo(rig->volume + "/" + kFolder).isDir();
                 showGone(*rig);
                 device::DetectedIpod back = ipodOf(*rig, device::UsbMode::Normal, true);
                 back.running = rig->classicCommands->uninstalling ? device::RunningFirmware::Apple
@@ -647,6 +656,14 @@ private:
                 });
     }
 
+    // The shape of a flow, `bootloaderFirst` read as the app does.
+    FlowShape shapeOf(const Rig &r, FlowKind kind, InstallPath path) const
+    {
+        const Family family = r.classic ? Family::Dfu : Family::Partition;
+        return {family, kind, path, false,
+                r.classic && bootloaderFirst(r.volume, r.folder, r.installRecords, r.serial)};
+    }
+
     // Runs a whole flow, or resumes it. Returns the code it stopped with, empty
     // when every step is done.
     QString runFlow(Rig &r, FlowKind kind, InstallPath path, bool resume = false)
@@ -660,7 +677,7 @@ private:
         WizardRunner::Start s;
         s.serial = r.serial;
         s.model = r.modelId;
-        s.shape = {family, kind, path, false};
+        s.shape = shapeOf(r, kind, path);
         if (kind == FlowKind::Install) {
             s.packageManifest = r.package.manifest;
             s.packageSha256 = r.package.sha256;
@@ -682,11 +699,10 @@ private:
     {
         newFactory(r);
         makeRunner(r);
-        const Family family = r.classic ? Family::Dfu : Family::Partition;
         WizardRunner::Start s;
         s.serial = r.serial;
         s.model = r.modelId;
-        s.shape = {family, kind, path, false};
+        s.shape = shapeOf(r, kind, path);
         s.packageManifest = r.package.manifest;
         s.packageSha256 = r.package.sha256;
         QCOMPARE(r.runner->start(s), QString());
@@ -771,6 +787,67 @@ private slots:
         QVERIFY(!settings.isEmpty());
         QVERIFY(QDir(backupVolumeFolder(settings)).exists());
         QCOMPARE(treeHash(r->music), music);
+    }
+
+    void classicMovesTheOldFolder_data()
+    {
+        QTest::addColumn<QString>("cut");
+        QTest::newRow("whole") << "none";
+        QTest::newRow("cut in the bootloader") << "bootloader";
+        QTest::newRow("cut in the firmware") << "firmware";
+    }
+
+    // Branding section 8.3: a Classic installed before its model had its own
+    // folder, "keep my music". The bootloader goes in while the old folder is
+    // still there, then the folder moves and the paths of the theme follow. A cut
+    // at either step, then Resume, ends the same.
+    void classicMovesTheOldFolder()
+    {
+        QFETCH(QString, cut);
+        auto r = classicRig(QStringLiteral("8K7E2EMOVE"));
+        QVERIFY(r);
+        r->folder = kOwnFolder;
+        const QString old = r->volume + "/" + kFolder;
+        const QByteArray f = kFolder.toUtf8();
+        QVERIFY(put(old + "/" + QString(device::kFirmwareInfoFile), "Target: ipod6g\n"));
+        QVERIFY(put(old + "/themes/t.cfg", "wps: /" + f + "/wps/t.wps\n"));
+        QVERIFY(put(old + "/wps/t.wps", "%X(/" + f + "/backdrops/t.bmp)\n"));
+        r->package = makeTestPackage(
+            newFolder(QStringLiteral("package")), r->target, classicBootFile(pattern(4096, 0x42)),
+            infoFiles(r->target, {{QStringLiteral("a.txt"), "a"}}), kOwnFolder);
+        const QByteArray music = treeHash(r->music);
+        QVERIFY(shapeOf(*r, FlowKind::Install, InstallPath::Keep).bootloaderFirst);
+
+        if (cut != QLatin1String("none")) {
+            r->holdStep = cut == QLatin1String("bootloader") ? QString(step::classicBootloader)
+                                                             : QString(step::firmware);
+            runAndCut(*r, FlowKind::Install, InstallPath::Keep);
+            QVERIFY(ProgressStore(r->data).exists(r->serial));
+            // Cut in the bootloader: nothing moved yet. In the firmware: the bootloader is in.
+            QCOMPARE(QFileInfo(old).isDir(), cut == QLatin1String("bootloader"));
+            r->holdStep.clear();
+        }
+        QCOMPARE(runFlow(*r, FlowKind::Install, InstallPath::Keep, cut != QLatin1String("none")),
+                 QString());
+        QVERIFY(r->oldAtDfu);
+        QVERIFY(!QFileInfo::exists(old));
+        const QString own = r->volume + "/" + kOwnFolder;
+        const auto read = [](const QString &path) {
+            QFile file(path);
+            return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray("?");
+        };
+        QCOMPARE(read(own + "/a.txt"), QByteArray("a"));
+        QCOMPARE(read(own + "/config.cfg"), QByteArray("volume: 3\n"));
+        QCOMPARE(read(own + "/themes/t.cfg"), QByteArray("wps: /.own/wps/t.wps\n"));
+        QCOMPARE(read(own + "/wps/t.wps"), QByteArray("%X(/.own/backdrops/t.bmp)\n"));
+        QCOMPARE(treeHash(r->music), music);
+        QVERIFY(!ProgressStore(r->data).exists(r->serial));
+
+        // The record says this bootloader knows the new folder.
+        const QString record = backupOf(*r) + "/" + QString(kInstallRecordFile);
+        QCOMPARE(classicRecordFolder({record}, r->serial), kOwnFolder);
+        QVERIFY(QDir().mkpath(old));
+        QVERIFY(!bootloaderFirst(r->volume, kOwnFolder, {record}, r->serial));
     }
 
     void legacyKeepMusicThenUninstall_data()

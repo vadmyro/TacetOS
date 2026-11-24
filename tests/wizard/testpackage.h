@@ -31,12 +31,14 @@ inline QString sha256Of(const QByteArray &bytes)
     return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
 }
 
-// `files` are paths inside the firmware folder with their bytes.
+// `files` are paths inside the firmware folder with their bytes. `firmwareFolder`
+// is the top folder of the zip.
 inline TestPackage makeTestPackage(const QString &folder, const QString &target,
                                    const QByteArray &bootloader,
-                                   const QMap<QString, QByteArray> &files)
+                                   const QMap<QString, QByteArray> &files,
+                                   const QString &firmwareFolder = QString(device::kFirmwareFolder))
 {
-    const QString top = QString(device::kFirmwareFolder) + QLatin1Char('/');
+    const QString top = firmwareFolder + QLatin1Char('/');
     QList<QPair<QByteArray, QByteArray>> entries{{top.toUtf8(), QByteArray()}};
     for (auto it = files.cbegin(); it != files.cend(); ++it)
         entries.append({(top + it.key()).toUtf8(), it.value()});

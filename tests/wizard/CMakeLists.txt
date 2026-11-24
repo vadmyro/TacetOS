@@ -49,6 +49,10 @@ qt_add_executable(tst_wizard_package tst_wizard_package.cpp testzip.h)
 target_link_libraries(tst_wizard_package PRIVATE tacet_wizard Qt6::Test)
 add_test(NAME tst_wizard_package COMMAND tst_wizard_package)
 
+qt_add_executable(tst_wizard_foldermove tst_wizard_foldermove.cpp)
+target_link_libraries(tst_wizard_foldermove PRIVATE tacet_wizard Qt6::Test)
+add_test(NAME tst_wizard_foldermove COMMAND tst_wizard_foldermove)
+
 qt_add_executable(tst_wizard_firmware tst_wizard_firmware.cpp testzip.h)
 target_link_libraries(tst_wizard_firmware PRIVATE tacet_wizard Qt6::Test)
 add_test(NAME tst_wizard_firmware COMMAND tst_wizard_firmware)

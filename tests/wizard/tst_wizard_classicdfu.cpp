@@ -265,6 +265,7 @@ public:
     QString dataDir() const override { return data; }
     QString portPath() const override { return kPort; }
     QStringList installRecords() const override { return records; }
+    QString firmwareFolder() const override { return folder; }
     qint64 returnMs() const override { return 200; }
 
     HelperCommands *commands = nullptr;
@@ -273,6 +274,7 @@ public:
     QString volume;
     QString data;
     QStringList records;
+    QString folder = QString(device::kFirmwareFolder);
 };
 
 class SetBackupFolder : public Step
@@ -343,9 +345,11 @@ private:
     // What the user does at each "ready" wait: true presses Start.
     QList<bool> m_start;
     std::unique_ptr<WizardRunner> m_runner;
+    bool m_bootloaderFirst = false;
 
     void setUpRun(bool realWrites = true)
     {
+        m_bootloaderFirst = false;
         m_layer = std::make_unique<FakeSystemLayer>();
         m_device = std::make_unique<FakeDfuDevice>();
         m_layer->device = m_device.get();
@@ -445,7 +449,7 @@ private:
         WizardRunner::Start s;
         s.serial = kSerial;
         s.model = QStringLiteral("ipod-classic");
-        s.shape = {Family::Dfu, FlowKind::Install, InstallPath::Keep, false};
+        s.shape = {Family::Dfu, FlowKind::Install, InstallPath::Keep, false, m_bootloaderFirst};
         s.packageManifest = m_package.manifest;
         s.packageSha256 = m_package.sha256;
         QSignalSpy finished(runner, &WizardRunner::flowFinished);
@@ -502,6 +506,8 @@ private slots:
         QCOMPARE(record.value("serial").toString(), kSerial);
         QCOMPARE(record.value("format").toInt(), kInstallRecordFormat);
         QCOMPARE(record.value("bootloaderSha256").toString().size(), 64);
+        QCOMPARE(record.value("firmwareFolder").toString(), QString(device::kFirmwareFolder));
+        QCOMPARE(classicRecordFolder({recordPath()}, kSerial), QString(device::kFirmwareFolder));
         QVERIFY(QDateTime::fromString(record.value("date").toString(), Qt::ISODate).isValid());
         // The record is what the next `stateBefore` reads.
         QCOMPARE(classicStateBefore({recordPath()}, kSerial), QString("present"));
@@ -687,6 +693,42 @@ private slots:
         QVERIFY(m_commands.asked.isEmpty());
     }
 
+    // Branding section 8.3: when the bootloader goes in before the firmware step,
+    // the firmware in the old folder is enough, as the new bootloader finds it
+    // there. The record says which folder this bootloader knows.
+    void bootloaderFirstFindsTheOldFolder()
+    {
+        const auto ownPackage = [this] {
+            m_sources.folder = QStringLiteral(".own");
+            m_package = makeTestPackage(newFolder(QStringLiteral("package")), kTarget,
+                                        bootFile(pattern(4096, 0x42)), {{QStringLiteral("a"), "a"}},
+                                        QStringLiteral(".own"));
+        };
+        setUpRun();
+        ownPackage();
+        m_start = {true};
+        QCOMPARE(runFlow(), QString(error::firmwareWriteFailed));
+        QVERIFY(m_commands.asked.isEmpty());
+
+        setUpRun();
+        ownPackage();
+        m_bootloaderFirst = true;
+        m_start = {true};
+        m_commands.onStage = [this](const QString &name) {
+            if (name == QLatin1String("wait-device")) {
+                m_watch.gone();
+                m_watch.dfu();
+            }
+        };
+        m_commands.onResult = [this](const HelperAnswer &) {
+            m_watch.gone();
+            m_watch.normal(device::RunningFirmware::Other, true, kSerial);
+        };
+        QCOMPARE(runFlow(), QString());
+        QVERIFY(!m_device->received().isEmpty());
+        QCOMPARE(classicRecordFolder({recordPath()}, kSerial), QStringLiteral(".own"));
+    }
+
     // helper.md section 9.4: a development build stops before the eject.
     void devBuildStopsBeforeTheEject()
     {
@@ -714,6 +756,10 @@ private slots:
         QCOMPARE(classicStateBefore({a}, kSerial), QString("present"));
         QCOMPARE(classicStateBefore({a, b, c}, kSerial), QString("absent"));
         QCOMPARE(classicStateBefore({b, a}, kSerial), QString("absent"));
+        // Branding section 8.3: an install record that says no folder, or an uninstall last.
+        QVERIFY(classicRecordFolder({a}, kSerial).isEmpty());
+        QVERIFY(classicRecordFolder({a, b}, kSerial).isEmpty());
+        QVERIFY(classicRecordFolder({}, kSerial).isEmpty());
     }
 };
 

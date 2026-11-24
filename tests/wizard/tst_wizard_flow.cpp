@@ -49,6 +49,20 @@ void TstWizardFlow::lists_data()
     QTest::newRow("classic, keep") << FlowShape{D, I, InstallPath::Keep, false}
                                    << "diagnose backup-keep firmware classic-bootloader verify "
                                       "finish";
+    // Branding section 8.3: the bootloader goes in before the old folder moves.
+    QTest::newRow("classic, keep, bootloader first")
+        << FlowShape{D, I, InstallPath::Keep, false, true}
+        << "diagnose backup-keep classic-bootloader firmware verify finish";
+    // Only Keep my music on a Classic reads it: a format leaves no old folder.
+    QTest::newRow("classic, clean, bootloader first")
+        << FlowShape{D, I, InstallPath::Clean, false, true}
+        << "diagnose backup-full format firmware classic-bootloader verify finish";
+    QTest::newRow("older, keep, bootloader first")
+        << FlowShape{P, I, InstallPath::Keep, false, true}
+        << "diagnose backup-keep disk-mode firmware bootloader verify finish";
+    QTest::newRow("classic, uninstall, bootloader first")
+        << FlowShape{D, U, InstallPath::None, false, true}
+        << "diagnose backup-settings classic-remove remove-firmware verify finish";
     QTest::newRow("older, uninstall")
         << FlowShape{P, U, InstallPath::None, false}
         << "diagnose backup-settings disk-mode remove-bootloader remove-firmware verify finish";
