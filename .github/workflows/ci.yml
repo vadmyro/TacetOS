@@ -152,7 +152,9 @@ jobs:
         run: cmake --preset ${{ matrix.preset }} -DCMAKE_COMPILE_WARNING_AS_ERROR=${{ runner.os != 'Windows' && 'ON' || 'OFF' }} -DTACETOS_FETCH_FONT=ON
 
       - name: Build
-        run: cmake --build --preset ${{ matrix.preset }} --parallel
+        # A bound on the jobs: without a number, make starts every file at once and the
+        # runner runs out of memory, which GitHub reports as a cancelled job.
+        run: cmake --build --preset ${{ matrix.preset }} --parallel 4
 
       - name: Test
         # Without a console (Windows runners), Qt sends its messages to the debugger,
