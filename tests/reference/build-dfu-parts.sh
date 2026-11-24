@@ -129,7 +129,7 @@ for patch in "$here"/../../firmware/patches/dfu/*.patch; do
     }
 done
 shopt -u nullglob
-"$here/../../firmware/brand.sh" --boot-logo "$work" >/dev/null
+bash "$here/../../firmware/brand.sh" --boot-logo "$work" >/dev/null
 payload_dir="$work/$REF_DFU_PAYLOAD_DIR"
 mkdir -p "$payload_dir/build"
 echo "== building the programs for the iPod"
