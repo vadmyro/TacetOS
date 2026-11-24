@@ -102,6 +102,8 @@ QString failureText(const QString &code, int takeFailures)
         return wtr("No verified backup of this iPod. Run the backup again.");
     if (code == error::ipodGone)
         return wtr("The iPod was unplugged. Plug it in again and press Resume.");
+    if (code == error::volumeNotBack)
+        return wtr("The iPod's volume did not come back. Plug it in again and press Resume.");
     if (code == error::verifyFailed)
         return wtr("The bootloader is not in the state it should be. Nothing more was written.");
     if (code == error::bootloaderNotTaken) {
