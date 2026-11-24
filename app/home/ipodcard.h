@@ -42,6 +42,7 @@ public:
     QPushButton *uninstallButton() const { return uninstall_; }
     QPushButton *ejectButton() const { return eject_; }
     QPushButton *openButton() const { return open_; }
+    QPushButton *bootLogoButton() const { return bootLogo_; }
 
 signals:
     void actionRequested(tacetos::HomeAction action);
@@ -73,6 +74,7 @@ private:
     QLabel *bannerText_;
     QPushButton *eject_;
     QPushButton *open_;
+    QPushButton *bootLogo_;
     QPushButton *uninstall_;
     QPushButton *wizard_;
     // What the state of the card lets the wizard offer.
@@ -84,6 +86,8 @@ private:
     bool windowOpen_ = false;
     bool ejectShown_ = false;
     bool openShown_ = false;
+    // Boot screen section 8.1.
+    bool bootLogoShown_ = false;
     HomeAction wizardAction_ = HomeAction::InstallWizard;
 };
 

@@ -84,6 +84,7 @@ private:
     void onAction(const QString &port, HomeAction action);
     void onOperation(const device::Operation &operation);
     void showEntries();
+    void openBootLogo(const QString &port);
     void startAndOpen(device::OperationKind kind, const QString &port);
 
     HomeScreen *home_ = nullptr;

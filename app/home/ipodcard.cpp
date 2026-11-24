@@ -258,12 +258,18 @@ IpodCard::IpodCard(QWidget *parent) : QFrame(parent)
     auto *buttons = new QHBoxLayout;
     buttons->setSpacing(8);
     buttons->addStretch(1);
-    // Created in the order of the Tab key: Eject, then Open.
+    // Created in the order of the Tab key: Eject, Boot logo, then Open.
     eject_ = new QPushButton(htr("Eject"), this);
     eject_->setObjectName(QStringLiteral("ejectButton"));
     eject_->setProperty("role", QStringLiteral("secondary"));
     eject_->setFont(fontFor(TextStyle::Button));
     eject_->setFocusPolicy(Qt::StrongFocus);
+    bootLogo_ = new QPushButton(htr("Boot logo"), this);
+    bootLogo_->setObjectName(QStringLiteral("bootLogoButton"));
+    bootLogo_->setProperty("role", QStringLiteral("secondary"));
+    bootLogo_->setFont(fontFor(TextStyle::Button));
+    bootLogo_->setFocusPolicy(Qt::StrongFocus);
+    bootLogo_->hide();
     open_ = new QPushButton(htr("Open"), this);
     open_->setObjectName(QStringLiteral("openButton"));
     open_->setProperty("role", QStringLiteral("primary"));
@@ -280,6 +286,7 @@ IpodCard::IpodCard(QWidget *parent) : QFrame(parent)
     wizard_->setFont(fontFor(TextStyle::Button));
     wizard_->hide();
     buttons->addWidget(eject_);
+    buttons->addWidget(bootLogo_);
     buttons->addWidget(open_);
     buttons->addWidget(uninstall_);
     buttons->addWidget(wizard_);
@@ -291,6 +298,8 @@ IpodCard::IpodCard(QWidget *parent) : QFrame(parent)
             [this] { emit actionRequested(HomeAction::UninstallWizard); });
     connect(wizard_, &QPushButton::clicked, this, [this] { emit actionRequested(wizardAction_); });
     connect(open_, &QPushButton::clicked, this, [this] { emit actionRequested(openAction_); });
+    connect(bootLogo_, &QPushButton::clicked, this,
+            [this] { emit actionRequested(HomeAction::BootLogo); });
 
     setEntry(ScreenEntry(), {});
 }
@@ -381,6 +390,12 @@ void IpodCard::setEntry(const ScreenEntry &entry, const QList<Model> &models, Ho
             if (m.id == entry.ipod->model && m.family == QLatin1String("classic"))
                 isClassic_ = true;
     }
+    // Boot screen section 8.1: a firmware that can show the logo, on a model of one known screen.
+    bootLogoShown_ = false;
+    if (kind == ScreenKind::Ready && entry.ipod && firmwareIsOurs_)
+        for (const Model &m : models)
+            if (m.id == entry.ipod->model && m.screen)
+                bootLogoShown_ = true;
     updateWizardButtons();
     updateButtonNames();
 
@@ -406,6 +421,7 @@ void IpodCard::updateWizardButtons()
 {
     if (windowOpen_) {
         eject_->hide();
+        bootLogo_->hide();
         open_->hide();
         uninstall_->hide();
         wizard_->setText(htr("Show the wizard"));
@@ -416,6 +432,7 @@ void IpodCard::updateWizardButtons()
     }
     // The window is closed: Eject and Open come back with the card's own table.
     eject_->setVisible(ejectShown_);
+    bootLogo_->setVisible(bootLogoShown_);
     open_->setVisible(openShown_);
     wizard_->setVisible(wizardShown_);
     uninstall_->setVisible(wizardShown_ && !hasProgress_ && !firmwareIsOurs_ && isClassic_ &&
@@ -450,6 +467,7 @@ void IpodCard::updateButtonNames()
     };
     eject_->setAccessibleName(named(eject_->text()));
     open_->setAccessibleName(named(open_->text()));
+    bootLogo_->setAccessibleName(named(bootLogo_->text()));
     uninstall_->setAccessibleName(named(uninstall_->text()));
     wizard_->setAccessibleName(named(wizard_->text()));
 }

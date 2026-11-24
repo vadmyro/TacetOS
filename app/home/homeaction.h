@@ -24,6 +24,8 @@ enum class HomeAction {
     UninstallWizard,
     ResumeWizard,
     ShowWizard,
+    // Boot screen section 8.1: opens the dialog of the boot logo.
+    BootLogo,
 };
 
 // Sets the "role" property that the style sheet looks at (style/palette.h) and

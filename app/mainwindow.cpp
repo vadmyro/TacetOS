@@ -3,6 +3,7 @@
 
 #include "mainwindow.h"
 
+#include "home/bootlogodialog.h"
 #include "home/homescreen.h"
 
 #include <QCloseEvent>
@@ -254,6 +255,9 @@ void MainWindow::onAction(const QString &port, HomeAction action)
     case HomeAction::Eject:
         model_->startOperation(OperationKind::Eject, port);
         break;
+    case HomeAction::BootLogo:
+        openBootLogo(port);
+        break;
     case HomeAction::InstallWizard:
     case HomeAction::UninstallWizard:
     case HomeAction::ResumeWizard:
@@ -262,6 +266,22 @@ void MainWindow::onAction(const QString &port, HomeAction action)
             launcher_->open(port, action);
         emit wizardRequested(port, action);
         break;
+    }
+}
+
+// Boot screen section 8.1: the dialog is modal to the window, on the firmware folder of the iPod.
+void MainWindow::openBootLogo(const QString &port)
+{
+    const auto entry = model_->entry(port);
+    if (!entry || !entry->ipod || !entry->ipod->volume || entry->ipod->volume->mountPoint.isEmpty())
+        return;
+    for (const Model &m : models_) {
+        if (m.id != entry->ipod->model || !m.screen)
+            continue;
+        auto *dialog = new BootLogoDialog(m, entry->ipod->volume->mountPoint, this);
+        dialog->setAttribute(Qt::WA_DeleteOnClose);
+        dialog->open();
+        return;
     }
 }
 
