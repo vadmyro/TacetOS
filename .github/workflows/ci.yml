@@ -120,6 +120,12 @@ jobs:
           path: ${{ runner.temp }}/dfu-parts
           key: dfu-parts-${{ hashFiles('firmware/base.lock', 'firmware/brand.sh', 'firmware/patches/dfu/*.patch', 'tests/reference/build-dfu-parts.sh', 'tests/reference/extract-dfu-blocks.c') }}
 
+      - name: Install Pillow for the DFU parts
+        # build-dfu-parts.sh runs brand.sh, which draws the TacetOS logo. python3 here is the
+        # one that install-qt-action set up, so Pillow comes from pip, not from apt.
+        if: runner.os == 'Linux' && steps.dfu-parts-cache.outputs.cache-hit != 'true'
+        run: python3 -m pip install Pillow
+
       - name: Build the Classic DFU parts
         # The two fixed blocks, the two programs for the iPod and the reference tool that
         # builds images from them, for the Classic comparison test.
