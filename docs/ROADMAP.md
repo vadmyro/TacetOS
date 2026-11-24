@@ -11,7 +11,7 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 | **v0.1** | Device detection and live state (plug, unplug, disk mode, DFU) | 7/7 | ✅ done |
 | Test devices | Disk image test devices + privileged helper | 6/6 | ✅ done |
 | **v0.2** | Install and reset wizard: backup, format, firmware, bootloader, guided DFU, uninstall | 12/12 | ✅ done |
-| **v0.3** | Our own firmware build: name, custom boot logo, update channel, health page | 2/12 | ⏳ |
+| **v0.3** | Our own firmware build: name, custom boot logo, update channel, health page | 3/12 | ⏳ |
 | **v0.4** | Music library and sync: tags, cover art, sorting rules, playlists, conversion, import folder | 0/12 | ⏳ |
 | **v0.5** | Settings editor, fonts, menu order, game library, listening recap | 0/8 | ⏳ |
 | **v0.6** | Themes: browser, editor with live preview, simple mode, default TacetOS theme | 0/11 | ⏳ |
@@ -83,7 +83,7 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 - [ ] Language picked on the iPod at first start, each language written in its own words
 - [ ] Real-device test: boot, logo, update from the app
 - [ ] Selected fixes from newer firmware development, one tested change at a time
-- [ ] Technical folder name on the iPod Classic
+- [x] Technical folder name on the iPod Classic
 - [ ] Health page: disk and battery state, with a warning when they wear out
 
 ## v0.4 · Music library and sync
