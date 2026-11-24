@@ -12,6 +12,14 @@ add_test(NAME tst_wizard_runner COMMAND tst_wizard_runner)
 # at the same time can hold the disk longer than that.
 set_tests_properties(tst_wizard_runner PROPERTIES RUN_SERIAL TRUE)
 
+# The whole percentage of the big progress page, fed with runner signals recorded from the
+# flows of tst_wizard_e2e (progress/*.tsv).
+qt_add_executable(tst_wizard_wholeprogress tst_wizard_wholeprogress.cpp)
+target_link_libraries(tst_wizard_wholeprogress PRIVATE tacet_wizard Qt6::Test)
+target_compile_definitions(tst_wizard_wholeprogress PRIVATE
+    TACETOS_PROGRESS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/progress")
+add_test(NAME tst_wizard_wholeprogress COMMAND tst_wizard_wholeprogress)
+
 qt_add_executable(tst_wizard_diagnose tst_wizard_diagnose.cpp)
 target_link_libraries(tst_wizard_diagnose PRIVATE tacet_wizard Qt6::Test)
 add_test(NAME tst_wizard_diagnose COMMAND tst_wizard_diagnose)

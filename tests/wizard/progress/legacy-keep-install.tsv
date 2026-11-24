@@ -1,0 +1,39 @@
+# The runner signals of a "keep my music" install of an iPod Video, recorded from tst_wizard_e2e (legacyKeepMusicThenUninstall) on 2026-11-24.
+steps	diagnose,backup-keep,disk-mode,firmware,bootloader,verify,finish
+started	0	diagnose
+progress	diagnose	system	0	10
+progress	diagnose	helper	1	10
+progress	diagnose	udisks	2	10
+progress	diagnose	disk-access	3	10
+progress	diagnose	backup-folder	4	10
+progress	diagnose	backup-space	5	10
+progress	diagnose	model	6	10
+progress	diagnose	package	7	10
+progress	diagnose	firmware-room	8	10
+done	0	diagnose
+started	1	backup-keep
+progress	backup-keep	copy	0	6
+progress	backup-keep	copy	6	6
+progress	backup-keep	firmware-partition	0	8388608
+progress	backup-keep	firmware-partition	8388608	8388608
+progress	backup-keep	check	0	0
+done	1	backup-keep
+started	2	disk-mode
+done	2	disk-mode
+started	3	firmware
+progress	firmware	unpack	0	33
+progress	firmware	unpack	1	33
+progress	firmware	unpack	2	33
+progress	firmware	unpack	33	33
+progress	firmware	keep	0	0
+progress	firmware	check	0	0
+done	3	firmware
+started	4	bootloader
+progress	bootloader	open	0	0
+progress	bootloader	check	0	0
+progress	bootloader	write	0	0
+done	4	bootloader
+started	5	verify
+done	5	verify
+started	6	finish
+done	6	finish

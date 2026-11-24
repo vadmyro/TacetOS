@@ -8,6 +8,7 @@
 #include "models.h"
 #include "runner.h"
 #include "wizard/backuppage.h"
+#include "wizard/bigprogresspage.h"
 #include "wizard/dfututorial.h"
 #include "wizard/diagnosepage.h"
 #include "wizard/donepage.h"
@@ -28,6 +29,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPointer>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSignalSpy>
@@ -516,8 +518,9 @@ private slots:
         QCOMPARE(w.pageName(), QStringLiteral("remove"));
     }
 
-    // An install of the Classic from the firmware on: the firmware, the DFU guide then the
-    // restart, the check and the end each show their page.
+    // An install of the Classic from the firmware on: the firmware and the DFU guide show their
+    // page, the restart and the check the big bar with the table of the beeps (boot screen
+    // section 10), the end its page.
     void installLastStepsShowTheirPages()
     {
         QStringList seen;
@@ -551,10 +554,20 @@ private slots:
             seen.append("dfu=" + pageAfter(window, "dfu"));
             c.progress(QStringLiteral("send"), 10, 100);
             c.progress(QStringLiteral("resume"), 0, 0);
-            seen.append("restart=" + pageAfter(window, "write"));
+            seen.append("restart=" + pageAfter(window, "big"));
+            QMetaObject::invokeMethod(
+                window,
+                [&] {
+                    BigProgressPage *big = window->bigProgressPage();
+                    seen.append(QStringLiteral("beeps=%1 restarting=%2")
+                                    .arg(big->beepsShown())
+                                    .arg(big->isRestarting()));
+                },
+                Qt::BlockingQueuedConnection);
             return StepOutcome::done();
         });
-        m_scripts.insert(QString(step::verify), record("verify", "done"));
+        // The check writes too: the big bar stays from the restart (boot screen section 10.1).
+        m_scripts.insert(QString(step::verify), record("verify", "big"));
         m_scripts.insert(QString(step::finish), record("finish", "done"));
 
         WizardTarget t = target(Family::Dfu);
@@ -575,9 +588,80 @@ private slots:
         QTest::mouseClick(w.dfuPage()->startButton(), Qt::LeftButton);
         QTRY_COMPARE(ended.count(), 1);
         QVERIFY(runner.waitFinished(5000));
-        QCOMPARE(seen, QStringList({"firmware=write", "dfu=dfu", "restart=write", "verify=done",
-                                    "finish=done"}));
+        QCOMPARE(seen, QStringList({"firmware=write", "dfu=dfu", "restart=big",
+                                    "beeps=1 restarting=1", "verify=big", "finish=done"}));
         QCOMPARE(w.pageName(), QStringLiteral("done"));
+    }
+
+    // Boot screen section 10.1: a step that writes shows the big bar once it moves; the erase
+    // asks for the name, and the offer of the settings and a failure come back on its own page.
+    void writingStepsShowTheBigBar()
+    {
+        QStringList seen;
+        WizardWindow *window = nullptr;
+        m_scripts.insert(QString(step::backupFull), [&](StepContext &c) {
+            c.setBackupFolder(m_dir.filePath(QStringLiteral("backups/SER1/2026-11-20")));
+            return StepOutcome::done();
+        });
+        m_scripts.insert(QString(step::format), [&](StepContext &c) {
+            QJsonObject info;
+            info.insert(QStringLiteral("ipodName"), QStringLiteral("IPOD"));
+            const UserAnswer a = c.waitForUser(WaitKind::TypedName, info);
+            if (a.cancelled)
+                return StepOutcome::cancelled();
+            c.progress(QStringLiteral("write"), 50, 100);
+            seen.append("format=" + pageAfter(window, "big"));
+            return StepOutcome::done();
+        });
+        m_scripts.insert(QString(step::firmware), [&](StepContext &c) {
+            c.progress(QStringLiteral("unpack"), 1, 2);
+            seen.append("firmware=" + pageAfter(window, "big"));
+            QJsonObject info;
+            info.insert(QStringLiteral("offer"), QStringLiteral("settings"));
+            info.insert(QStringLiteral("date"), QStringLiteral("2026-11-20"));
+            if (c.waitForUser(WaitKind::Offer, info).cancelled)
+                return StepOutcome::cancelled();
+            c.progress(QStringLiteral("swap"), 3, 4);
+            seen.append("answered=" + pageAfter(window, "big"));
+            return StepOutcome::failed(QString(error::firmwareWriteFailed));
+        });
+
+        WizardTarget t = target(Family::Dfu);
+        t.bootloaderTarget = QStringLiteral("ipod6g");
+        WizardRunner runner(m_dir.path(), factory());
+        WizardWindow w(t, options(), &runner, WizardEntry::Install);
+        window = &w;
+        w.diagnosePage()->setPause(0);
+        w.backupPage()->setPause(0);
+        w.setPackage(writePackage(m_dir.filePath(QStringLiteral("package"))));
+        QSignalSpy ended(&w, &WizardWindow::flowEnded);
+        QTest::mouseClick(buttonNamed(&w, "wizardMain"), Qt::LeftButton);
+
+        QTRY_VERIFY(w.formatPage()->isAsking());
+        QCOMPARE(w.pageName(), QStringLiteral("format"));
+        w.formatPage()->findChild<QLineEdit *>()->setText(QStringLiteral("IPOD"));
+        QTest::mouseClick(w.formatPage()->confirmButton(), Qt::LeftButton);
+
+        QTRY_VERIFY(w.installPage()->isAsking());
+        QCOMPARE(w.pageName(), QStringLiteral("write"));
+        BigProgressPage *big = w.bigProgressPage();
+        const int before = big->percent();
+        QVERIFY(before > 0);
+        QTest::mouseClick(w.installPage()->yesButton(), Qt::LeftButton);
+
+        QTRY_COMPARE(ended.count(), 1);
+        QVERIFY(runner.waitFinished(5000));
+        QCOMPARE(seen, QStringList({"format=big", "firmware=big", "answered=big"}));
+        QCOMPARE(w.pageName(), QStringLiteral("write"));
+        QVERIFY(w.installPage()->isFailed());
+        // The bar stays where the flow stopped, and says it in words.
+        auto *bar = big->findChild<QProgressBar *>(QStringLiteral("bigProgressBar"));
+        QVERIFY(bar);
+        QCOMPARE(bar->accessibleName(), QStringLiteral("Install progress"));
+        QVERIFY(big->percent() > before && big->percent() < 100);
+        QCOMPARE(bar->value(), big->percent());
+        QVERIFY(big->stageText().startsWith(QStringLiteral("Switching to the new version · ")));
+        QVERIFY(!big->beepsShown());
     }
 
     // A try of the Classic that never reached DFU mode (the iPod came back as a disk): the helper
@@ -601,7 +685,7 @@ private slots:
             c.progress(QStringLiteral("check"), 0, 0);
             c.progress(QStringLiteral("send"), 10, 100);
             c.progress(QStringLiteral("resume"), 0, 0);
-            seen.append("restart=" + pageAfter(window, "write"));
+            seen.append("restart=" + pageAfter(window, "big"));
             return StepOutcome::done();
         });
         WizardTarget t = target(Family::Dfu);
@@ -624,7 +708,7 @@ private slots:
         QTest::mouseClick(w.dfuPage()->startButton(), Qt::LeftButton);
         QTRY_COMPARE(ended.count(), 1);
         QVERIFY(runner.waitFinished(5000));
-        QCOMPARE(seen, QStringList({"again=dfu", "restart=write"}));
+        QCOMPARE(seen, QStringList({"again=dfu", "restart=big"}));
     }
 
     // Screens section 10: Report opens the report page over the page of the step, with the facts

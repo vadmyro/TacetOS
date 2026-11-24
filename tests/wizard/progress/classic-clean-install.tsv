@@ -1,0 +1,49 @@
+# The runner signals of a clean install of a Classic, recorded from tst_wizard_e2e (classicCleanInstallThenUninstall) on 2026-11-24.
+steps	diagnose,backup-full,format,firmware,classic-bootloader,verify,finish
+started	0	diagnose
+progress	diagnose	system	0	10
+progress	diagnose	helper	1	10
+progress	diagnose	udisks	2	10
+progress	diagnose	udev-rule	3	10
+progress	diagnose	backup-folder	4	10
+progress	diagnose	backup-space	5	10
+progress	diagnose	model	6	10
+progress	diagnose	package	7	10
+progress	diagnose	firmware-room	8	10
+done	0	diagnose
+started	1	backup-full
+progress	backup-full	copy	0	5016
+progress	backup-full	copy	10	5016
+progress	backup-full	copy	16	5016
+progress	backup-full	copy	5016	5016
+progress	backup-full	check	0	0
+done	1	backup-full
+started	2	format
+progress	format	erase	0	3
+progress	format	erase	1	3
+progress	format	erase	2	3
+progress	format	erase	3	3
+done	2	format
+started	3	firmware
+progress	firmware	unpack	0	29
+progress	firmware	unpack	1	29
+progress	firmware	unpack	29	29
+progress	firmware	keep	0	0
+progress	firmware	check	0	0
+done	3	firmware
+started	4	classic-bootloader
+progress	classic-bootloader	check	0	0
+progress	classic-bootloader	eject	0	0
+progress	classic-bootloader	spin-down	0	0
+progress	classic-bootloader	spin-down	0	0
+progress	classic-bootloader	wait-device	0	0
+progress	classic-bootloader	dfu-detected	0	0
+progress	classic-bootloader	quiet	0	0
+progress	classic-bootloader	quiet	0	0
+progress	classic-bootloader	send	0	0
+progress	classic-bootloader	resume	0	0
+done	4	classic-bootloader
+started	5	verify
+done	5	verify
+started	6	finish
+done	6	finish
