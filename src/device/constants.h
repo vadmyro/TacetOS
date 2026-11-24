@@ -107,9 +107,8 @@ inline constexpr QLatin1String kPlaylistsFolder("Playlists");
 // firmware folder, and what the backup of an uninstall copies. Compared without
 // case, as FAT32 does.
 inline constexpr const char *kKeptFirmwareFiles[] = {
-    "config.cfg",        "fixed.cfg",         ".resume.cfg",
-    ".playlist_control", "most-recent.bmark", "battery_levels.cfg",
-    "boot-logo.bin",
+    "config.cfg",        "fixed.cfg",          ".resume.cfg",   ".playlist_control",
+    "most-recent.bmark", "battery_levels.cfg", "boot-logo.bin",
 };
 inline constexpr const char *kKeptFirmwareFolders[] = {
     "themes", "wps", "backdrops", "icons", "fonts", "eqs", "recpresets", "rocks.data",
