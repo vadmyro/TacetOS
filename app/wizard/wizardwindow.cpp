@@ -149,6 +149,7 @@ WizardWindow::WizardWindow(const WizardTarget &target, const WizardOptions &opti
     shape_.family = target_.family;
     shape_.kind = entry_ == WizardEntry::Uninstall ? FlowKind::Uninstall : FlowKind::Install;
     shape_.macFormat = target_.macFormat;
+    shape_.bootloaderFirst = target_.bootloaderFirst;
     shape_.path = shape_.kind == FlowKind::Install ? path_ : InstallPath::None;
 
     build();
@@ -1070,6 +1071,7 @@ void WizardWindow::startAgain()
     shape_.kind = FlowKind::Install;
     shape_.family = target_.family;
     shape_.macFormat = target_.macFormat;
+    shape_.bootloaderFirst = target_.bootloaderFirst;
     refreshFirst();
     showPage(QStringLiteral("install"));
 }

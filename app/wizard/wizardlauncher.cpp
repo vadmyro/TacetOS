@@ -7,6 +7,7 @@
 #include "checks.h"
 #include "classicdfu.h"
 #include "diagnose.h"
+#include "foldermove.h"
 #include "helpercalls.h"
 #include "helperclient.h"
 #include "journal.h"
@@ -208,6 +209,9 @@ WizardWindow *WizardLauncher::open(const QString &port, HomeAction action)
     target.family = family;
     target.macFormat = ipod.volume && (ipod.volume->filesystem == QLatin1String("hfsplus") ||
                                        ipod.volume->filesystem == QLatin1String("hfs"));
+    if (family == Family::Dfu && ipod.volume)
+        target.bootloaderFirst = bootloaderFirst(ipod.volume->mountPoint, model.firmwareFolder,
+                                                 sources.installRecords, serial);
     if (ipod.volume)
         target.volumeUsed = qMax<qint64>(0, ipod.volume->totalBytes - ipod.volume->freeBytes);
     if (helperFound() && family == Family::Partition)

@@ -54,6 +54,8 @@ struct WizardTarget
     QString firmwareFolder = QString(device::kFirmwareFolder);
     wizard::Family family = wizard::Family::Partition;
     bool macFormat = false;
+    // Branding section 8.3: the old firmware folder moves, and the bootloader goes in first.
+    bool bootloaderFirst = false;
     // Used space of the music volume, size of what Keep my music copies, and the firmware
     // partition of an older iPod (0 for a Classic), for the space lines.
     qint64 volumeUsed = 0;
