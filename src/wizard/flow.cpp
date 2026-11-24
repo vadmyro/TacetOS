@@ -32,6 +32,12 @@ QStringList stepsFor(const FlowShape &shape)
         steps << QString(step::backupKeep);
         if (older)
             steps << QString(step::diskMode);
+        if (!older && shape.bootloaderFirst) {
+            // Branding section 8.3: the bootloader that finds both folders goes in first.
+            steps << QString(step::classicBootloader) << QString(step::firmware)
+                  << QString(step::verify) << QString(step::finish);
+            return steps;
+        }
         break;
     case InstallPath::Clean:
         steps << QString(step::backupFull);

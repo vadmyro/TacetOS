@@ -23,6 +23,11 @@ namespace tacetos::wizard {
 // `install-record.json` files; the last record of the serial decides.
 QString classicStateBefore(const QStringList &files, const QString &serial);
 
+// Branding section 8.3 step 1: the firmware folder the bootloader of the last
+// record of this serial looks in (`firmwareFolder`). Empty when that record is an
+// uninstall, was written before the key existed, or when there is no record.
+QString classicRecordFolder(const QStringList &files, const QString &serial);
+
 // D45: the Classic gives another serial under TacetOS than under Apple's firmware,
 // and the install record keeps that second one. Returns the serial of the last
 // record that saw `seen` under TacetOS, or empty when none did.

@@ -6,6 +6,7 @@
 #include "backup.h"
 #include "constants.h"
 #include "crc32.h"
+#include "foldermove.h"
 #include "markers.h"
 #include "package.h"
 #include "wizardconstants.h"
@@ -192,6 +193,7 @@ private:
     }
 
     After cleanUp();
+    std::optional<StepOutcome> moveOldFolder();
     std::optional<StepOutcome> unpack();
     std::optional<StepOutcome> keep(QList<Kept> &kept);
     StepOutcome swapAndCheck(const QList<Kept> &kept);
@@ -239,6 +241,24 @@ Install::After Install::cleanUp()
                : After::FromStart;
 }
 
+// Branding section 8.3 steps 2 and 4: the default folder moved into the folder
+// of the model, and the paths of its settings and screens rewritten, before the
+// kept files are read from it. Both do nothing the second time.
+std::optional<StepOutcome> Install::moveOldFolder()
+{
+    const QString name = m_sources.firmwareFolder();
+    const QString base(device::kFirmwareFolder);
+    if (name.compare(base, Qt::CaseInsensitive) == 0)
+        return std::nullopt;
+    const auto write = [this] { m_context.firstWrite(); };
+    QString failed = moveFirmwareFolder(m_root.path(), base, name, write);
+    if (failed.isEmpty())
+        failed = rewriteFolderPaths(m_folder, base, name, write);
+    if (!failed.isEmpty())
+        return writeFailed(failed);
+    return std::nullopt;
+}
+
 StepOutcome Install::run()
 {
     // Step 1: the package, again: the files may have changed on the computer.
@@ -256,7 +276,10 @@ StepOutcome Install::run()
         m_packagePaths.insert(insidePath(entry).toCaseFolded());
 
     // Step 2.
-    if (cleanUp() == After::CheckAfter) {
+    const After after = cleanUp();
+    if (const auto failed = moveOldFolder())
+        return *failed;
+    if (after == After::CheckAfter) {
         const QList<Kept> none;
         return checkAfter(none);
     }

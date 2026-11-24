@@ -16,6 +16,8 @@ qt_add_library(tacet_wizard STATIC
     firmware.h
     flow.cpp
     flow.h
+    foldermove.cpp
+    foldermove.h
     format.cpp
     format.h
     helpercalls.cpp

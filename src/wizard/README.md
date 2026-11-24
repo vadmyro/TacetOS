@@ -2,7 +2,7 @@
 
 The logic of the install wizard: the steps of an install and an uninstall, run one after another, and the file that lets a flow start again after a cut. Qt Core only, no user interface: the screens are in `app/wizard/`. The rules are in `docs/specs/install-wizard.md`.
 
-- `stepsFor()`: the list of steps of a flow, from its family, its kind, its path and whether the iPod is in Mac format (section 2.3). A pure function.
+- `stepsFor()`: the list of steps of a flow, from its family, its kind, its path, whether the iPod is in Mac format, and whether the bootloader of a Classic goes in first (section 2.3). A pure function.
 - `Progress` and `ProgressStore`: the progress file of one iPod, `wizard/<serial>.json` in the data folder, written in one move, and refused when it cannot be trusted (section 3).
 - `WizardRunner`: runs the steps on a worker thread, writes the progress file before and after each step, waits for the user when a step asks, and resumes a flow at the right step. One flow per iPod, guarded by a lock file (section 3.5).
 - `Step` and `StepContext`: what a step is given. The real steps come with their own sections of the spec.
@@ -13,6 +13,7 @@ The logic of the install wizard: the steps of an install and an uninstall, run o
 - `DiskModeStep` and `BootloaderStep`: Disk Mode asked and believed, then the bootloader of an older iPod installed or updated by the helper, after the package and the copy of the firmware partition are checked again (section 8).
 - `checkPackage()`: the five checks of a package of the firmware, in their order (section 7.1), the zip read by `tacet_archive`. `sameAsFlow()` turns a package whose manifest changed since the start of the flow into `package-changed`; `DiagnoseStep` uses it for the check `package`.
 - `FirmwareStep`: the step `firmware` (sections 7.2 to 7.5). It checks the package again, cleans up what a cut left from its three folders, unpacks the zip next to the firmware folder (each file read back, CRC-32 compared), copies the kept files of section 7.3 (from the old folder, or from a settings backup the user takes), swaps the folders by two renames, then checks everything again.
+- `bootloaderFirst()`, `moveFirmwareFolder()` and `rewriteFolderPaths()` (`foldermove.h`): the firmware folder of a Classic moved from the default name to the folder of its model (`docs/specs/firmware-branding.md` section 8.3). The first tells whether the bootloader must go in before the move, from the volume and the install records; the two others are the start of `FirmwareStep`, and do nothing when their work is done.
 - `TimeLeft`: the time left of a long copy, from its speed over the last 10 seconds (section 5.5). The screen feeds it with the progress of the step.
 - `LinuxDiagnoseSources` and `LinuxStepSources` (`sources.h`): the real sources of Linux, built from what detection shows (`IpodView`), the helper and the disk service. `UdisksMounter` is the mounter of `DetectionVolumeWatch`: it mounts the music volume of an iPod by its serial through udisks2.
 - `VerifyStep` and `FinishStep` (`verify.h`): the end of a flow (section 11). `verify` reads everything again from the iPod and writes nothing; `finish` keeps what the last screen shows, which the runner gives with `flowFinished`.

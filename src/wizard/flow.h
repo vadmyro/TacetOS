@@ -21,18 +21,21 @@ enum class FlowKind { Install, Uninstall };
 // Section 2.2: the choice of the first screen. `None` for an uninstall.
 enum class InstallPath { None, Clean, Keep };
 
-// Section 2.3: the four inputs the list of steps comes from.
+// Section 2.3: the inputs the list of steps comes from.
 struct FlowShape
 {
     Family family = Family::Partition;
     FlowKind kind = FlowKind::Install;
     InstallPath path = InstallPath::None;
     bool macFormat = false;
+    // Branding section 8.3 step 1: an iPod Classic whose old firmware folder moves, with a
+    // bootloader that may not know the new one. Only read for Keep my music on a Classic.
+    bool bootloaderFirst = false;
 
     bool operator==(const FlowShape &other) const
     {
         return family == other.family && kind == other.kind && path == other.path &&
-               macFormat == other.macFormat;
+               macFormat == other.macFormat && bootloaderFirst == other.bootloaderFirst;
     }
 };
 

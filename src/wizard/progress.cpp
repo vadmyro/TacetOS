@@ -68,6 +68,7 @@ QJsonObject toJson(const Progress &progress)
     if (progress.shape.kind == FlowKind::Install)
         object.insert(QStringLiteral("path"), pathName(progress.shape.path));
     object.insert(QStringLiteral("macFormat"), progress.shape.macFormat);
+    object.insert(QStringLiteral("bootloaderFirst"), progress.shape.bootloaderFirst);
     object.insert(QStringLiteral("steps"), QJsonArray::fromStringList(progress.steps));
     object.insert(QStringLiteral("current"), progress.current);
     object.insert(QStringLiteral("status"), statusName(progress.status));
@@ -108,6 +109,10 @@ QString parseProgress(const QByteArray &bytes, const QString &serial, Progress *
     }
     if (!object.value(QStringLiteral("macFormat")).isBool())
         return QStringLiteral("key macFormat missing or not a boolean");
+    // Absent in a file written before the key existed: false.
+    if (object.contains(QStringLiteral("bootloaderFirst")) &&
+        !object.value(QStringLiteral("bootloaderFirst")).isBool())
+        return QStringLiteral("key bootloaderFirst not a boolean");
     if (!object.value(QStringLiteral("steps")).isArray())
         return QStringLiteral("key steps missing or not a list");
     if (!object.value(QStringLiteral("current")).isDouble())
@@ -129,6 +134,7 @@ QString parseProgress(const QByteArray &bytes, const QString &serial, Progress *
     progress.shape.family = *family;
     progress.shape.kind = *kind;
     progress.shape.macFormat = object.value(QStringLiteral("macFormat")).toBool();
+    progress.shape.bootloaderFirst = object.value(QStringLiteral("bootloaderFirst")).toBool();
     if (*kind == FlowKind::Install) {
         const auto path = pathFromName(object.value(QStringLiteral("path")).toString());
         if (!path)

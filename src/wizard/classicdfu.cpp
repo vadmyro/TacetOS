@@ -55,12 +55,11 @@ bool firmwareCopied(const QString &root, const QString &target, const QString &f
     return parsed.target.compare(target, Qt::CaseInsensitive) == 0;
 }
 
-} // namespace
-
-QString classicStateBefore(const QStringList &files, const QString &serial)
+// The last record of `serial`, by its date. Empty when there is none.
+QJsonObject lastRecordOf(const QStringList &files, const QString &serial)
 {
     QDateTime latest;
-    QString operation;
+    QJsonObject last;
     for (const QString &path : files) {
         const QJsonObject record = readRecord(path);
         if (record.value(QStringLiteral("serial")).toString() != serial)
@@ -71,14 +70,31 @@ QString classicStateBefore(const QStringList &files, const QString &serial)
             continue;
         if (!latest.isValid() || date >= latest) {
             latest = date;
-            operation = record.value(QStringLiteral("operation")).toString();
+            last = record;
         }
     }
+    return last;
+}
+
+} // namespace
+
+QString classicStateBefore(const QStringList &files, const QString &serial)
+{
+    const QString operation =
+        lastRecordOf(files, serial).value(QStringLiteral("operation")).toString();
     if (operation == QLatin1String("install"))
         return QStringLiteral("present");
     if (operation == QLatin1String("uninstall"))
         return QStringLiteral("absent");
     return QStringLiteral("unknown");
+}
+
+QString classicRecordFolder(const QStringList &files, const QString &serial)
+{
+    const QJsonObject last = lastRecordOf(files, serial);
+    if (last.value(QStringLiteral("operation")).toString() != QLatin1String("install"))
+        return QString();
+    return last.value(QStringLiteral("firmwareFolder")).toString();
 }
 
 QString appleSerialOf(const QStringList &files, const QString &seen)
@@ -130,8 +146,13 @@ std::optional<StepOutcome> ClassicDfuStep::conditions(StepContext &context) cons
             return StepOutcome::failed(QString(error::checkBlocking), check.id);
         }
     }
-    if (m_operation == ClassicOperation::Install &&
-        !firmwareCopied(m_sources.volumeRoot(), m_sources.target(), m_sources.firmwareFolder()))
+    // Branding section 8.3: before the firmware step, the bootloader finds the firmware
+    // in the old folder too.
+    const bool copied =
+        firmwareCopied(m_sources.volumeRoot(), m_sources.target(), m_sources.firmwareFolder()) ||
+        (shape.bootloaderFirst && firmwareCopied(m_sources.volumeRoot(), m_sources.target(),
+                                                 QString(device::kFirmwareFolder)));
+    if (m_operation == ClassicOperation::Install && !copied)
         return StepOutcome::failed(QString(error::firmwareWriteFailed),
                                    QStringLiteral("the firmware is not on the music volume"));
     return std::nullopt;
@@ -151,6 +172,8 @@ bool ClassicDfuStep::writeRecord(StepContext &context, const PackageFiles &files
     record.insert(QStringLiteral("version"), files.version);
     record.insert(QStringLiteral("bootloaderName"), QFileInfo(files.bootloader).fileName());
     record.insert(QStringLiteral("bootloaderSha256"), fileSha256(files.bootloader));
+    // Branding section 8.3: the folder this bootloader looks in first.
+    record.insert(QStringLiteral("firmwareFolder"), m_sources.firmwareFolder());
     if (context.backupFolder().isEmpty()) {
         context.setFact(QStringLiteral("recordMessage"), QStringLiteral("no backup folder"));
         return false;
