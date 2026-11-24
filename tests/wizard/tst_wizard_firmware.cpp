@@ -92,14 +92,25 @@ QMap<QString, QByteArray> packageFiles(const QString &infoTarget = kTarget)
 class Sources : public FirmwareSources
 {
 public:
-    QString volumeRoot() const override { return volume; }
+    QString volumeRoot() const override
+    {
+        if (missingFor > 0) {
+            --missingFor;
+            return QString();
+        }
+        return volume;
+    }
     QString target() const override { return kTarget; }
     QString firmwareFolder() const override { return folder; }
     qint64 freeBytes() const override { return free; }
     QString settingsBackup() const override { return backup; }
     installer::FileFault fault() const override { return injected; }
+    qint64 volumeWaitMs() const override { return waitMs; }
 
     QString volume;
+    // The volume is not there for this many looks (the iPod restarting).
+    mutable std::atomic<int> missingFor{0};
+    qint64 waitMs = 0;
     QString folder = fw();
     qint64 free = -1;
     QString backup;
@@ -626,6 +637,38 @@ private slots:
         const StepOutcome out = step.run(context);
         QCOMPARE(out.code, QString(error::firmwareWriteFailed));
         QVERIFY(!context.facts.value(QStringLiteral("swapped")).toBool());
+    }
+
+    // Branding section 8.3: after `classic-bootloader` the iPod restarts, and its
+    // volume comes back while the step already runs. The step waits for it.
+    void waitsForTheVolume()
+    {
+        Context context;
+        makePackage(context);
+        Sources sources;
+        sources.volume = newFolder(QStringLiteral("volume"));
+        sources.missingFor = 3;
+        sources.waitMs = 5000;
+        const StepOutcome out = FirmwareStep(sources).run(context);
+        QVERIFY2(out.kind == StepOutcome::Kind::Done, qPrintable(out.code + out.detail));
+        QCOMPARE(snapshot(sources.volume + QLatin1Char('/') + fw()), packageFiles());
+    }
+
+    // No volume: nothing is written, and above all not in the folder the app
+    // runs from (an empty mount point is the current folder for QDir).
+    void noVolumeWritesNothing()
+    {
+        Context context;
+        makePackage(context);
+        Sources sources;
+        const QString here = newFolder(QStringLiteral("cwd"));
+        const QString before = QDir::currentPath();
+        QVERIFY(QDir::setCurrent(here));
+        const StepOutcome out = FirmwareStep(sources).run(context);
+        QDir::setCurrent(before);
+        QCOMPARE(out.code, QString(error::volumeNotBack));
+        QVERIFY(
+            QDir(here).entryList(QDir::AllEntries | QDir::Hidden | QDir::NoDotAndDotDot).isEmpty());
     }
 };
 
