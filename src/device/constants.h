@@ -110,4 +110,12 @@ inline constexpr const char *kKeptFirmwareFolders[] = {
     "themes", "wps", "backdrops", "icons", "fonts", "eqs", "recpresets", "rocks.data",
 };
 
+// docs/specs/firmware-branding.md section 8.3 step 4: the files whose paths are
+// rewritten when the firmware folder moves. The settings files at the root of
+// the folder and in its themes folder, and the screen files of its wps folder.
+inline constexpr QLatin1String kSettingsFilePattern("*.cfg");
+inline constexpr QLatin1String kThemesFolder("themes");
+inline constexpr QLatin1String kScreensFolder("wps");
+inline constexpr const char *kScreenFilePatterns[] = {"*.wps", "*.sbs", "*.fms"};
+
 } // namespace tacetos::device
