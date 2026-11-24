@@ -254,12 +254,12 @@ Decision D53: on the Classic the firmware folder is `.tacetos`. The other models
 
 On an install or update of the Classic, when the base's folder exists:
 
-1. If the bootloader in the NOR does not know the new folder (it was installed before this version, per the install record, or the record is missing), the bootloader is updated first, with the normal DFU flow (`bootloader-classic.md`). It still finds the boot file in the old folder (section 8.2), so the iPod starts at every step.
+1. If the bootloader in the NOR does not know the new folder (the last install record of this iPod is an install that does not name the new folder in `firmwareFolder`, or there is no record), the bootloader is updated first, with the normal DFU flow (`bootloader-classic.md`). It still finds the boot file in the old folder (section 8.2), so the iPod starts at every step. In the wizard this is the input `bootloaderFirst` of the list of steps: "keep my music" then runs `classic-bootloader` before `firmware` (`install-wizard.md` section 2.3). A clean install formats the volume, so it has no old folder to move. When the last record is an uninstall, no bootloader is there to miss the new folder.
 2. If the new folder does not exist, the old one is renamed to the new name, in one rename on the volume. If both exist (an earlier move was cut), the old one's files that are missing in the new one are moved in, and the old one is removed once empty. A file present in both keeps the new one's copy.
-3. The firmware files are written into the new folder, as in a normal update.
-4. **Paths** are rewritten: in every `.cfg` file of the folder (settings at its root, themes in its `themes` folder) and in every screen file of its `wps` folder (`.wps`, `.sbs`, `.fms`), each path that starts with the old folder starts with the new one. The firmware only accepts a path inside its own folder, so a theme with the old path would not load. Other files are not touched.
+3. **Paths** are rewritten: in every `.cfg` file of the folder (settings at its root, themes in its `themes` folder) and in every screen file of its `wps` folder (`.wps`, `.sbs`, `.fms`), each path that starts with the old folder starts with the new one. The firmware only accepts a path inside its own folder, so a theme with the old path would not load. Other files are not touched. A file is written only when it changes, in one move.
+4. The firmware files are written into the new folder, as in a normal update. The kept files (`install-wizard.md` section 7.3) are read from the moved folder, so they come with their paths already rewritten.
 
-Each step can be cut and run again: the app's resume (install wizard spec) starts again from step 1, and each step does nothing when its work is already done.
+Steps 2 and 3 are the start of the step `firmware`, right after its clean-up of section 7.5 of the wizard spec. Each step can be cut and run again: the app's resume (install wizard spec) starts again from the step that was cut, and each step does nothing when its work is already done. The install record of the Classic keeps `firmwareFolder`, the folder its bootloader looks in first, for step 1 of the next install.
 
 ## 9. Who does what
 

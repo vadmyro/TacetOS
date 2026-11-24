@@ -86,7 +86,7 @@ The names below are the names in the code, the progress file and the tests. Each
 | `verify` | Reads everything again and checks the result | 11 |
 | `finish` | Says how to start each firmware, and asks to eject | 11 |
 
-The list of a flow is a pure function of four inputs: the family, the flow, the path, and whether the music volume is in Mac format (read in `diagnose` the first time, then kept in the progress file). The lists:
+The list of a flow is a pure function of five inputs: the family, the flow, the path, whether the music volume is in Mac format (read in `diagnose` the first time, then kept in the progress file), and `bootloaderFirst`, which only an iPod Classic with "keep my music" reads (`firmware-branding.md` section 8.3: the old firmware folder is on the volume and the bootloader may not know the new one; read when the flow starts, then kept in the progress file). The lists:
 
 **Install, older iPod, clean install:** `diagnose`, `backup-full`, `disk-mode`, `format` (or `convert` for a Mac iPod), `firmware`, `bootloader`, `verify`, `finish`.
 
@@ -96,6 +96,8 @@ The list of a flow is a pure function of four inputs: the family, the flow, the 
 
 **Install, iPod Classic, keep my music:** `diagnose`, `backup-keep`, `firmware`, `classic-bootloader`, `verify`, `finish`.
 
+**Install, iPod Classic, keep my music, `bootloaderFirst`:** `diagnose`, `backup-keep`, `classic-bootloader`, `firmware`, `verify`, `finish`.
+
 **Uninstall, older iPod:** `diagnose`, `backup-settings`, `disk-mode`, `remove-bootloader`, `remove-firmware`, `verify`, `finish`.
 
 **Uninstall, iPod Classic:** `diagnose`, `backup-settings`, `classic-remove`, `remove-firmware`, `verify`, `finish`.
@@ -103,7 +105,7 @@ The list of a flow is a pure function of four inputs: the family, the flow, the 
 Notes:
 
 - **Disk Mode is asked once, before the first write of sectors** of an older iPod (the format, the conversion, or the bootloader). The Classic never needs it: the helper ejects it before DFU mode (`helper.md` section 6.9).
-- **The firmware comes before the bootloader** on both families, so that the first start after the bootloader finds the firmware (`bootloader-classic.md` section 3, condition 4). On an older iPod, a bootloader with no firmware would show an error screen.
+- **The firmware comes before the bootloader** on both families, so that the first start after the bootloader finds the firmware (`bootloader-classic.md` section 3, condition 4). On an older iPod, a bootloader with no firmware would show an error screen. The one exception is `bootloaderFirst`: the firmware is already in the old folder, and the new bootloader finds it there.
 - **The firmware folder is removed after the bootloader** in an uninstall, so that the iPod never starts a bootloader that finds no firmware.
 - **There are no "first settings" in v0.2** (D40): the install ends on `verify` and `finish`.
 - **In v0.2, only the iPod Classic has a package** (D39). The flows of the older iPods are complete in the code and the tests, with packages made by the tests; a real install on an older iPod waits for the packages of every model.
@@ -139,6 +141,7 @@ It is written **before each step starts** (the step is `running`), **when a step
 | `flow` | text | `install` or `uninstall` |
 | `path` | text | `clean` or `keep` for an install, absent for an uninstall |
 | `macFormat` | boolean | Whether the music volume was in Mac format at the first `diagnose` |
+| `bootloaderFirst` | boolean | Section 2.3: the bootloader of a Classic goes in before the old firmware folder moves. Absent in a file written before the key existed: false |
 | `steps` | list of text | The list of section 2.3, as computed when the flow started |
 | `current` | number | The index of the step in `steps` that runs, waits, failed or is next |
 | `status` | text | `running`, `waiting`, `failed` or `next` (the step at `current` has not started) |
@@ -423,7 +426,7 @@ These names are names the firmware looks for. In the code they are in the one fi
 ### 7.4 The steps
 
 1. Check the package (section 7.1).
-2. Clean up what a cut left (section 7.5). Then check the space (section 7.2), only when the step unpacks: a run that goes straight to the check after writes nothing, and the folders a cut left would count against it.
+2. Clean up what a cut left (section 7.5). Then, for a model with its own firmware folder, move the default folder into it and rewrite the paths of its settings and screens (`firmware-branding.md` section 8.3, steps 2 and 3). Then check the space (section 7.2), only when the step unpacks: a run that goes straight to the check after writes nothing, and the folders a cut left would count against it.
 3. **Unpack** the zip into a folder next to the firmware folder, on the music volume: the name of the firmware folder followed by `NEW_SUFFIX`. The top folder of the zip is not kept in the path: its content goes straight into the new folder. Each file is written, flushed, closed, then read back and its CRC-32 compared with the zip.
 4. **Copy the kept files** from the old folder (or the backup) into the new folder, each one read back and compared with its sha256.
 5. **Swap**: rename the old firmware folder to its name followed by `OLD_SUFFIX` (when there is one), then rename the new folder to the name of the firmware folder. Then delete the old folder.
@@ -479,7 +482,7 @@ A failure after the first write follows the table of `bootloader-legacy.md` sect
 
 ### 9.1 Before DFU mode
 
-The conditions of `bootloader-classic.md` section 3 are checked again, at the start of the step: FAT32 (`format`), the version of Apple's firmware (`apple-firmware`), the battery (`battery`, answered in this flow), one iPod only (`single-ipod`), the build (`classic-build`), the udev rule (`udev-rule`). Condition 4, the firmware on the music volume, is the step `firmware` of this flow, done: the progress file says so, and the check after of section 7.4 step 6 runs again. Any failure stops the step before the iPod is ejected.
+The conditions of `bootloader-classic.md` section 3 are checked again, at the start of the step: FAT32 (`format`), the version of Apple's firmware (`apple-firmware`), the battery (`battery`, answered in this flow), one iPod only (`single-ipod`), the build (`classic-build`), the udev rule (`udev-rule`). Condition 4, the firmware on the music volume, is the step `firmware` of this flow, done: the progress file says so, and the check after of section 7.4 step 6 runs again. With `bootloaderFirst` (section 2.3) the step comes before `firmware`: the info file of the old firmware folder, for this model, is enough. Any failure stops the step before the iPod is ejected.
 
 ### 9.2 The run
 
@@ -491,7 +494,7 @@ The conditions of `bootloader-classic.md` section 3 are checked again, at the st
 
 ### 9.3 The install record of the Classic
 
-The helper writes no record for a DFU transfer: the app does. A file `install-record.json` in the backup of the flow: `format` 1, `operation` (`install` or `uninstall`), the date (UTC, ISO 8601), `serial`, `model`, the version of the package, the name and sha256 of the bootloader file, and `serialUnderTacetos`: the serial the iPod gave when it came back under TacetOS, when it is not `serial` (detection.md section 9.4). It is what `stateBefore` reads (section 9.2 step 2), and what the uninstall uses to say "TacetOS installed on <date>".
+The helper writes no record for a DFU transfer: the app does. A file `install-record.json` in the backup of the flow: `format` 1, `operation` (`install` or `uninstall`), the date (UTC, ISO 8601), `serial`, `model`, the version of the package, the name and sha256 of the bootloader file, `firmwareFolder` (the firmware folder of the model, which this bootloader looks in first, `firmware-branding.md` section 8.3), and `serialUnderTacetos`: the serial the iPod gave when it came back under TacetOS, when it is not `serial` (detection.md section 9.4). It is what `stateBefore` reads (section 9.2 step 2), and what the uninstall uses to say "TacetOS installed on <date>".
 
 The app names an iPod by the serial of its flow: its card, its progress file and Resume, its backups and records, its window. For a Classic under TacetOS, that is the `serial` of the last install record whose `serialUnderTacetos` is the serial seen now, so the iPod keeps the name it had under Apple's firmware; any other iPod keeps the serial seen. The helper and the mount always get the serial seen. During a flow, the iPod of the flow is the one of that serial, or else the one on its port, and the check `single-ipod` does not count it twice. This only works on the computer that installed: nothing more is written on the iPod.
 
