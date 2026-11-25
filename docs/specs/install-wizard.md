@@ -397,7 +397,7 @@ In v0.2 the user gives the package with a file dialog on the first screen (D39):
 2. `target` is the `bootloader_target` of the model of the iPod in `models/models.toml` (else `package-wrong-model`: "This package is for another iPod model").
 3. `files` has exactly two entries, one of kind `firmware` and one of kind `bootloader`, with names that have no folder part, and both files are next to the manifest (else `package-incomplete`: "This package is incomplete"). A manifest that cannot be read at all is incomplete too.
 4. The size and sha256 of each file are those of the manifest (else `package-damaged`: "This package is damaged. Download it again").
-5. The zip of the firmware can be read by the reader of section 7.6, and all its entries are inside one top folder whose name is the firmware folder (else `package-damaged`).
+5. The zip of the firmware can be read by the reader of section 7.6, and it has at least one entry, all inside one top folder (else `package-damaged`). That folder is the firmware folder of the model (else `package-other-folder`: "This package is for an older version of TacetOS. Choose the package of this version"; an old package keeps the firmware in another folder).
 
 These checks run in `diagnose` (check `package`), and again at the start of `firmware`, of `bootloader` and of `classic-bootloader`, because the files may have changed on the computer. The progress file keeps the path of the manifest and its sha256: a manifest that changed between two steps of the same flow is `package-changed` ("This package changed on this computer since the install started. Start again"), and the flow must start again.
 
@@ -606,7 +606,7 @@ The wizard has its own codes, and passes on the codes of the helper (`helper.md`
 | `restore-write-failed` | Section 5.7 | "Some files could not be written back to the iPod. Check that it has room, then try again", how many files were put back |
 | `erase-failed` | Section 6.4 | "Some files of the iPod could not be erased. Unplug it, plug it in again, then press Resume" |
 | `volume-not-back` | Sections 6.3, 7.4 and 10 | "The iPod was formatted, but its volume did not come back. Unplug it, plug it in again, press Resume" |
-| `package-format`, `package-wrong-model`, `package-incomplete`, `package-damaged`, `package-changed` | Section 7.1 | The message of the check, "Choose another package" |
+| `package-format`, `package-wrong-model`, `package-incomplete`, `package-damaged`, `package-other-folder`, `package-changed` | Section 7.1 | The message of the check, "Choose another package" |
 | `firmware-no-room` | Section 7.2 | "Not enough space on the iPod for TacetOS", the space needed |
 | `firmware-write-failed` | Section 7.4 | "The firmware could not be written to the iPod. Press Resume": section 7.5 cleans up |
 | `bootloader-restored` | Section 8.2 | "The backup was written back: the iPod is as it was before the bootloader. Press Resume to try again" |
