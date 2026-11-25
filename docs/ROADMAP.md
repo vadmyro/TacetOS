@@ -11,7 +11,7 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 | **v0.1** | Device detection and live state (plug, unplug, disk mode, DFU) | 7/7 | ✅ done |
 | Test devices | Disk image test devices + privileged helper | 6/6 | ✅ done |
 | **v0.2** | Install and reset wizard: backup, format, firmware, bootloader, guided DFU, uninstall | 12/12 | ✅ done |
-| **v0.3** | Our own firmware build: name, custom boot logo, update channel, health page | 6/12 | ⏳ |
+| **v0.3** | Our own firmware build: name, custom boot logo, update channel, health page | 8/12 | ⏳ |
 | **v0.4** | Music library and sync: tags, cover art, sorting rules, playlists, conversion, import folder | 0/12 | ⏳ |
 | **v0.5** | Settings editor, fonts, menu order, game library, listening recap | 0/8 | ⏳ |
 | **v0.6** | Themes: browser, editor with live preview, simple mode, default TacetOS theme | 0/11 | ⏳ |
@@ -77,9 +77,9 @@ Target: **v1.0 at the end of January 2027.** Dates may move; this page is update
 - [x] Lighter firmware: no test or developer plugins, games, emulators and visual demos kept
 - [x] TacetOS boot logo, replaceable from the app by your own image or a black screen, quiet bootloader
 - [x] Install progress on the iPod screen and in the app: logo and a progress bar
-- [ ] CI builds for every model, plus simulators
+- [x] CI builds for every model, plus simulators
 - [ ] Update channel through GitHub Releases (public from the beta), settings and themes kept
-- [ ] Weekly CI job to follow the base firmware
+- [x] Weekly CI job to follow the base firmware
 - [x] Language screen on the iPod at first start, English first, ready for more languages
 - [ ] Real-device test: boot, logo, update from the app
 - [ ] Selected fixes from newer firmware development, one tested change at a time

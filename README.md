@@ -50,7 +50,7 @@
 | **v0.1** | Device detection and live state | ✅ 7/7 |
 | Test devices | Disk image test devices, privileged helper | ✅ 6/6 |
 | **v0.2** | Install and reset wizard | ✅ 12/12 |
-| **v0.3** | TacetOS firmware | ⏳ 6/12 |
+| **v0.3** | TacetOS firmware | ⏳ 8/12 |
 | **v0.4** | Music library and sync | ⏳ 0/12 |
 | **v0.5** | Settings, fonts, menus | ⏳ 0/8 |
 | **v0.6** | Themes | ⏳ 0/11 |
@@ -65,9 +65,9 @@
 - [x] Lighter firmware: no test or developer plugins, games, emulators and visual demos kept
 - [x] TacetOS boot logo, replaceable from the app by your own image or a black screen, quiet bootloader
 - [x] Install progress on the iPod screen and in the app: logo and a progress bar
-- [ ] CI builds for every model, plus simulators
+- [x] CI builds for every model, plus simulators
 - [ ] Update channel through GitHub Releases (public from the beta), settings and themes kept
-- [ ] Weekly CI job to follow the base firmware
+- [x] Weekly CI job to follow the base firmware
 - [x] Language screen on the iPod at first start, English first, ready for more languages
 - [ ] Real-device test: boot, logo, update from the app
 - [ ] Selected fixes from newer firmware development, one tested change at a time
