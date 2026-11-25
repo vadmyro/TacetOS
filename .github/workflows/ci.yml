@@ -164,16 +164,75 @@ jobs:
           QT_FORCE_STDERR_LOGGING: 1
         run: ctest --preset ${{ matrix.preset }} --parallel 4
 
-  firmware:
-    # The firmware package of the iPod Classic (firmware/README.md, "Package"). The other
-    # models come later. The package is kept as an artifact of the run, never in a release.
-    name: firmware (ipod6g)
+  firmware-prepare:
+    # Runs once before the firmware builds: lists the models and makes sure the ARM
+    # toolchain is in the cache, so that the ten builds never make it themselves.
+    name: firmware (prepare)
     runs-on: ubuntu-24.04
+    outputs:
+      targets: ${{ steps.models.outputs.targets }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: List the models
+        # One build per model of models/models.toml, named by its bootloader target.
+        id: models
+        run: |
+          python3 - >> "$GITHUB_OUTPUT" <<'PY'
+          import json, tomllib
+          with open("models/models.toml", "rb") as f:
+              targets = [m["bootloader_target"] for m in tomllib.load(f)["model"]]
+          if not targets:
+              raise SystemExit("no model in models/models.toml")
+          print("targets=" + json.dumps(targets))
+          PY
+
+      - name: Check the branding rules
+        run: bash firmware/check-build.sh --self-test
+
+      - name: Look for the ARM toolchain
+        # The same key as the build job, which may also save it. Only looked up here.
+        id: toolchain-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ runner.temp }}/toolchain
+          key: toolchain-${{ hashFiles('firmware/base.lock') }}
+          lookup-only: true
+
+      - name: Install the toolchain build tools
+        if: steps.toolchain-cache.outputs.cache-hit != 'true'
+        run: sudo apt-get update && sudo apt-get install -y texinfo autoconf automake libtool libtool-bin flex bison python3-pil
+
+      - name: Build the ARM toolchain
+        if: steps.toolchain-cache.outputs.cache-hit != 'true'
+        run: |
+          bash firmware/apply.sh --dest "$RUNNER_TEMP/fw/src"
+          bash firmware/build.sh --toolchain-only --src "$RUNNER_TEMP/fw/src" --toolchain "$RUNNER_TEMP/toolchain"
+
+      - name: Save the ARM toolchain
+        if: steps.toolchain-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ runner.temp }}/toolchain
+          key: ${{ steps.toolchain-cache.outputs.cache-primary-key }}
+
+  firmware:
+    # The firmware package of each model (firmware/README.md, "Package"), kept as an
+    # artifact of the run, never in a release.
+    name: firmware (${{ matrix.target }})
+    needs: firmware-prepare
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.firmware-prepare.outputs.targets) }}
+    env:
+      TARGET: ${{ matrix.target }}
     steps:
       - uses: actions/checkout@v7
 
       - name: Restore the ARM toolchain
-        # The same cache as the build job, read only: that job saves it.
+        # Read only: the prepare job saves it.
         id: toolchain-cache
         uses: actions/cache/restore@v6
         with:
@@ -181,7 +240,7 @@ jobs:
           key: toolchain-${{ hashFiles('firmware/base.lock') }}
 
       - name: Install the toolchain build tools
-        # Only when the cache is empty: build.sh then builds the toolchain itself.
+        # Only when the cache is empty anyway: build.sh then builds the toolchain itself.
         if: steps.toolchain-cache.outputs.cache-hit != 'true'
         run: sudo apt-get update && sudo apt-get install -y texinfo autoconf automake libtool libtool-bin flex bison
 
@@ -193,18 +252,20 @@ jobs:
         run: bash firmware/apply.sh --dest "$RUNNER_TEMP/fw/src"
 
       - name: Build the firmware
-        run: bash firmware/build.sh --target ipod6g --type N --src "$RUNNER_TEMP/fw/src" --out "$RUNNER_TEMP/fw/out" --toolchain "$RUNNER_TEMP/toolchain"
+        run: bash firmware/build.sh --target "$TARGET" --type N --src "$RUNNER_TEMP/fw/src" --out "$RUNNER_TEMP/fw/out" --toolchain "$RUNNER_TEMP/toolchain"
 
       - name: Build the bootloader
-        run: bash firmware/build.sh --target ipod6g --type B --src "$RUNNER_TEMP/fw/src" --out "$RUNNER_TEMP/fw/out" --toolchain "$RUNNER_TEMP/toolchain"
+        run: bash firmware/build.sh --target "$TARGET" --type B --src "$RUNNER_TEMP/fw/src" --out "$RUNNER_TEMP/fw/out" --toolchain "$RUNNER_TEMP/toolchain"
 
       - name: Check the branding of the builds
+        # The listed plugins the base does not build for this model are shown first (branding 7.7).
         run: |
-          bash firmware/check-build.sh --self-test
-          bash firmware/check-build.sh --target ipod6g --types N,B --plugins --src "$RUNNER_TEMP/fw/src" --out "$RUNNER_TEMP/fw/out"
+          echo "Listed plugins the base does not build for $TARGET:"
+          cat "$RUNNER_TEMP/fw/out/$TARGET-plugins-absent.txt"
+          bash firmware/check-build.sh --target "$TARGET" --types N,B --plugins --src "$RUNNER_TEMP/fw/src" --out "$RUNNER_TEMP/fw/out"
 
       - name: Package
-        run: bash firmware/package.sh --target ipod6g --in "$RUNNER_TEMP/fw/out" --out "$RUNNER_TEMP/fw/package"
+        run: bash firmware/package.sh --target "$TARGET" --in "$RUNNER_TEMP/fw/out" --out "$RUNNER_TEMP/fw/package"
 
       - name: Check the package against its manifest
         working-directory: ${{ runner.temp }}/fw/package
@@ -215,7 +276,7 @@ jobs:
           if len(manifests) != 1:
               sys.exit(f"expected one manifest, found {len(manifests)}")
           data = json.load(open(manifests[0], encoding="utf-8"))
-          assert data["format"] == 1 and data["target"] == "ipod6g", data
+          assert data["format"] == 1 and data["target"] == os.environ["TARGET"], data
           listed = {f["name"] for f in data["files"]}
           present = set(os.listdir(".")) - set(manifests)
           if listed != present:
@@ -230,7 +291,7 @@ jobs:
       - name: Keep the package
         uses: actions/upload-artifact@v7
         with:
-          name: tacetos-ipod6g
+          name: tacetos-${{ matrix.target }}
           path: ${{ runner.temp }}/fw/package/
           retention-days: 30
           if-no-files-found: error
