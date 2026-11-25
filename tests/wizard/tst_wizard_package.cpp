@@ -133,9 +133,9 @@ private slots:
         const QString ownPackage = makePackage({}, own);
         QVERIFY(checkPackage(ownPackage, kTarget, QStringLiteral(".own")).code.isEmpty());
         QCOMPARE(checkPackage(ownPackage, kTarget, QString(device::kFirmwareFolder)).code,
-                 QString(error::packageDamaged));
+                 QString(error::packageOtherFolder));
         QCOMPARE(checkPackage(makePackage(), kTarget, QStringLiteral(".own")).code,
-                 QString(error::packageDamaged));
+                 QString(error::packageOtherFolder));
     }
 
     // Each check of section 7.1, in its order.
@@ -147,6 +147,7 @@ private slots:
         const QString model(error::packageWrongModel);
         const QString incomplete(error::packageIncomplete);
         const QString damaged(error::packageDamaged);
+        const QString otherFolder(error::packageOtherFolder);
         QTest::newRow("not JSON") << "not-json" << format;
         QTest::newRow("a list") << "list" << format;
         QTest::newRow("too large") << "large" << format;
@@ -165,6 +166,8 @@ private slots:
         QTest::newRow("not a zip") << "not-zip" << damaged;
         QTest::newRow("a file outside the folder") << "outside" << damaged;
         QTest::newRow("a refused zip") << "refused-zip" << damaged;
+        QTest::newRow("an empty zip") << "empty-zip" << damaged;
+        QTest::newRow("another top folder") << "other-folder" << otherFolder;
     }
 
     void refused()
@@ -176,6 +179,12 @@ private slots:
             zip = QByteArray(3000, 'x');
         else if (problem == QLatin1String("outside"))
             zip = storedZip({{fw("/a.cfg"), "a"}, {"README.txt", "r"}});
+        else if (problem == QLatin1String("other-folder"))
+            zip = storedZip({{".old_fw/", QByteArray()},
+                             {".old_fw/tacetos.ipod", QByteArray(4000, 'f')},
+                             {".old_fw/themes/a.cfg", QByteArray("theme")}});
+        else if (problem == QLatin1String("empty-zip"))
+            zip = storedZip({});
         else if (problem == QLatin1String("refused-zip"))
             zip = storedZip({{fw("/../a.cfg"), "a"}});
         QString manifest = makePackage(
