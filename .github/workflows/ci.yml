@@ -295,3 +295,40 @@ jobs:
           path: ${{ runner.temp }}/fw/package/
           retention-days: 30
           if-no-files-found: error
+
+  simulator:
+    # The simulator of each model (a test tool, never in a release), kept as an artifact of
+    # the run. It uses the host compiler: no ARM toolchain here.
+    name: simulator (${{ matrix.target }})
+    needs: firmware-prepare
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.firmware-prepare.outputs.targets) }}
+    env:
+      TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install SDL 2 and Pillow
+        # SDL 2: the simulator draws its screen and reads its keys with it. Pillow: brand.sh
+        # draws the TacetOS logo and icon into the base's images.
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev python3-pil
+
+      - name: Get the base sources, apply our patches and our branding
+        run: bash firmware/apply.sh --dest "$RUNNER_TEMP/fw/src"
+
+      - name: Build the simulator
+        run: bash firmware/build.sh --target "$TARGET" --type S --src "$RUNNER_TEMP/fw/src" --out "$RUNNER_TEMP/fw/out"
+
+      - name: Check the branding of the build
+        run: bash firmware/check-build.sh --target "$TARGET" --types S --src "$RUNNER_TEMP/fw/src" --out "$RUNNER_TEMP/fw/out"
+
+      - name: Keep the simulator
+        uses: actions/upload-artifact@v7
+        with:
+          name: tacetos-sim-${{ matrix.target }}
+          path: ${{ runner.temp }}/fw/out/
+          retention-days: 30
+          if-no-files-found: error
