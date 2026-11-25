@@ -12,8 +12,8 @@
 #    4 printable characters or more, matched without regard to case);
 # 3. a path in the zip contains a spelling of the name outside a BRAND_TOLERATED entry, or a
 #    plugin file name (without its extension) contains "rock";
-# 4. an image of BRAND_LOGO_IMAGES or BRAND_ICON_SETS in the sources still has the SHA-256 of
-#    the base's file (BRAND_ORIGINAL_SHA256);
+# 4. an image of BRAND_LOGO_IMAGES, BRAND_ICON_SETS or BRAND_BACKDROPS in the sources still has the
+#    SHA-256 of the base's file (BRAND_ORIGINAL_SHA256);
 # 5. with --plugins: the zip holds a plugin that is not in the plugin list, or lacks one that is;
 # 6. with a model whose firmware folder is set (firmware_folder in models/models.toml):
 #    a path of the zip is not inside that folder;
@@ -234,7 +234,8 @@ def run(name, change, expect):
         env = dict(os.environ,
                    BRAND_NAMES='basebo(x|ks)\n',
                    BRAND_TOLERATED='.base # folder\n*.ipod:Basebox_ok # only in the binaries\n',
-                   BRAND_ORIGINAL_SHA256=hashlib.sha256(old_logo).hexdigest() + ' bitmaps/logo.bmp\n',
+                   BRAND_ORIGINAL_SHA256=hashlib.sha256(old_logo).hexdigest() + ' bitmaps/logo.bmp\n' +
+                                         hashlib.sha256(old_logo).hexdigest() + ' backdrops/cabbiev2.128x128x16.bmp\n',
                    ARTIFACTS_N='package.zip firmware.ipod', ARTIFACTS_B='bootloader-*.ipod',
                    CHECK_TARGET='model', CHECK_TYPES=tree.get('types', 'N,B'), CHECK_OUT=out,
                    CHECK_SRC=src, CHECK_REFERENCES=reference, CHECK_PLUGINS=tree.get('plugins', 'false'),
@@ -283,6 +284,7 @@ run('rule 3: the name in a zip path fails', put('zip', '.base/basebox_sounds/a.w
 run('rule 3: "rock" in a plugin name fails', put('zip', '.base/rocks/games/rockgame.rock', b''), 'plugin name has "rock": .base/rocks/games/rockgame.rock')
 run('rule 3: "rock" in an overlay name fails', put('zip', '.base/rocks/games/spacerock.ovl', b''), 'plugin name has "rock"')
 run('rule 4: a logo left as the base file fails', put('src', 'bitmaps/logo.bmp', old_logo), 'bitmaps/logo.bmp: still the base file')
+run('rule 4: a backdrop left as the base file fails', put('src', 'backdrops/cabbiev2.128x128x16.bmp', old_logo), 'backdrops/cabbiev2.128x128x16.bmp: still the base file')
 def with_folder(*changes):
     def change(tree):
         tree['folder'] = '.base'
