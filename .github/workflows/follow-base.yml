@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 vadmyro
+
+name: Follow the base firmware
+
+on:
+  schedule:
+    # Every Monday at 05:00 UTC.
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  follow:
+    name: patches on the newest base
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Pillow
+        # brand.sh draws the TacetOS logo and icon into the base's images.
+        run: sudo apt-get update && sudo apt-get install -y python3-pil
+
+      - name: Try our backports, patches and branding on the newest commit
+        # The report is in the summary of the run (no issue is opened). The step fails when
+        # something conflicts, so that the run shows red and GitHub tells the owner.
+        run: |
+          status=0
+          bash firmware/follow.sh --dest "$RUNNER_TEMP/follow/src" --report "$RUNNER_TEMP/follow/report.md" || status=$?
+          if [ -f "$RUNNER_TEMP/follow/report.md" ]; then
+            cat "$RUNNER_TEMP/follow/report.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$status"
