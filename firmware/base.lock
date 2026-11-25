@@ -13,6 +13,9 @@ BASE_URL=https://github.com/Rockbox/rockbox.git
 BASE_TAG=v4.0-final
 BASE_COMMIT=e094c599fa60236527f9e272e0b8309d7696e399
 
+# The development branch the weekly follow job (follow.sh) tries our patches on.
+BASE_DEV_BRANCH=master
+
 # Newer commits brought in on top of the base, one full hash each, in order.
 # They are fetched from BASE_URL at build time and never copied here. The reason
 # for each one is written in backports.md.
@@ -140,6 +143,7 @@ rockbox_default.rwps # same, remote screen
 rockbox-fonts.config # list file read by the theme remover
 rockbox/tagbrowser # header of the database navigation file, compared by its parser
 GOTROCKBOX # Doom lookup key, means box of rockets
+*-rockboxui:rockbox_browse # function name in a debug message the simulator prints on its terminal, a test tool
 *.ipod:Rockbox # magic word of the older iPods, in the firmware file and compared by their bootloader
 "
 

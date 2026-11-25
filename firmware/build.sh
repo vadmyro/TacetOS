@@ -16,7 +16,7 @@
 #   --toolchain-only   only build the cross compiler if it is missing, then stop
 #
 # The cross compiler is built once into the toolchain prefix if it is missing.
-# The simulator uses the host compiler and needs the SDL development files.
+# The simulator uses the host compiler and needs the SDL development files. It is stripped.
 # A model with `firmware_folder` in models/models.toml gets its firmware and its
 # bootloader built for that folder.
 set -euo pipefail
@@ -131,8 +131,18 @@ if [ "$type" = "N" ]; then
     done
 fi
 
-echo "== artifacts"
 shopt -s nullglob
+if [ "$type" = "S" ]; then
+    # The simulator is a test tool kept as an artifact: strip it, so that the symbol names
+    # and the debug information of the base's code do not travel with it.
+    for pattern in $artifacts; do
+        for file in $pattern; do
+            strip --strip-all "$file"
+        done
+    done
+fi
+
+echo "== artifacts"
 found=0
 for pattern in $artifacts; do
     for file in $pattern; do

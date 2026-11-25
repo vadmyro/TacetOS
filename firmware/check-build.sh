@@ -238,10 +238,10 @@ def run(name, change, expect):
             os.utime(os.path.join(out, f), (old - 60, old - 60))
         env = dict(os.environ,
                    BRAND_NAMES='basebo(x|ks)\n',
-                   BRAND_TOLERATED='.base # folder\n*.ipod:Basebox_ok # only in the binaries\n',
+                   BRAND_TOLERATED='.base # folder\n*.ipod:Basebox_ok # only in the binaries\n*-simulator:basebox_fn # only in the simulator\n',
                    BRAND_ORIGINAL_SHA256=hashlib.sha256(old_logo).hexdigest() + ' bitmaps/logo.bmp\n' +
                                          hashlib.sha256(old_logo).hexdigest() + ' backdrops/cabbiev2.128x128x16.bmp\n',
-                   ARTIFACTS_N='package.zip firmware.ipod', ARTIFACTS_B='bootloader-*.ipod',
+                   ARTIFACTS_N='package.zip firmware.ipod', ARTIFACTS_B='bootloader-*.ipod', ARTIFACTS_S='simulator',
                    CHECK_TARGET='model', CHECK_TYPES=tree.get('types', 'N,B'), CHECK_OUT=out,
                    CHECK_SRC=src, CHECK_REFERENCES=reference, CHECK_PLUGINS=tree.get('plugins', 'false'),
                    CHECK_FOLDER=tree.get('folder', ''), CHECK_BOOTLOADER_LIMIT=tree.get('limit', ''),
@@ -285,6 +285,17 @@ run('rule 2: a piece allowed in one kind of file only fails elsewhere', put('zip
 run('rule 2: a tolerated piece inside a message fails', put('out', 'model-firmware.ipod', b'\0No Basebox_ok here\0'), "string shows the name: 'No Basebox_ok here'")
 run('rule 2: a tolerated piece after a symbol passes', put('out', 'model-firmware.ipod', b'\0#! Basebox_ok/2.0\0'), None)
 run('rule 2: a string with the name next to a tolerated piece fails', put('out', 'model-firmware.ipod', b'\0/.base/basebox.cfg\0'), "string shows the name: '/.base/basebox.cfg'")
+def with_simulator(data):
+    def change(tree):
+        tree['types'] = 'N,B,S'
+        tree['out']['model-simulator'] = data
+    return change
+
+run('rule 1: a simulator output passes', with_simulator(b'\0TacetOS simulator\0'), None)
+run('rule 1: a missing simulator output fails', setting('types', 'N,B,S'), 'output missing: model-simulator')
+run('rule 2: the name in the simulator fails', with_simulator(b'\0Basebox simulator\0'), "model-simulator: string shows the name: 'Basebox simulator'")
+run('rule 2: a function name allowed in the simulator passes', with_simulator(b'\0basebox_fn\0'), None)
+run('rule 2: a function name allowed in the simulator fails elsewhere', put('out', 'model-firmware.ipod', b'\0basebox_fn\0'), "model-firmware.ipod: string shows the name: 'basebox_fn'")
 run('rule 3: the name in a zip path fails', put('zip', '.base/basebox_sounds/a.wav', b''), 'path shows the name: .base/basebox_sounds/a.wav')
 run('rule 3: "rock" in a plugin name fails', put('zip', '.base/rocks/games/rockgame.rock', b''), 'plugin name has "rock": .base/rocks/games/rockgame.rock')
 run('rule 3: "rock" in an overlay name fails', put('zip', '.base/rocks/games/spacerock.ovl', b''), 'plugin name has "rock"')

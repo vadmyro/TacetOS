@@ -7,6 +7,7 @@ The TacetOS firmware is **not a diverging fork**: it is a short stack of patches
 | `base.lock` | The base sources and the exact commit we build on |
 | `patches/` | Our patches, applied in order |
 | `backports.md` | Newer features brought in one at a time |
+| `follow.sh` | Tries our backports, patches and branding on the newest commit of the base's development branch and writes a report of the conflicts |
 | `apply.sh` | Downloads the base at the locked commit, applies the patches, then runs `brand.sh` |
 | `brand.sh` | Puts the TacetOS name and logo in place of the base's, in the language files and the images, and writes the built-in boot logo (needs Python 3 with Pillow) |
 | `build.sh` | Builds the firmware, bootloader or simulator for one model, or only the ARM toolchain |
@@ -17,6 +18,10 @@ The TacetOS firmware is **not a diverging fork**: it is a short stack of patches
 | `package.sh` | Turns the firmware and bootloader of one model into a package the app installs |
 
 Firmware builds run in CI.
+
+## Following the base
+
+`follow.sh` answers one question: would our work still apply on the newest base? It fetches the newest commit of the development branch (`BASE_DEV_BRANCH` in `base.lock`), tries the backports, then each patch, then the branding, and writes `firmware/work/follow-report.md`: one line per backport and patch (applies, conflict, or already in the newest commit for a backport), the first lines of each failure, and the result of the branding check. A patch that conflicts is skipped and the next ones are still tried. It changes nothing in the repository and exits with 1 when something conflicts. A weekly CI job (`follow-base.yml`) runs it and shows the report in the summary of the run. The pinned base only moves by hand, after reading the report.
 
 ## Package
 
@@ -29,6 +34,8 @@ bash firmware/build.sh --target ipod6g --type B
 bash firmware/check-build.sh --target ipod6g --types N,B --plugins
 bash firmware/package.sh --target ipod6g
 ```
+
+CI also builds the simulator of every model (job `simulator`, one artifact per model named `tacetos-sim-<target>`, kept 30 days). It is a test tool, so it is not part of a package: a later step runs it to compare the theme previews with the real screens. Locally, `build.sh --target ipod6g --type S` needs the SDL 2 development files, and `check-build.sh --target ipod6g --types S` checks it.
 
 A package is three files side by side, all named after the model and the version:
 
