@@ -52,6 +52,8 @@ The version shown at boot and in the info screen is made by the base from the bu
 
 **Older iPods** (`bootloader/ipod.c`). The same three messages (title, loading, loaded). Same fix. A comparison with an 8-byte magic word that starts with the name is a technical check of the loaded image, never shown: it stays (section 5).
 
+**iPod Nano 2G** (`bootloader/ipodnano2g.c`). Three messages name the base (title, "Loading ...", "... loaded.") and the error prints the boot file name. Same fix as the Classic: the name becomes `TacetOS`, and the error says `Can't load the firmware file:` followed by the reason, with no file name.
+
 ### 3.4 Pictures
 
 | Picture | Where | Fix |
@@ -82,6 +84,7 @@ Strings in the plugins that are kept (section 7) and that show the name or a "ro
 - **Animations**: the two texts of the "bounce" demo.
 - **Files written**: the comment line of playlists made from a `.cue` file, the client line of the scrobbler log, the program line of saved Go games, the comment line of saved settings.
 - **Debug output**: one message of the MIDI player.
+- **Error messages with a path**: two plugins print the path of a file in the firmware folder when they fail (the picture album plugin when it cannot create its cache folder, the random folder plugin when it cannot open its list file). On the models whose folder is not the Classic's, that path shows the base's folder name. Both messages say what failed without a path.
 
 Each becomes `TacetOS`, or a neutral word where the name was a label ("system setting", "Go"). Strings inside the game and emulator engines that are internal identifiers (driver names, lookup keys) are never seen and go to the tolerated list (section 5) with their reason.
 
@@ -123,6 +126,7 @@ One patch per subject in `firmware/patches/`, numbered after the ones that exist
 | USB and accessory names | 3.2 |
 | Text of written files (settings comment line, playlists, scrobbler, Go games, MP3 header) | 3.2, 3.5 |
 | Bootloader messages, Classic and older iPods | 3.3 |
+| Bootloader messages, Nano 2G | 3.3 |
 | Debug menu boot path line | 3.2 |
 | File browser hides technical names | 4.4 |
 | Credits screen removed (the menu item; the plugin leaves through section 7) | 3.4 |
@@ -147,9 +151,10 @@ They stay because the boot chain, the firmware, or a game looks for them by name
 - the boot file name and the info file name;
 - the names of a fallback screen file and of a fonts list file that the firmware builds paths with;
 - the header line of the database navigation file (the parser compares it);
-- a lookup key of the Doom engine that happens to contain the name (it means "box of rockets").
+- a lookup key of the Doom engine that happens to contain the name (it means "box of rockets");
+- the magic word of the older iPods (section 3.3): their firmware file carries it, and their bootloader compares it with the loaded image. It is allowed in `.ipod` files only.
 
-One more is expected when the builds of the other models run: the magic word of the older iPods' bootloader (section 3.3). The game engines need none: the plugin texts patch gives their audio and video drivers the TacetOS name. The plugins folder and the plugin extensions need no entry: they hold "rock", not the name, and rule 3 of section 6 only looks at plugin names without their extension.
+The game engines need none: the plugin texts patch gives their audio and video drivers the TacetOS name. The plugins folder and the plugin extensions need no entry: they hold "rock", not the name, and rule 3 of section 6 only looks at plugin names without their extension.
 
 **Adding an entry** is allowed only for a string that is a file or folder name the boot chain or the firmware looks for, or an internal identifier that is never drawn, written to a file, or sent over USB or to an accessory. Each new entry gets its reason, and the task that adds it lists it in its final message.
 
@@ -161,7 +166,7 @@ One more is expected when the builds of the other models run: the magic word of 
 2. a string of the firmware file, the bootloader file, any plugin or codec in the zip, or any compiled language file, contains a spelling of `BRAND_NAMES` that is not inside a `BRAND_TOLERATED` entry, or that reads as text: two words or more with letters, which a technical name never is (strings of 4 printable characters or more, matched without regard to case);
 3. a path in the zip contains a spelling of the name outside a `BRAND_TOLERATED` entry, or a plugin file name (without its extension) contains "rock";
 4. an image of `BRAND_LOGO_IMAGES`, `BRAND_ICON_SETS` or `BRAND_BACKDROPS` in the sources used by the build still has the SHA-256 of the base's file (`BRAND_ORIGINAL_SHA256`);
-5. with `--plugins`: the zip holds a plugin that is not in the plugin list, or lacks one that is (section 7);
+5. with `--plugins`: the zip holds a plugin that is not in the plugin list, or lacks one that is and that the base builds for this model (section 7.7);
 6. with a model whose firmware folder is set (section 8): a path of the zip is not inside that folder.
 
 `--self-test` proves each rule on small files made on the fly, and needs no build. The CI `firmware` job runs the check after each build.
@@ -236,6 +241,10 @@ The exact files each one looks for, and where, are written by the game library s
 ### 7.6 The list file
 
 `firmware/plugins.list`, ours, one plugin per line: its path in the plugins folder of the base build without extension (`games/rockblox`), then, after a space, its TacetOS name if it is renamed. `#` starts a comment. Only plugins in the file reach the zip. A plugin's overlay files (`.ovl`) and data files go with it. `firmware/plugins.sh` applies the list to the zip right after the build makes it (`build.sh` runs it): plugins not in the list leave, renamed plugins take their new name, and the lines of `viewers.config` follow the renames or leave with their plugin. A plugin is a `.rock`, `.ovl` or `.lua` file; its data files are the files with its path and another extension or its path followed by `_`, and the folders named after it, with or without a leading dot (the library folder of `lua`, the puzzles of `picross`). Data files keep their names when the plugin is renamed, since the plugin looks for them by those names. `plugins.sh --check` changes nothing and lists what breaks rule 5, which is how `check-build.sh --plugins` applies it.
+
+### 7.7 Plugins a model does not have
+
+The list is made from the Classic, and the base does not build every plugin for every model: the small screens and the grey ones lack many games and viewers (more than 50 on the first iPods and the Minis), and a model without a recording input lacks the pitch detector. The list stays the same for every model (D59). When `plugins.sh` applies the list, it writes the listed plugins the zip lacks to `<model>-plugins-absent.txt`, beside the outputs of the build: since the list never removes a listed plugin, these are exactly the ones the base did not build. `check-build.sh --plugins` passes that file to `plugins.sh --check --absent`, so a plugin named there may be missing and any other missing plugin still fails. The CI prints the file of each model. A plugin that disappears from the Classic, the model the list is made from, is a fault to look at even when the check passes.
 
 ## 8. The firmware folder of the iPod Classic
 
