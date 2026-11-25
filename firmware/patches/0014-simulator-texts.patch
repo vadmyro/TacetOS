@@ -1,0 +1,55 @@
+Subject: Say TacetOS in the simulator texts
+
+The help window of the simulator, the line it prints at start when the SDL
+versions differ, the program name of its usage text and the station name of its
+simulated radio. The simulator is a test tool kept as a build artifact, so
+build.sh also strips it: its symbol names no longer show the old name.
+
+diff --git a/firmware/target/hosted/sdl/button-sdl.c b/firmware/target/hosted/sdl/button-sdl.c
+index 734d6e4e..97e4953e 100644
+--- a/firmware/target/hosted/sdl/button-sdl.c
++++ b/firmware/target/hosted/sdl/button-sdl.c
+@@ -426,7 +426,7 @@ static void show_sim_help(void)
+     }
+ 
+     const char *keyname = SDL_GetKeyName(SDLK_HELP);
+-    strlcat(helptext, "Rockbox simulator\n[Key] Description\n\n[", sizeof(helptext)-1);
++    strlcat(helptext, "TacetOS simulator\n[Key] Description\n\n[", sizeof(helptext)-1);
+     /* simulator keys */
+     #define HELPTXT(SDLK,litdesc)                       \
+         keyname = SDL_GetKeyName(SDLK);                 \
+diff --git a/firmware/target/hosted/sdl/system-sdl.c b/firmware/target/hosted/sdl/system-sdl.c
+index af067d8e..bbe00f5c 100644
+--- a/firmware/target/hosted/sdl/system-sdl.c
++++ b/firmware/target/hosted/sdl/system-sdl.c
+@@ -219,7 +219,7 @@ void system_init(void)
+ 
+         SDL_VERSION(&compiled);
+         SDL_GetVersion(&linked);
+-        printf("Rockbox compiled with SDL %u.%u.%u but running on SDL %u.%u.%u\n",
++        printf("TacetOS compiled with SDL %u.%u.%u but running on SDL %u.%u.%u\n",
+                compiled.major, compiled.minor, compiled.patch,
+                linked.major, linked.minor, linked.patch);
+     }
+@@ -354,7 +354,7 @@ void sys_handle_argv(int argc, char *argv[])
+             }
+             else
+             {
+-                printf("rockboxui\n");
++                printf("tacetosui\n");
+                 printf("Arguments:\n");
+ #ifdef DEBUG
+                 printf("  --debugaudio \t Write raw PCM data to audiodebug.raw\n");
+diff --git a/uisimulator/common/fmradio.c b/uisimulator/common/fmradio.c
+index a18db819..53399ed8 100644
+--- a/uisimulator/common/fmradio.c
++++ b/uisimulator/common/fmradio.c
+@@ -152,7 +152,7 @@ size_t tuner_get_rds_info(int setting, void *dst, size_t dstsize)
+         dstsize = sizeof (uint16_t);
+         break;
+     case RDS_INFO_PS:
+-        dstsize = strlcpy(dst, "Rockbox Radio", dstsize);
++        dstsize = strlcpy(dst, "TacetOS Radio", dstsize);
+         break;
+     case RDS_INFO_RT:
+         dstsize = strlcpy(dst, "http://www.rockbox.org", dstsize);
