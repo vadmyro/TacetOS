@@ -91,6 +91,9 @@ QString failureText(const QString &code, int takeFailures)
     if (code == error::packageDamaged || code == error::packageIncomplete ||
         code == error::packageFormat)
         return wtr("The package is damaged or incomplete. Download it again.");
+    if (code == error::packageOtherFolder)
+        return wtr("This package is for an older version of TacetOS. Choose the package of "
+                   "this version.");
     if (code == error::packageChanged)
         return wtr("The package changed after it was chosen. Choose it again.");
     if (code == error::firmwareNoRoom)
