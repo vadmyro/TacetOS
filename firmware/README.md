@@ -9,10 +9,10 @@ The TacetOS firmware is **not a diverging fork**: it is a short stack of patches
 | `backports.md` | Newer features brought in one at a time |
 | `apply.sh` | Downloads the base at the locked commit, applies the patches, then runs `brand.sh` |
 | `brand.sh` | Puts the TacetOS name and logo in place of the base's, in the language files and the images, and writes the built-in boot logo (needs Python 3 with Pillow) |
-| `build.sh` | Builds the firmware, bootloader or simulator for one model |
+| `build.sh` | Builds the firmware, bootloader or simulator for one model, or only the ARM toolchain |
 | `firmware-folder.sh` | Prints the firmware folder of a model from `models/models.toml`, empty for the default one |
 | `plugins.list` | The plugins the firmware keeps, and their TacetOS names |
-| `plugins.sh` | Applies `plugins.list` to the zip of a firmware build; `build.sh` runs it |
+| `plugins.sh` | Applies `plugins.list` to the zip of a firmware build and notes the listed plugins the base does not build for that model; `build.sh` runs it |
 | `check-build.sh` | Checks that the outputs of a build never show the base's name or logo; `--self-test` proves each rule |
 | `package.sh` | Turns the firmware and bootloader of one model into a package the app installs |
 
@@ -20,7 +20,7 @@ Firmware builds run in CI.
 
 ## Package
 
-A package is what the app installs on an iPod. CI makes one for the iPod Classic on every run (job `firmware`, artifact `tacetos-ipod6g`, kept 30 days); the other models come later. To make one locally:
+A package is what the app installs on an iPod. CI makes one for every model of `models/models.toml` on every run (job `firmware`, one artifact per model named `tacetos-<target>`, such as `tacetos-ipod6g`, kept 30 days). The ARM toolchain is built once, cached, and shared by the ten builds (`build.sh --toolchain-only`). To make one locally:
 
 ```sh
 bash firmware/apply.sh

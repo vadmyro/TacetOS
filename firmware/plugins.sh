@@ -6,12 +6,15 @@
 # plugins not in the list leave with their files, renamed plugins take their TacetOS name,
 # and the file associations of viewers.config follow. Running it twice changes nothing more.
 #
-# Usage: plugins.sh --zip FILE [--list FILE] [--check]
+# Usage: plugins.sh --zip FILE [--list FILE] [--check] [--absent FILE]
 #   --zip FILE    the zip made by the firmware build, changed in place
 #   --list FILE   the plugin list (default: firmware/plugins.list)
 #   --check       change nothing: list each plugin of the zip that is not in the list, each
 #                 listed plugin the zip lacks, and each association to a missing plugin;
 #                 exit 1 when there is one
+#   --absent FILE without --check: write there the listed plugins the zip lacks, one per
+#                 line, which are the ones the base does not build for this model. With
+#                 --check: a listed plugin named in that file may be missing
 #
 # A plugin is a .rock, .ovl or .lua file of the plugins folder; its key is its path there
 # without extension. The data files of a plugin go with it: files with its key and another
@@ -25,6 +28,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 zip=""
 list="$here/plugins.list"
 check=false
+absent=""
 
 die() { echo "plugins.sh: $*" >&2; exit 2; }
 
@@ -33,6 +37,7 @@ while [ $# -gt 0 ]; do
         --zip)     zip="${2:?--zip needs a file}"; shift 2 ;;
         --list)    list="${2:?--list needs a file}"; shift 2 ;;
         --check)   check=true; shift ;;
+        --absent)  absent="${2:?--absent needs a file}"; shift 2 ;;
         -h|--help) sed -n '2,/^set /p' "$0" | sed -e '$d' -e 's/^# \{0,1\}//'; exit 0 ;;
         *) die "unknown option: $1" ;;
     esac
@@ -40,11 +45,14 @@ done
 
 [ -f "$zip" ] || die "no zip: ${zip:-missing --zip}"
 [ -f "$list" ] || die "no plugin list: $list"
+if [ "$check" = true ] && [ -n "$absent" ] && [ ! -f "$absent" ]; then
+    die "no list of absent plugins: $absent"
+fi
 
-exec python3 - "$zip" "$list" "$check" <<'PY'
+exec python3 - "$zip" "$list" "$check" "$absent" <<'PY'
 import os, posixpath, shutil, sys, tempfile, zipfile
 
-zip_path, list_path, check = sys.argv[1], sys.argv[2], sys.argv[3] == 'true'
+zip_path, list_path, check, absent_path = sys.argv[1], sys.argv[2], sys.argv[3] == 'true', sys.argv[4]
 PLUGIN_EXTENSIONS = ('.rock', '.ovl', '.lua')
 
 renames = {}
@@ -117,16 +125,26 @@ with zipfile.ZipFile(zip_path) as zf:
         return ''.join(kept), named
 
     if check:
+        absent = set()
+        if absent_path:
+            with open(absent_path, encoding='utf-8') as f:
+                absent = {line.strip() for line in f if line.strip()}
         problems = ['%s: plugin not in the plugin list: %s' % (os.path.basename(zip_path), key)
                     for key in sorted(present - wanted)]
         problems += ['%s: listed plugin missing: %s' % (os.path.basename(zip_path), key)
-                     for key in sorted(wanted - present)]
+                     for key in sorted(wanted - present - absent)]
         if viewers is not None:
             problems += ['%s: viewers.config names a missing plugin: %s' % (os.path.basename(zip_path), p)
                          for p in sorted(set(associations(viewers)[1]) - present)]
         for p in problems:
             print(p)
         sys.exit(1 if problems else 0)
+
+    if absent_path:
+        # Before the zip changes, a renamed plugin still has its base name.
+        lacking = sorted(final(key) for key in renames if key not in present and final(key) not in present)
+        with open(absent_path, 'w', encoding='utf-8') as f:
+            f.writelines(key + '\n' for key in lacking)
 
     gone = present - wanted - set(renames)
     out_fd, out_path = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(zip_path)), suffix='.zip')

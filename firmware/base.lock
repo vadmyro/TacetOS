@@ -140,6 +140,7 @@ rockbox_default.rwps # same, remote screen
 rockbox-fonts.config # list file read by the theme remover
 rockbox/tagbrowser # header of the database navigation file, compared by its parser
 GOTROCKBOX # Doom lookup key, means box of rockets
+*.ipod:Rockbox # magic word of the older iPods, in the firmware file and compared by their bootloader
 "
 
 # SHA-256 of the base images above, before branding: brand.sh --check fails while one is unchanged.

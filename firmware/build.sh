@@ -6,12 +6,14 @@
 # sources prepared by apply.sh.
 #
 # Usage: build.sh --target MODEL --type N|B|S [options]
+#        build.sh --toolchain-only [--src DIR] [--toolchain DIR] [--jobs N]
 #   --target MODEL     one of the supported models, see MODELS below
 #   --type N|B|S       N firmware, B bootloader, S simulator
 #   --src DIR          prepared sources (default: firmware/work/src)
 #   --out DIR          where the results are copied (default: firmware/work/out)
 #   --toolchain DIR    cross compiler install prefix (default: ~/.cache/tacetos/toolchain)
 #   --jobs N           parallel jobs (default: number of CPUs)
+#   --toolchain-only   only build the cross compiler if it is missing, then stop
 #
 # The cross compiler is built once into the toolchain prefix if it is missing.
 # The simulator uses the host compiler and needs the SDL development files.
@@ -32,6 +34,7 @@ src="$here/work/src"
 out="$here/work/out"
 toolchain="${XDG_CACHE_HOME:-$HOME/.cache}/tacetos/toolchain"
 jobs="$(nproc 2>/dev/null || echo 2)"
+toolchain_only=0
 
 die() { echo "build.sh: $*" >&2; exit 2; }
 
@@ -43,11 +46,17 @@ while [ $# -gt 0 ]; do
         --out)       out="${2:?--out needs a directory}"; shift 2 ;;
         --toolchain) toolchain="${2:?--toolchain needs a directory}"; shift 2 ;;
         --jobs)      jobs="${2:?--jobs needs a number}"; shift 2 ;;
+        --toolchain-only) toolchain_only=1; shift ;;
         -h|--help)   sed -n '2,/^set /p' "$0" | sed -e '$d' -e 's/^# \{0,1\}//'; exit 0 ;;
         *) die "unknown option: $1" ;;
     esac
 done
 
+if [ "$toolchain_only" = 1 ]; then
+    # The toolchain is the same for every model: the CI builds it once, before the models.
+    target=ipod6g
+    type=B
+fi
 [ -n "$target" ] || die "missing --target (one of: $MODELS)"
 [ -n "$type" ] || die "missing --type (N, B or S)"
 case " $MODELS " in *" $target "*) ;; *) die "unknown model: $target (one of: $MODELS)" ;; esac
@@ -85,6 +94,10 @@ if [ "$type" != "S" ]; then
     fi
     export PATH="$toolchain/$TOOLCHAIN_BIN:$PATH"
 fi
+if [ "$toolchain_only" = 1 ]; then
+    echo "== toolchain: ready in $toolchain"
+    exit 0
+fi
 
 # The base's make passes every source path in a single shell command, which
 # overflows the system limit when the sources sit under a long path: the build
@@ -107,9 +120,10 @@ echo "== make"
 make -j"$jobs"
 if [ "$type" = "N" ]; then
     make zip
-    # Only the plugins of plugins.list reach the zip, renamed as it says.
+    # Only the plugins of plugins.list reach the zip, renamed as it says. The listed ones
+    # the base does not build for this model are noted for check-build.sh.
     for zip in *.zip; do
-        bash "$here/plugins.sh" --zip "$zip"
+        bash "$here/plugins.sh" --zip "$zip" --absent "$out/$target-plugins-absent.txt"
     done
     # The language list of the first start screen goes into the firmware folder.
     for zip in *.zip; do

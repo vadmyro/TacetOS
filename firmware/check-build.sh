@@ -14,7 +14,9 @@
 #    plugin file name (without its extension) contains "rock";
 # 4. an image of BRAND_LOGO_IMAGES, BRAND_ICON_SETS or BRAND_BACKDROPS in the sources still has the
 #    SHA-256 of the base's file (BRAND_ORIGINAL_SHA256);
-# 5. with --plugins: the zip holds a plugin that is not in the plugin list, or lacks one that is;
+# 5. with --plugins: the zip holds a plugin that is not in the plugin list, or lacks one that is
+#    and that the base builds for this model (the build notes the others in
+#    <model>-plugins-absent.txt beside its outputs);
 # 6. with a model whose firmware folder is set (firmware_folder in models/models.toml):
 #    a path of the zip is not inside that folder;
 # 7. with a model whose bootloader has a size limit (boot-screen.md, section 11): the
@@ -145,8 +147,11 @@ if env.get('CHECK_PLUGINS') == 'true':
     import subprocess
     for f in outputs:
         if f.endswith('.zip'):
-            result = subprocess.run(['bash', env['CHECK_PLUGINS_SH'], '--zip', f, '--list', env['CHECK_PLUGIN_LIST'], '--check'],
-                                    capture_output=True, text=True)
+            command = ['bash', env['CHECK_PLUGINS_SH'], '--zip', f, '--list', env['CHECK_PLUGIN_LIST'], '--check']
+            absent = os.path.join(out_dir, target + '-plugins-absent.txt')
+            if os.path.isfile(absent):
+                command += ['--absent', absent]
+            result = subprocess.run(command, capture_output=True, text=True)
             problems += [l for l in (result.stdout + result.stderr).splitlines() if l]
             if result.returncode not in (0, 1):
                 problems.append('%s: plugins.sh could not read it' % os.path.basename(f))
@@ -302,6 +307,8 @@ def with_plugins(*changes):
 run('rule 5: plugins as listed pass', with_plugins(), None)
 run('rule 5: a plugin not in the list fails', with_plugins(put('zip', '.base/rocks/games/extra.rock', b'')), 'plugin not in the plugin list: games/extra')
 run('rule 5: a listed plugin missing fails', with_plugins(setting('list', b'games/blocks\ngames/maze\n')), 'listed plugin missing: games/maze')
+run('rule 5: a listed plugin the base does not build for the model passes', with_plugins(setting('list', b'games/blocks\ngames/maze\n'), put('out', 'model-plugins-absent.txt', b'games/maze\n')), None)
+run('rule 5: a missing plugin not noted as absent still fails', with_plugins(setting('list', b'games/blocks\ngames/maze\n'), put('out', 'model-plugins-absent.txt', b'games/other\n')), 'listed plugin missing: games/maze')
 run('rule 5: a plugin left with its old name fails', with_plugins(setting('list', b'games/oldblocks blocks\n'), put('zip', '.base/rocks/games/oldblocks.rock', b''), drop('zip', '.base/rocks/games/blocks.rock')), 'plugin not in the plugin list: games/oldblocks')
 run('rule 5: an association to a missing plugin fails', with_plugins(put('zip', '.base/viewers.config', b'txt,viewers/gone,1\n')), 'viewers.config names a missing plugin: viewers/gone')
 run('rule 6: a zip in the folder of the model passes', setting('folder', '.base'), None)
