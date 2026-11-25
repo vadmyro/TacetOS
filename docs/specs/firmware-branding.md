@@ -58,6 +58,7 @@ The version shown at boot and in the info screen is made by the base from the bu
 |---|---|---|
 | The logo, one image per screen kind (key `BRAND_LOGO_IMAGES`) | Boot screen of the firmware, logo of some bootloaders | Our logo, same size and depth (section 4.2) |
 | The mark, the 32nd icon of each main icon set (the icon named after the base in `apps/gui/icon.h`), key `BRAND_ICON_SETS` | Next to the main menu title, and in plugins that use it | Our mark at the icon size (section 4.2) |
+| The logo in the backdrops of the default theme: bottom right of the menu backdrops (`backdrops/`), bottom left of the Now Playing and radio backdrops (`wps/` folder of the theme), key `BRAND_BACKDROPS` | Behind the menus and the Now Playing screen | The logo is painted over with the backdrop's gradient (section 4.2) |
 | The logo in the credits plugin | Credits screen | The credits screen is removed (section 4.3) |
 | The logo in the "logo" demo plugin | That plugin | The plugin is removed (section 7) |
 
@@ -107,8 +108,9 @@ The images are made at build time from `docs/assets/logo/`, by `firmware/brand.s
 
 - **Logo**: each file of `BRAND_LOGO_IMAGES` in the sources is overwritten by our banner, scaled to fit the size of that file and centred, at the same width, height and bit depth, in the same BMP format. Colour screens use the banner made for a dark background, greyscale screens the one made for a light background, reduced to 4 grey levels. The base's makefiles then build our logo with no change.
 - **Mark in the icon sets**: in each main icon set of the base that the build ships or compiles in (key `BRAND_ICON_SETS`), the 32nd icon is replaced by our mark (`docs/assets/logo/mark.svg`, through `icon-512.png`) at the icon size of that set, with the set's colours and depth. The other icons are left as they are.
-- Running it twice gives the same files. `brand.sh --check DIR` also fails if an image listed in `BRAND_LOGO_IMAGES` or `BRAND_ICON_SETS` under `DIR` is byte for byte the base's file (the SHA-256 of each original is in `base.lock`, key `BRAND_ORIGINAL_SHA256`).
-- The icon sets are changed in place: only the pixels of the mark's slot are written, in the file's own pixel format, so the header, the palette and the other icons stay as they were. Sets without transparency get the icon laid on white, then the nearest colour of the set.
+- **Backdrops**: each entry of `BRAND_BACKDROPS` is a file and the box of the logo in it, measured once on the base's files. Each row of the box takes the pixel of that row outside the box (the median of each channel, or the most common palette entry), so the gradient goes on where the logo was and the rest of the image (bars, icons, titles) stays as it was. Only the backdrops that show the logo are listed: some sizes have none.
+- Running it twice gives the same files. `brand.sh --check DIR` also fails if an image listed in `BRAND_LOGO_IMAGES`, `BRAND_ICON_SETS` or `BRAND_BACKDROPS` under `DIR` is byte for byte the base's file (the SHA-256 of each original is in `base.lock`, key `BRAND_ORIGINAL_SHA256`).
+- The icon sets and the backdrops are changed in place: only the pixels of the mark's slot or of the logo's box are written, in the file's own pixel format, so the header, the palette and the other icons stay as they were. Sets without transparency get the icon laid on white, then the nearest colour of the set.
 
 The boot screen spec (`boot-screen.md`, P6.2a) decides how the boot logo is drawn and replaced by the user. This section only makes sure that every logo of the base is ours.
 
@@ -158,7 +160,7 @@ One more is expected when the builds of the other models run: the magic word of 
 1. an output of a requested type is missing, or older than `base.lock` or than any file of `patches/`;
 2. a string of the firmware file, the bootloader file, any plugin or codec in the zip, or any compiled language file, contains a spelling of `BRAND_NAMES` that is not inside a `BRAND_TOLERATED` entry, or that reads as text: two words or more with letters, which a technical name never is (strings of 4 printable characters or more, matched without regard to case);
 3. a path in the zip contains a spelling of the name outside a `BRAND_TOLERATED` entry, or a plugin file name (without its extension) contains "rock";
-4. an image of `BRAND_LOGO_IMAGES` or `BRAND_ICON_SETS` in the sources used by the build still has the SHA-256 of the base's file (`BRAND_ORIGINAL_SHA256`);
+4. an image of `BRAND_LOGO_IMAGES`, `BRAND_ICON_SETS` or `BRAND_BACKDROPS` in the sources used by the build still has the SHA-256 of the base's file (`BRAND_ORIGINAL_SHA256`);
 5. with `--plugins`: the zip holds a plugin that is not in the plugin list, or lacks one that is (section 7);
 6. with a model whose firmware folder is set (section 8): a path of the zip is not inside that folder.
 
