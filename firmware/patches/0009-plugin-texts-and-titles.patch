@@ -4,7 +4,8 @@ Help and menu texts of the kept plugins, and the titles of the six plugins
 that get a new name: Gameboy, Paint, Blocks and Meteors (the other two have no
 title to change). The puzzles platform file gets a neutral name, since its
 name shows in assertion messages, and the game engines name their audio and
-video drivers TacetOS.
+video drivers TacetOS. Two messages that showed the firmware folder (the
+picture album and random folder plugins) no longer give a path.
 diff --git a/apps/plugins/bounce.c b/apps/plugins/bounce.c
 index a42a0af6..8a4c5fca 100644
 --- a/apps/plugins/bounce.c
@@ -79,6 +80,19 @@ index f199d544..52e8b52a 100644
  
          rb->splash(HZ*2, "No Instruments");
          return -1;
+diff --git a/apps/plugins/pictureflow/pictureflow.c b/apps/plugins/pictureflow/pictureflow.c
+index 859b0ec7..3128018e 100644
+--- a/apps/plugins/pictureflow/pictureflow.c
++++ b/apps/plugins/pictureflow/pictureflow.c
+@@ -4516,7 +4516,7 @@ static bool init(void)
+     {
+         if (rb->mkdir( CACHE_PREFIX ) < 0)
+         {
+-            error_wait("Could not create directory " CACHE_PREFIX);
++            error_wait("Could not create the cache directory");
+             return false;
+         }
+     }
 diff --git a/apps/plugins/puzzles/SOURCES b/apps/plugins/puzzles/SOURCES
 index 9ff0130f..e80dc23f 100644
 --- a/apps/plugins/puzzles/SOURCES
@@ -104,6 +118,19 @@ diff --git a/apps/plugins/puzzles/rockbox.c b/apps/plugins/puzzles/platform.c
 similarity index 100%
 rename from apps/plugins/puzzles/rockbox.c
 rename to apps/plugins/puzzles/platform.c
+diff --git a/apps/plugins/random_folder_advance_config.c b/apps/plugins/random_folder_advance_config.c
+index 4c49d1c5..510113dc 100644
+--- a/apps/plugins/random_folder_advance_config.c
++++ b/apps/plugins/random_folder_advance_config.c
+@@ -272,7 +272,7 @@ static int save_list(void)
+     int myfd = rb->creat(RFA_FILE, 0666);
+     if (myfd < 0)
+     {
+-        rb->splash(HZ, "Could Not Open " RFA_FILE);
++        rb->splash(HZ, "Could Not Open the folder list file");
+         return -1;
+     }
+     int dirs_count = 0, i = 0;
 diff --git a/apps/plugins/robotfindskitten.c b/apps/plugins/robotfindskitten.c
 index 31c419e3..21bbac85 100644
 --- a/apps/plugins/robotfindskitten.c
