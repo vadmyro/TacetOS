@@ -54,6 +54,8 @@ The version shown at boot and in the info screen is made by the base from the bu
 
 **iPod Nano 2G** (`bootloader/ipodnano2g.c`). Three messages name the base (title, "Loading ...", "... loaded.") and the error prints the boot file name. Same fix as the Classic: the name becomes `TacetOS`, and the error says `Can't load the firmware file:` followed by the reason, with no file name.
 
+**Simulator** (test tool, a build artifact of the CI, never part of a package). Its help window, one line it prints at start and the station name of its simulated radio name the base: the name becomes `TacetOS`. The program name in its usage text becomes `tacetosui`. `build.sh` strips the simulator, so that the symbol names and debug information of the base's code do not travel with it. One function name stays in a debug message printed on its terminal (section 5).
+
 ### 3.4 Pictures
 
 | Picture | Where | Fix |
@@ -127,6 +129,7 @@ One patch per subject in `firmware/patches/`, numbered after the ones that exist
 | Text of written files (settings comment line, playlists, scrobbler, Go games, MP3 header) | 3.2, 3.5 |
 | Bootloader messages, Classic and older iPods | 3.3 |
 | Bootloader messages, Nano 2G | 3.3 |
+| Simulator texts | 3.3 |
 | Debug menu boot path line | 3.2 |
 | File browser hides technical names | 4.4 |
 | Credits screen removed (the menu item; the plugin leaves through section 7) | 3.4 |
@@ -152,6 +155,7 @@ They stay because the boot chain, the firmware, or a game looks for them by name
 - the names of a fallback screen file and of a fonts list file that the firmware builds paths with;
 - the header line of the database navigation file (the parser compares it);
 - a lookup key of the Doom engine that happens to contain the name (it means "box of rockets");
+- a function name that the simulator prints in a debug message on its terminal (a test tool, never drawn, written or sent). It is allowed in the simulator file only;
 - the magic word of the older iPods (section 3.3): their firmware file carries it, and their bootloader compares it with the loaded image. It is allowed in `.ipod` files only.
 
 The game engines need none: the plugin texts patch gives their audio and video drivers the TacetOS name. The plugins folder and the plugin extensions need no entry: they hold "rock", not the name, and rule 3 of section 6 only looks at plugin names without their extension.
@@ -163,7 +167,7 @@ The game engines need none: the plugin texts patch gives their audio and video d
 `firmware/check-build.sh --target MODEL --types N,B,S` reads the outputs in `firmware/work/out` and fails, listing each problem, when:
 
 1. an output of a requested type is missing, or older than `base.lock` or than any file of `patches/`;
-2. a string of the firmware file, the bootloader file, any plugin or codec in the zip, or any compiled language file, contains a spelling of `BRAND_NAMES` that is not inside a `BRAND_TOLERATED` entry, or that reads as text: two words or more with letters, which a technical name never is (strings of 4 printable characters or more, matched without regard to case);
+2. a string of the firmware file, the bootloader file, the simulator file, any plugin or codec in the zip, or any compiled language file, contains a spelling of `BRAND_NAMES` that is not inside a `BRAND_TOLERATED` entry, or that reads as text: two words or more with letters, which a technical name never is (strings of 4 printable characters or more, matched without regard to case);
 3. a path in the zip contains a spelling of the name outside a `BRAND_TOLERATED` entry, or a plugin file name (without its extension) contains "rock";
 4. an image of `BRAND_LOGO_IMAGES`, `BRAND_ICON_SETS` or `BRAND_BACKDROPS` in the sources used by the build still has the SHA-256 of the base's file (`BRAND_ORIGINAL_SHA256`);
 5. with `--plugins`: the zip holds a plugin that is not in the plugin list, or lacks one that is and that the base builds for this model (section 7.7);
