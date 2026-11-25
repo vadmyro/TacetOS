@@ -38,10 +38,11 @@ python3 -c 'import PIL' 2>/dev/null || { echo "brand.sh: needs Python 3 with Pil
 
 # shellcheck source=base.lock
 source "$here/base.lock"
-export BRAND_NAMES BRAND_NEW BRAND_LOGO_IMAGES BRAND_ICON_SETS BRAND_ORIGINAL_SHA256
+export BRAND_NAMES BRAND_NEW BRAND_LOGO_IMAGES BRAND_ICON_SETS BRAND_BACKDROPS BRAND_ORIGINAL_SHA256
 
 exec python3 - "$mode" "$src" "$here/../docs/assets/logo" <<'PY'
 import hashlib, os, re, struct, sys
+from collections import Counter
 from PIL import Image
 
 mode, src, logo_dir = sys.argv[1:4]
@@ -53,6 +54,7 @@ names = re.compile('|'.join('(?:%s)' % n for n in lines('BRAND_NAMES')), re.IGNO
 new_name = os.environ['BRAND_NEW']
 logos = lines('BRAND_LOGO_IMAGES')
 icon_sets = lines('BRAND_ICON_SETS')
+backdrops = {l.split()[0]: tuple(int(v) for v in l.split()[1].split(',')) for l in lines('BRAND_BACKDROPS')}
 originals = {path: digest for digest, path in (l.split(None, 1) for l in lines('BRAND_ORIGINAL_SHA256'))}
 # The base's mark is the 32nd icon of a set; a set holds 32 icons stacked from the top.
 MARK_SLOT, SET_ICONS = 31, 32
@@ -106,6 +108,47 @@ def brand_logo(rel):
     else:
         # Four grey levels, as the screen shows them.
         canvas.convert('L').point(lambda v: round(v / 85) * 85).save(os.path.join(src, rel), 'BMP')
+
+# Backdrops: each entry is a file and the box of the base's logo in it (left, top,
+# right, bottom; right and bottom excluded). Each row of the box takes the most
+# pixel of that row outside the box (the median of each channel, or the most common
+# palette entry), so the gradient goes on where the logo was. The pixels are written
+# in the file's own format, like the icon sets.
+def brand_backdrop(rel, box):
+    path = os.path.join(src, rel)
+    data = bytearray(open(path, 'rb').read())
+    offset, = struct.unpack_from('<I', data, 10)
+    width, height, _, bpp, compression = struct.unpack_from('<iiHHI', data, 18)
+    if compression not in (0, 3) or bpp not in (1, 4, 8, 24, 32):
+        sys.exit('brand.sh: %s: %d-bit BMP not handled' % (rel, bpp))
+    rows = abs(height)
+    left, top, right, bottom = box
+    if not (0 <= left < right <= width and 0 <= top < bottom <= rows):
+        sys.exit('brand.sh: %s: box %s outside the image' % (rel, box))
+    stride = (width * bpp + 31) // 32 * 4
+    per_byte = 8 // bpp if bpp < 8 else 0
+    def get(base, x):
+        if per_byte:
+            shift = 8 - bpp * (x % per_byte + 1)
+            return data[base + x // per_byte] >> shift & ((1 << bpp) - 1)
+        size = bpp // 8
+        return bytes(data[base + size * x: base + size * x + size])
+    def put(base, x, value):
+        if per_byte:
+            pos, shift, mask = base + x // per_byte, 8 - bpp * (x % per_byte + 1), (1 << bpp) - 1
+            data[pos] = data[pos] & ~(mask << shift) & 0xff | value << shift
+        else:
+            data[base + len(value) * x: base + len(value) * (x + 1)] = value
+    for y in range(top, bottom):
+        base = offset + stride * (rows - 1 - y if height > 0 else y)
+        outside = [get(base, x) for x in range(width) if not left <= x < right]
+        if per_byte or bpp == 8:
+            fill = Counter(outside).most_common(1)[0][0]
+        else:
+            fill = bytes(sorted(channel)[len(channel) // 2] for channel in zip(*outside))
+        for x in range(left, right):
+            put(base, x, fill)
+    open(path, 'wb').write(bytes(data))
 
 # Icon sets: only the pixels of the mark's slot change, in the file's own format,
 # so the header, the palette and every other icon stay as they were.
@@ -218,14 +261,19 @@ def sha256(path):
 for path in lang_files():
     brand_lang(path, mode == 'apply')
 
-for rel in logos + icon_sets:
+for rel in logos + icon_sets + list(backdrops):
     path = os.path.join(src, rel)
     if not os.path.isfile(path):
         problems.append('%s: missing' % rel)
     elif rel not in originals:
         problems.append('%s: no original sha256 in base.lock' % rel)
     elif mode == 'apply':
-        (brand_logo if rel in logos else brand_icon_set)(rel)
+        if rel in logos:
+            brand_logo(rel)
+        elif rel in backdrops:
+            brand_backdrop(rel, backdrops[rel])
+        else:
+            brand_icon_set(rel)
     elif sha256(path) == originals[rel]:
         problems.append("%s: still the base's image" % rel)
 

@@ -92,6 +92,43 @@ icons/tango_icons.12x12.bmp
 icons/tango_small_mono.bmp
 apps/bitmaps/mono/default_icons.bmp
 "
+# Backdrops of the default theme with the base's logo, and the box of the logo in each
+# (left,top,right,bottom in pixels, right and bottom excluded), filled with the gradient
+# of each row (branding section 4.2). Sizes without the logo are not listed.
+BRAND_BACKDROPS="
+backdrops/cabbiev2.128x128x16.bmp 103,59,127,128
+backdrops/cabbiev2.128x128x2.bmp 106,61,128,126
+backdrops/cabbiev2.128x160x16.bmp 100,66,128,147
+backdrops/cabbiev2.128x96x16.bmp 108,44,128,96
+backdrops/cabbiev2.128x96x2.bmp 111,45,128,95
+backdrops/cabbiev2.132x80x16.bmp 110,0,132,80
+backdrops/cabbiev2.138x110x2.bmp 119,52,138,109
+backdrops/cabbiev2.160x128x16.bmp 134,60,157,124
+backdrops/cabbiev2.160x128x2.bmp 138,61,160,126
+backdrops/cabbiev2.176x132x16.bmp 148,52,176,132
+backdrops/cabbiev2.176x220x16.bmp 141,135,168,212
+backdrops/cabbiev2.220x176x16.bmp 186,89,213,166
+backdrops/cabbiev2.240x320x16.bmp 206,226,237,319
+backdrops/cabbiev2.240x400x16.bmp 207,310,234,387
+backdrops/cabbiev2.320x240x16.bmp 285,151,314,235
+backdrops/cabbiev2.360x400x16.bmp 309,283,355,399
+backdrops/cabbiev2.400x240x16.bmp 365,151,394,235
+backdrops/cabbiev2.96x96x16.bmp 76,44,96,96
+wps/cabbiev2/fmsbackdrop-160x128x2.bmp 1,111,47,127
+wps/cabbiev2/wpsbackdrop-132x80x16.bmp 0,66,36,79
+wps/cabbiev2/wpsbackdrop-160x128x1.bmp 1,111,47,127
+wps/cabbiev2/wpsbackdrop-160x128x16.bmp 1,110,47,127
+wps/cabbiev2/wpsbackdrop-160x128x2.bmp 1,111,47,127
+wps/cabbiev2/wpsbackdrop-176x132x16.bmp 3,108,63,129
+wps/cabbiev2/wpsbackdrop-176x220x16.bmp 1,202,52,220
+wps/cabbiev2/wpsbackdrop-220x176x16.bmp 6,142,84,168
+wps/cabbiev2/wpsbackdrop-240x400x16.bmp 6,336,70,359
+wps/cabbiev2/wpsbackdrop-320x240x16.bmp 5,204,88,233
+wps/cabbiev2/wpsbackdrop-320x480x16.bmp 3,434,90,466
+wps/cabbiev2/wpsbackdrop-400x240x16.bmp 30,204,113,233
+wps/cabbiev2/wpsbackdrop-480x800x16.bmp 8,739,138,787
+wps/cabbiev2/wpsbackdrop-800x480x16.bmp 25,415,147,457
+"
 # Technical names that stay because something looks for them; never seen (section 5).
 # Optional file pattern before a colon. Each line has its reason after a #.
 BRAND_TOLERATED="
@@ -116,4 +153,36 @@ df14c9e486b50dcae3cf1250748413be389b626fbec0247e0c9b6c8c6cdbe3bf icons/tango_ico
 221f93d63119caec468e65eb364ac31c58bea5f7be4b161e4cf0e2b7f2247258 icons/tango_icons.12x12.bmp
 dfef2694e3efd27a706befdde77d7eeed56c942aaed13730e8826e1c35dd6cb9 icons/tango_small_mono.bmp
 a6f7fc52158b1cd4ec3945e0da3a4c2f26db3776629fcc91f3ff8a76929681cc apps/bitmaps/mono/default_icons.bmp
+7a20c189abe19f85e2a31f6a12ca9b3a915c02341c7dbfcf4ce7d597471a89b2 backdrops/cabbiev2.128x128x16.bmp
+603ff61a65c688fd1c1603287d2374fe68fe750d2b3e88512aee67b72338e0f3 backdrops/cabbiev2.128x128x2.bmp
+3d5f13643db63df2bd4e9c0fbd62495631d0f978595a9fb514c126e3da77424b backdrops/cabbiev2.128x160x16.bmp
+8f0479615f5d96a5205f865917e4799206823216de69f402b719fafa1f1f7bed backdrops/cabbiev2.128x96x16.bmp
+e5f1c37e155a5474a3bd606c51e6a08e6ca828fa19b1d7c9d110cf64fd90bc80 backdrops/cabbiev2.128x96x2.bmp
+611208c46052dee49deeae867b6939d9e03a6d03fc67bc13bad8e22a4d33e6cf backdrops/cabbiev2.132x80x16.bmp
+823a1f8cb9edb76a46d469880619c00657f0f3a372e758eec29dbd189d0c71c2 backdrops/cabbiev2.138x110x2.bmp
+cb456bf45bf03d643b7b2c6d9efb8716406dde7d8cb9133949eb94b3bef0fc04 backdrops/cabbiev2.160x128x16.bmp
+b03abc2005513d8eeee6f79b0e7c1747db06e0004c910f5241ac73b41f61f34a backdrops/cabbiev2.160x128x2.bmp
+77f845a985e3523d552d7bcb5e9a045c0e0b90f5614cd0887a676fa68b783e60 backdrops/cabbiev2.176x132x16.bmp
+6e49c6172a12c235aad6de1d8ea0e8340870f8b3ef1c03f543149c785a4e5fdc backdrops/cabbiev2.176x220x16.bmp
+25396693d75510026d757a9e80ae8523ee10383f5d5051f2786255d751507f78 backdrops/cabbiev2.220x176x16.bmp
+4d1070828bfc0789e6d6708ceb7b51be34d53276c3c8428ad35d419e47d2a02e backdrops/cabbiev2.240x320x16.bmp
+507d7d71062033a168e5f5e77fffc3cb9964fe2f8517b065c5910a34ba2b478d backdrops/cabbiev2.240x400x16.bmp
+7bffd5203363530069262bb1e1d464787654cad05b37c4bad537ac9c5b0b9609 backdrops/cabbiev2.320x240x16.bmp
+770d5815c03f1b6c46dce62101f57ddac7cbfd33711690813bcc47ef68ac9212 backdrops/cabbiev2.360x400x16.bmp
+1bda06140f7b31f05250f5ac3d6895683c21d96a3ffa819adcf8a706d2f3ab2c backdrops/cabbiev2.400x240x16.bmp
+15a372f4a306e522a35c969cdab4fef56df82b8a62270d2ba0cb918e5a44c9bc backdrops/cabbiev2.96x96x16.bmp
+8cc1ca99db1ee349af5797c481173d83419008e0ffee46da58a8d07f188c2b61 wps/cabbiev2/fmsbackdrop-160x128x2.bmp
+50097a4176dcd72c88fbc191ffbf513c9762017486f21e4b2d23763fc25b3cef wps/cabbiev2/wpsbackdrop-132x80x16.bmp
+e8e203c95a6a57adbdc9ac59fd18db74a130024e40871bf4768cef7806b62b4f wps/cabbiev2/wpsbackdrop-160x128x1.bmp
+45fd63f7eb57e3e757a9a9902f3bc8421e1a80ea36e88af05cc08f5201d4a209 wps/cabbiev2/wpsbackdrop-160x128x16.bmp
+66e0881fd466c4caf28a208524b294361a63246f24be7ee046f510eaa1d60e83 wps/cabbiev2/wpsbackdrop-160x128x2.bmp
+552067ddc7a8ca67b3ed68d3d0ec94550144c3291aa642748bda321855ccaee4 wps/cabbiev2/wpsbackdrop-176x132x16.bmp
+bf4b01d9bbcd95d6632e49f013b4bdb90f409ef733de2f05b9bea55c5980a336 wps/cabbiev2/wpsbackdrop-176x220x16.bmp
+d2a07db66bd23cde96bd6eb74a4553bd07f36fd88b48a3f6c16b8302a6d78e21 wps/cabbiev2/wpsbackdrop-220x176x16.bmp
+afe698db144299fddbbf3cd8781d3161e57e2b6641108847967bbc061546e4f8 wps/cabbiev2/wpsbackdrop-240x400x16.bmp
+ee32a85b7de63661c04c6040dd8dc968f6cfd967bd9aff4ae6aba1650c0e2f5e wps/cabbiev2/wpsbackdrop-320x240x16.bmp
+02c8dab56a1fca8305d5589dde077f4f9d9c40338a98f735d49a82f9944a185d wps/cabbiev2/wpsbackdrop-320x480x16.bmp
+32a0b8455c5a9381dd84ba3846cf8d66a3d9b1e27adb6ac968db1f8c81d97547 wps/cabbiev2/wpsbackdrop-400x240x16.bmp
+f039f3d21d5d86a375f9618b89269293995844126cb4cd1b9ca1d59204e5f409 wps/cabbiev2/wpsbackdrop-480x800x16.bmp
+c21c7f054d66c8df2ed5aa411067f1ca09efc177d3ce44b2f1e4d49d536b786e wps/cabbiev2/wpsbackdrop-800x480x16.bmp
 "
