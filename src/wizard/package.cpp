@@ -50,6 +50,13 @@ PackageCheck damaged()
     return refused(error::packageDamaged, tr("This package is damaged. Download it again"));
 }
 
+PackageCheck otherFolder()
+{
+    return refused(error::packageOtherFolder,
+                   tr("This package is for an older version of TacetOS. Choose the package of "
+                      "this version"));
+}
+
 // Check 3: a file name with no folder part.
 bool plainName(const QString &name)
 {
@@ -121,18 +128,25 @@ PackageCheck checkPackage(const QString &manifestPath, const QString &target,
             return damaged();
     }
 
-    // 5. A zip our reader takes, all in one top folder: the firmware folder of
-    // the model.
+    // 5. A zip our reader takes, not empty, all in one top folder: the
+    // firmware folder of the model (an old package has another one).
     archive::ZipReader zip(firmware.path);
     if (!zip.open({kZipEntryMax, kZipUnpackMax}))
         return damaged();
+    QString topFolder;
     for (const archive::ZipEntry &entry : zip.entries()) {
-        const bool inside = entry.name.contains(QLatin1Char('/')) &&
-                            entry.name.section(QLatin1Char('/'), 0, 0)
-                                    .compare(firmwareFolder, Qt::CaseInsensitive) == 0;
-        if (!inside)
+        if (!entry.name.contains(QLatin1Char('/')))
+            return damaged();
+        const QString folder = entry.name.section(QLatin1Char('/'), 0, 0);
+        if (topFolder.isEmpty())
+            topFolder = folder;
+        else if (folder.compare(topFolder, Qt::CaseInsensitive) != 0)
             return damaged();
     }
+    if (topFolder.isEmpty())
+        return damaged();
+    if (topFolder.compare(firmwareFolder, Qt::CaseInsensitive) != 0)
+        return otherFolder();
 
     PackageCheck check;
     check.unpackedBytes = zip.unpackedSize();
