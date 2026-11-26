@@ -49,4 +49,10 @@ inline constexpr QLatin1String wrongMode("wrong-mode");
 inline constexpr QLatin1String stillTacetos("still-tacetos");
 inline constexpr QLatin1String nothingToDo("nothing-to-do");
 
+// The update (update-channel.md section 6).
+inline constexpr QLatin1String updateGone("update-gone");
+inline constexpr QLatin1String downloadSpace("download-space");
+inline constexpr QLatin1String downloadDamaged("download-damaged");
+inline constexpr QLatin1String downloadFailed("download-failed");
+
 } // namespace tacetos::wizard::error

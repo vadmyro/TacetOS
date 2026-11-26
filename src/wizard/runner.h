@@ -44,6 +44,9 @@ public:
         FlowShape shape;
         QString packageManifest;
         QString packageSha256;
+        // An update: the version the check of the channel found. Its step
+        // `download` gives the package (update-channel.md section 6).
+        QString version;
     };
 
     // Starts a new flow. Returns an empty text, or the code of section 13

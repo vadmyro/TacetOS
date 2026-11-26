@@ -8,6 +8,7 @@
 #include "classicdfu.h"
 #include "detected.h"
 #include "diagnose.h"
+#include "download.h"
 #include "firmware.h"
 #include "format.h"
 #include "helpercalls.h"
@@ -62,6 +63,12 @@ struct LinuxSourcesConfig
     // For the tests: shorter waits. Negative: the defaults of the steps.
     qint64 volumeReturnMs = -1;
     qint64 returnMs = -1;
+    // Update section 4: the channel an update downloads from. The app gives the
+    // one of this build (`channelOfThisBuild`).
+    update::ChannelAddress channel = update::defaultChannel();
+    // For the tests: how long a read of the channel may get no byte. Negative:
+    // the default.
+    qint64 channelTimeoutMs = -1;
 };
 
 // What detection says, kept for the steps. Fed by the signals of detection in
@@ -157,7 +164,8 @@ class LinuxStepSources : public BackupSources,
                          public BootloaderSources,
                          public UninstallSources,
                          public ClassicDfuSources,
-                         public VerifySources
+                         public VerifySources,
+                         public DownloadSources
 {
 public:
     LinuxStepSources(const LinuxSourcesConfig &config, const IpodView &view,
@@ -202,6 +210,12 @@ public:
 
     // UninstallSources.
     qint64 volumeWaitMs() const override { return returnMs(); }
+
+    // DownloadSources, and the clean up of `finish`.
+    QString ipodVersion() const override;
+    update::ChannelAddress channel() const override { return m_config.channel; }
+    QString updatesFolder() const override;
+    qint64 channelTimeoutMs() const override;
 
 private:
     LinuxSourcesConfig m_config;

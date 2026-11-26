@@ -450,6 +450,25 @@ qint64 LinuxStepSources::returnMs() const
     return m_config.family == Family::Dfu ? kRestartWindowMs : kRestartWindowMs + kVolumeReturnMs;
 }
 
+QString LinuxStepSources::ipodVersion() const
+{
+    const device::FirmwareLine line = m_view.current().firmwareLine;
+    if (line.kind != device::FirmwareKind::Tacetos || line.version.isEmpty())
+        return QString();
+    return line.development ? line.version + QStringLiteral("-dev") : line.version;
+}
+
+QString LinuxStepSources::updatesFolder() const
+{
+    return m_config.dataDir.isEmpty() ? QString()
+                                      : QDir(m_config.dataDir).filePath(QString(kUpdatesFolder));
+}
+
+qint64 LinuxStepSources::channelTimeoutMs() const
+{
+    return m_config.channelTimeoutMs >= 0 ? m_config.channelTimeoutMs : device::kChannelTimeoutMs;
+}
+
 QString LinuxStepSources::settingsBackup() const
 {
     const QString serial = m_config.serial.isEmpty() ? m_view.current().serial : m_config.serial;

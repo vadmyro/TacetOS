@@ -106,6 +106,17 @@ public:
 
     QString packageManifest() const override { return m_runner->m_progress.packageManifest; }
     QString packageSha256() const override { return m_runner->m_progress.packageSha256; }
+    QString updateVersion() const override { return m_runner->m_progress.version; }
+
+    void setPackage(const QString &manifest, const QString &sha256, const QString &version) override
+    {
+        Progress &progress = m_runner->m_progress;
+        progress.packageManifest = manifest;
+        progress.packageSha256 = sha256;
+        progress.version = version;
+        if (m_writeProgress)
+            m_runner->save();
+    }
 
 private:
     WizardRunner *m_runner;
@@ -192,6 +203,8 @@ QString WizardRunner::start(const Start &start)
     m_progress.steps = steps;
     m_progress.packageManifest = start.packageManifest;
     m_progress.packageSha256 = start.packageSha256;
+    if (start.shape.kind == FlowKind::Update)
+        m_progress.version = start.version;
     m_progress.started = QDateTime::currentDateTimeUtc();
     launch(false);
     return QString();
@@ -247,9 +260,11 @@ void WizardRunner::work(bool resuming)
     const bool cut = resuming && m_progress.status != StepStatus::Next;
 
     // Section 3.3 step 3: a resume runs the diagnosis again, whatever step the
-    // flow had reached. It changes nothing in the progress file.
-    if (resuming && first > 0) {
-        if (!runOne(0, false, false))
+    // flow had reached after it. It changes nothing in the progress file. An
+    // update downloads first, so its diagnosis is the second step.
+    const int diagnosis = m_progress.steps.indexOf(QString(step::diagnose));
+    if (resuming && diagnosis >= 0 && first > diagnosis) {
+        if (!runOne(diagnosis, false, false))
             return;
     }
     for (int i = first; i < m_progress.steps.size(); ++i) {

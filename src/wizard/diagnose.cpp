@@ -160,7 +160,11 @@ QList<Check> ipodChecks(const DiagnoseInput &in, bool helperOk)
 {
     QList<Check> checks;
     const bool classic = in.family == Family::Dfu;
-    const bool install = in.kind == FlowKind::Install;
+    // Update section 6 step 5: an update checks its package as an install does.
+    const bool update = in.kind == FlowKind::Update;
+    const bool install = in.kind != FlowKind::Uninstall;
+    // An update keeps the music, as Keep my music does.
+    const InstallPath path = update ? InstallPath::Keep : in.path;
     const IpodFacts &ipod = in.ipod;
 
     const auto add = [&](Check check, bool needs) {
@@ -209,7 +213,7 @@ QList<Check> ipodChecks(const DiagnoseInput &in, bool helperOk)
         // an iPod Classic none yet (section 6.4).
         if (install && classic)
             fail(format, macClassicRefusal());
-        else if (install && in.path == InstallPath::Keep)
+        else if (install && path == InstallPath::Keep)
             fail(format, tr("This iPod is formatted for Mac. TacetOS needs a Windows format, "
                             "which erases the iPod"));
         else if (install)
@@ -223,8 +227,10 @@ QList<Check> ipodChecks(const DiagnoseInput &in, bool helperOk)
     add(format, volumeOk);
 
     // On an uninstall, the Classic needs no version of Apple's firmware
-    // (bootloader-classic.md section 14.1).
-    if (install || !classic) {
+    // (bootloader-classic.md section 14.1). An update leaves the bootloader of the
+    // install, which checked that version: a Classic that runs TacetOS has no
+    // device sheet to read it from.
+    if ((install || !classic) && !update) {
         Check apple = make("apple-firmware", Side::Ipod, true);
         if (!classic) {
             if (!ipod.firmwarePartitionOk)
@@ -260,7 +266,7 @@ QList<Check> ipodChecks(const DiagnoseInput &in, bool helperOk)
         add(package, modelOk);
 
         Check room = make("firmware-room", Side::Ipod, true);
-        const qint64 available = in.path == InstallPath::Clean ? ipod.volumeSize : ipod.volumeFree;
+        const qint64 available = path == InstallPath::Clean ? ipod.volumeSize : ipod.volumeFree;
         if (available < in.firmwareNeedBytes)
             fail(room, tr("Not enough space on the iPod for TacetOS: %1 needed, %2 free")
                            .arg(sizeText(in.firmwareNeedBytes), sizeText(available)));
@@ -422,7 +428,7 @@ FolderInfo folderInfo(const QString &path, const QStringList &ipodRoots)
 StepOutcome DiagnoseStep::run(StepContext &context)
 {
     const FlowShape shape = context.shape();
-    const bool install = shape.kind == FlowKind::Install;
+    const bool install = shape.kind != FlowKind::Uninstall;
     // Screens section 3: the gathering goes in the order of the checks, and each source says
     // which check it is for, so that the screen shows "Checking: <name>" and how far it is.
     const int total = install ? 10 : 8;

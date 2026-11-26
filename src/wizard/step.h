@@ -94,6 +94,16 @@ public:
     // Section 3.2: the package of an install.
     virtual QString packageManifest() const = 0;
     virtual QString packageSha256() const = 0;
+
+    // Update section 6 step 5: the package that the step `download` gives the
+    // flow, and the version it installs, both kept in the progress file.
+    virtual QString updateVersion() const { return QString(); }
+    virtual void setPackage(const QString &manifest, const QString &sha256, const QString &version)
+    {
+        Q_UNUSED(manifest)
+        Q_UNUSED(sha256)
+        Q_UNUSED(version)
+    }
 };
 
 class Step

@@ -76,7 +76,10 @@ QJsonObject toJson(const Progress &progress)
         object.insert(QStringLiteral("error"), progress.error);
     if (!progress.backup.isEmpty())
         object.insert(QStringLiteral("backup"), progress.backup);
-    if (progress.shape.kind == FlowKind::Install) {
+    if (progress.shape.kind == FlowKind::Update)
+        object.insert(QStringLiteral("version"), progress.version);
+    // An update has its package once `download` is done: empty until then.
+    if (progress.shape.kind != FlowKind::Uninstall) {
         QJsonObject package;
         package.insert(QStringLiteral("manifest"), progress.packageManifest);
         package.insert(QStringLiteral("sha256"), progress.packageSha256);
@@ -140,6 +143,15 @@ QString parseProgress(const QByteArray &bytes, const QString &serial, Progress *
         if (!path)
             return QStringLiteral("unknown path");
         progress.shape.path = *path;
+    } else if (object.contains(QStringLiteral("path"))) {
+        return QStringLiteral("a path for an uninstall or an update");
+    }
+    if (*kind == FlowKind::Update) {
+        if (!isText(object, "version"))
+            return QStringLiteral("key version missing or not a text");
+        progress.version = object.value(QStringLiteral("version")).toString();
+    }
+    if (*kind != FlowKind::Uninstall) {
         const QJsonValue package = object.value(QStringLiteral("package"));
         if (!package.isObject() ||
             !package.toObject().value(QStringLiteral("manifest")).isString() ||
@@ -147,8 +159,6 @@ QString parseProgress(const QByteArray &bytes, const QString &serial, Progress *
             return QStringLiteral("key package missing or not complete");
         progress.packageManifest = package.toObject().value(QStringLiteral("manifest")).toString();
         progress.packageSha256 = package.toObject().value(QStringLiteral("sha256")).toString();
-    } else if (object.contains(QStringLiteral("path"))) {
-        return QStringLiteral("a path for an uninstall");
     }
 
     for (const QJsonValue &name : object.value(QStringLiteral("steps")).toArray()) {

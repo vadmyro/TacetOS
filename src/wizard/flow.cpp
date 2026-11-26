@@ -8,6 +8,20 @@ namespace tacetos::wizard {
 QStringList stepsFor(const FlowShape &shape)
 {
     const bool older = shape.family == Family::Partition;
+
+    // Update section 7: the firmware only, with the bootloader of a Classic first
+    // when its old folder moves (D61).
+    if (shape.kind == FlowKind::Update) {
+        if (shape.path != InstallPath::None || shape.macFormat)
+            return {};
+        QStringList steps{QString(step::download), QString(step::diagnose),
+                          QString(step::backupSettings)};
+        if (!older && shape.bootloaderFirst)
+            steps << QString(step::classicBootloader);
+        steps << QString(step::firmware) << QString(step::verify) << QString(step::finish);
+        return steps;
+    }
+
     QStringList steps{QString(step::diagnose)};
 
     if (shape.kind == FlowKind::Uninstall) {
@@ -59,7 +73,15 @@ QString familyName(Family family)
 
 QString kindName(FlowKind kind)
 {
-    return kind == FlowKind::Install ? QStringLiteral("install") : QStringLiteral("uninstall");
+    switch (kind) {
+    case FlowKind::Install:
+        return QStringLiteral("install");
+    case FlowKind::Update:
+        return QStringLiteral("update");
+    case FlowKind::Uninstall:
+        break;
+    }
+    return QStringLiteral("uninstall");
 }
 
 QString pathName(InstallPath path)
@@ -90,6 +112,8 @@ std::optional<FlowKind> kindFromName(const QString &name)
         return FlowKind::Install;
     if (name == QLatin1String("uninstall"))
         return FlowKind::Uninstall;
+    if (name == QLatin1String("update"))
+        return FlowKind::Update;
     return std::nullopt;
 }
 

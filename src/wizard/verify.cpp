@@ -4,6 +4,7 @@
 #include "verify.h"
 
 #include "constants.h"
+#include "download.h"
 #include "firmware.h"
 #include "helperconstants.h"
 #include "package.h"
@@ -30,7 +31,9 @@ StepOutcome differs(const QString &what)
 StepOutcome VerifyStep::run(StepContext &context)
 {
     const FlowShape shape = context.shape();
-    const bool install = shape.kind == FlowKind::Install;
+    const bool install = shape.kind != FlowKind::Uninstall;
+    // Update section 7: the bootloader of a Classic is written only for `bootloaderFirst`.
+    const bool wroteClassicBootloader = shape.kind != FlowKind::Update || shape.bootloaderFirst;
 
     const auto ready = [](const device::DetectedIpod &seen) {
         return !seen.serial.isEmpty() && seen.state == device::IpodState::Ready;
@@ -67,7 +70,10 @@ StepOutcome VerifyStep::run(StepContext &context)
         return differs(QStringLiteral("the firmware folder is still there"));
     }
 
-    // The Classic: the firmware it runs now, as detection shows it.
+    // The Classic: the firmware it runs now, as detection shows it. An update that
+    // did not touch the bootloader has nothing more to read.
+    if (shape.family == Family::Dfu && !wroteClassicBootloader)
+        return StepOutcome::done();
     if (shape.family == Family::Dfu) {
         // Double boot: Apple's firmware also runs when Menu was held at power on. The
         // bootloader is there if `classic-bootloader` saw the iPod come back under
@@ -102,11 +108,16 @@ StepOutcome VerifyStep::run(StepContext &context)
 StepOutcome FinishStep::run(StepContext &context)
 {
     context.setFact(QStringLiteral("backup"), context.backupFolder());
-    if (context.shape().kind == FlowKind::Install) {
+    const FlowKind kind = context.shape().kind;
+    if (kind != FlowKind::Uninstall) {
         PackageFiles files;
         checkPackage(context.packageManifest(), m_sources.target(), m_sources.firmwareFolder(),
                      &files);
         context.setFact(QStringLiteral("version"), files.version);
+        // Update section 6: the folders of the older versions go, the one just
+        // installed stays until the next update.
+        if (kind == FlowKind::Update && !m_sources.updatesFolder().isEmpty())
+            removeOlderUpdates(m_sources.updatesFolder(), context.updateVersion());
         return StepOutcome::done();
     }
     const QString manifest =

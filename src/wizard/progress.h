@@ -32,6 +32,8 @@ struct Progress
     QString backup;
     QString packageManifest;
     QString packageSha256;
+    // Update section 7: the version an update installs.
+    QString version;
     QJsonObject facts;
     QDateTime started;
     QDateTime updated;

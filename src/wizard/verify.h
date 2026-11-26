@@ -35,6 +35,9 @@ public:
     // How long the step waits for the iPod to be `ready`: after a restart it is
     // seen before its volume is mounted.
     virtual qint64 readyWaitMs() const = 0;
+    // Update section 6: the folder of the downloads, `updates/` in the data folder.
+    // Empty: nothing to clean up.
+    virtual QString updatesFolder() const { return QString(); }
 };
 
 // Section 11.1. Reads everything again, from the iPod and not from the facts of
@@ -51,8 +54,10 @@ private:
 };
 
 // Section 11.2. Facts: `backup` (the backup folder of the flow), `version` (the
-// package of an install), `settings` (the folder where an uninstall saved the
-// settings). The runner gives them to the last screen with `flowFinished`.
+// package of an install or an update), `settings` (the folder where an uninstall
+// saved the settings). The runner gives them to the last screen with
+// `flowFinished`. After an update, the downloads of the older versions are
+// deleted.
 class FinishStep : public Step
 {
 public:

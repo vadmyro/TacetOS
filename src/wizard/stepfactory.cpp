@@ -99,6 +99,8 @@ StepFactory LinuxStepFactory::factory()
 
 std::unique_ptr<Step> LinuxStepFactory::make(const QString &name)
 {
+    if (name == step::download)
+        return std::make_unique<DownloadStep>(*m_sources);
     if (name == step::diagnose)
         return std::make_unique<DiagnoseStep>(*m_diagnose);
     if (name == step::backupFull)

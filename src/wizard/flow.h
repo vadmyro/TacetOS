@@ -16,9 +16,10 @@ namespace tacetos::wizard {
 // Section 1: how the bootloader is installed, from `method` in models.toml.
 enum class Family { Partition, Dfu };
 
-enum class FlowKind { Install, Uninstall };
+// Update: update-channel.md section 7.
+enum class FlowKind { Install, Uninstall, Update };
 
-// Section 2.2: the choice of the first screen. `None` for an uninstall.
+// Section 2.2: the choice of the first screen. `None` for an uninstall and an update.
 enum class InstallPath { None, Clean, Keep };
 
 // Section 2.3: the inputs the list of steps comes from.
@@ -29,7 +30,8 @@ struct FlowShape
     InstallPath path = InstallPath::None;
     bool macFormat = false;
     // Branding section 8.3 step 1: an iPod Classic whose old firmware folder moves, with a
-    // bootloader that may not know the new one. Only read for Keep my music on a Classic.
+    // bootloader that may not know the new one. Only read for Keep my music and an update on a
+    // Classic.
     bool bootloaderFirst = false;
 
     bool operator==(const FlowShape &other) const
@@ -41,6 +43,7 @@ struct FlowShape
 
 // Section 2.3: the names of the steps, as in the progress file and the tests.
 namespace step {
+inline constexpr QLatin1String download("download");
 inline constexpr QLatin1String diagnose("diagnose");
 inline constexpr QLatin1String backupKeep("backup-keep");
 inline constexpr QLatin1String backupFull("backup-full");
@@ -59,8 +62,8 @@ inline constexpr QLatin1String finish("finish");
 } // namespace step
 
 // Section 2.3: the list of steps of a flow. Empty for a shape that section 2.2
-// does not allow: an install without a path, an uninstall with one, or Keep my
-// music on a Mac iPod.
+// does not allow: an install without a path, an uninstall or an update with
+// one, Keep my music or an update on a Mac iPod.
 QStringList stepsFor(const FlowShape &shape);
 
 // The words of the progress file (section 3.2).
