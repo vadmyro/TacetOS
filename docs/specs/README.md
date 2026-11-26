@@ -15,3 +15,4 @@ Precise rules the code must follow (library sorting, install flow...), written b
 - [firmware-branding.md](firmware-branding.md): where the firmware base shows its name or logo and how each place is fixed, the plugins kept, the firmware folder of the Classic
 - [update-channel.md](update-channel.md): the releases, the index of the packages, the address of the channel, the versions, the download and the update of the firmware from the home screen
 - [boot-screen.md](boot-screen.md): the boot logo and how to replace it from the app, the quiet bootloader of the Classic, the language screen of the first start, the install progress on the iPod and in the app
+- [health.md](health.md): the health and charge files the firmware writes, the disk and battery verdicts, the history on the computer, the Health window and the line of the card
