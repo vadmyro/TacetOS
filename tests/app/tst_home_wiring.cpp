@@ -7,11 +7,15 @@
 
 #include "constants.h"
 #include "home/homescreen.h"
+#include "home/updatewatcher.h"
 #include "mainwindow.h"
 #include "models.h"
 
+#include <QFile>
 #include <QLabel>
 #include <QPushButton>
+#include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QTest>
 
 using namespace tacetos;
@@ -117,6 +121,36 @@ public:
     QList<Job> jobs;
 };
 
+// Update section 9: the local channel, a folder made by the test. Never the real network.
+update::ChannelAddress folderChannel(const QString &folder)
+{
+    update::ChannelAddress address;
+    address.kind = update::ChannelAddress::Kind::Folder;
+    address.folder = folder;
+    return address;
+}
+
+bool writeIndex(const QString &folder, const QString &version)
+{
+    const QByteArray data =
+        QStringLiteral("{\"format\": 1, \"version\": \"%1\", \"built\": \"2026-11-26T10:00:00Z\", "
+                       "\"packages\": [{\"target\": \"ipod6g\", \"manifest\": "
+                       "\"tacetos-ipod6g-%1.json\", \"size\": 812, \"sha256\": \"%2\"}]}")
+            .arg(version, QString(64, QLatin1Char('a')))
+            .toUtf8();
+    QFile file(folder + QLatin1Char('/') + QString(kUpdateIndexFile));
+    return file.open(QIODevice::WriteOnly) && file.write(data) == data.size();
+}
+
+int linesWith(const journal::Journal *journal, const QString &text)
+{
+    int count = 0;
+    for (const journal::Entry &entry : journal->entries())
+        if (entry.text.contains(text))
+            ++count;
+    return count;
+}
+
 } // namespace
 
 class TstHomeWiring : public QObject
@@ -135,6 +169,10 @@ private slots:
     void mountsByItselfOnArrival();
     void refusedMountOnArrivalIsAWarning();
     void refreshReadsAgain();
+    void noChannelReadWithoutATacetosIpod();
+    void tacetosCardShowsTheUpdate();
+    void refreshReadsTheChannelAgain();
+    void aChannelThatFailsShowsNothing();
     void startsWithTheEmbeddedModels();
 
 private:
@@ -167,6 +205,12 @@ private:
         {
             world.unplug(kPort);
             window.tracker()->usbEvent();
+        }
+        // The files of TacetOS on the volume, with this version in the info file.
+        void giveTacetos(const QString &version)
+        {
+            world.ports[kPort].markers.firmware.files = FirmwareFiles::Tacetos;
+            world.ports[kPort].markers.firmware.version = version;
         }
         void giveDisk(bool volume)
         {
@@ -396,6 +440,121 @@ void TstHomeWiring::refreshReadsAgain()
     QCOMPARE(s.window.homeScreen()->cards().size(), 1);
     emit s.window.homeScreen()->refreshRequested();
     QCOMPARE(s.window.homeScreen()->cards().size(), 0);
+}
+
+// Update section 8: without an iPod whose firmware line is `tacetos`, no read at all.
+void TstHomeWiring::noChannelReadWithoutATacetosIpod()
+{
+    QTemporaryDir channel;
+    QVERIFY(channel.isValid());
+    QVERIFY(writeIndex(channel.path(), QStringLiteral("0.3.0")));
+    Setup s(models_);
+    s.window.attachUpdateChannel(folderChannel(channel.path()));
+    QVERIFY(s.window.updateWatcher());
+    emit s.window.homeScreen()->refreshRequested();
+    s.plug();
+    s.giveDisk(true);
+    QCOMPARE(s.kind(), QStringLiteral("ready"));
+    emit s.window.homeScreen()->refreshRequested();
+    QTest::qWait(50);
+    QCOMPARE(s.window.updateWatcher()->reads(), 0);
+    QVERIFY(!s.card()->updateLabel()->isVisibleTo(s.card()));
+    QCOMPARE(linesWith(s.window.journal(), QStringLiteral("update")), 0);
+}
+
+// Read once per launch, the first time the card is shown; the card then offers the update.
+void TstHomeWiring::tacetosCardShowsTheUpdate()
+{
+    QTemporaryDir channel;
+    QVERIFY(channel.isValid());
+    QVERIFY(writeIndex(channel.path(), QStringLiteral("0.3.0")));
+    Setup s(models_);
+    s.window.attachUpdateChannel(folderChannel(channel.path()));
+    s.giveTacetos(QStringLiteral("0.2.0"));
+    s.plug();
+    s.giveDisk(true);
+    QCOMPARE(s.kind(), QStringLiteral("ready"));
+    QTRY_VERIFY(s.card()->updateLabel()->isVisibleTo(s.card()));
+    QCOMPARE(s.card()->updateLabel()->text(), QStringLiteral("Update available: TacetOS 0.3.0"));
+    QCOMPARE(s.card()->wizardButton()->text(), QStringLiteral("Update"));
+    QCOMPARE(s.window.updateWatcher()->updateFor(kPort), QStringLiteral("0.3.0"));
+    QCOMPARE(linesWith(s.window.journal(), QStringLiteral("Update TacetOS 0.3.0 for ipod6g")), 1);
+
+    // The list changes again: no second read, no second line.
+    s.window.tracker()->diskEvent();
+    s.clock.now += 1000;
+    s.window.driver()->wake();
+    QTest::qWait(50);
+    QCOMPARE(s.window.updateWatcher()->reads(), 1);
+    QCOMPARE(linesWith(s.window.journal(), QStringLiteral("Update TacetOS 0.3.0 for ipod6g")), 1);
+
+    // The button asks for the update window.
+    QSignalSpy asked(&s.window, &MainWindow::wizardRequested);
+    s.card()->wizardButton()->click();
+    QCOMPARE(asked.size(), 1);
+    QCOMPARE(asked.at(0).at(1).value<HomeAction>(), HomeAction::UpdateWizard);
+
+    // The iPod leaves: nothing is left for its port.
+    s.unplug();
+    QCOMPARE(s.window.updateWatcher()->updateFor(kPort), QString());
+}
+
+void TstHomeWiring::refreshReadsTheChannelAgain()
+{
+    QTemporaryDir channel;
+    QVERIFY(channel.isValid());
+    QVERIFY(writeIndex(channel.path(), QStringLiteral("0.3.0")));
+    Setup s(models_);
+    s.window.attachUpdateChannel(folderChannel(channel.path()));
+    s.giveTacetos(QStringLiteral("0.2.0"));
+    s.plug();
+    s.giveDisk(true);
+    QTRY_VERIFY(s.card()->updateLabel()->isVisibleTo(s.card()));
+    QCOMPARE(s.window.updateWatcher()->reads(), 1);
+
+    // The channel now has nothing newer: Refresh reads it again and the update goes.
+    QVERIFY(writeIndex(channel.path(), QStringLiteral("0.2.0")));
+    emit s.window.homeScreen()->refreshRequested();
+    QTRY_VERIFY(!s.card()->updateLabel()->isVisibleTo(s.card()));
+    QCOMPARE(s.window.updateWatcher()->reads(), 2);
+    QCOMPARE(s.card()->wizardButton()->text(), QStringLiteral("Uninstall"));
+
+    // And comes back on the next Refresh.
+    QVERIFY(writeIndex(channel.path(), QStringLiteral("0.4.0")));
+    emit s.window.homeScreen()->refreshRequested();
+    QTRY_VERIFY(s.card()->updateLabel()->isVisibleTo(s.card()));
+    QCOMPARE(s.card()->updateLabel()->text(), QStringLiteral("Update available: TacetOS 0.4.0"));
+    QCOMPARE(s.window.updateWatcher()->reads(), 3);
+}
+
+// Silence: no index, a bad one, an older version. Nothing on the card, one log line each, never
+// an error.
+void TstHomeWiring::aChannelThatFailsShowsNothing()
+{
+    QTemporaryDir channel;
+    QVERIFY(channel.isValid());
+    Setup s(models_);
+    s.window.attachUpdateChannel(folderChannel(channel.path()));
+    s.giveTacetos(QStringLiteral("0.2.0"));
+    s.plug();
+    s.giveDisk(true);
+    QTRY_COMPARE(linesWith(s.window.journal(), QStringLiteral("No update")), 1);
+
+    QFile bad(channel.filePath(QString(kUpdateIndexFile)));
+    QVERIFY(bad.open(QIODevice::WriteOnly));
+    bad.write("not json");
+    bad.close();
+    emit s.window.homeScreen()->refreshRequested();
+    QTRY_COMPARE(linesWith(s.window.journal(), QStringLiteral("No update")), 2);
+
+    QVERIFY(writeIndex(channel.path(), QStringLiteral("0.1.0")));
+    emit s.window.homeScreen()->refreshRequested();
+    QTRY_COMPARE(linesWith(s.window.journal(), QStringLiteral("No update")), 3);
+
+    QVERIFY(!s.card()->updateLabel()->isVisibleTo(s.card()));
+    QCOMPARE(s.card()->wizardButton()->text(), QStringLiteral("Uninstall"));
+    for (const journal::Entry &entry : s.window.journal()->entries())
+        QVERIFY2(entry.level != journal::Level::Error, qPrintable(entry.text));
 }
 
 void TstHomeWiring::startsWithTheEmbeddedModels()

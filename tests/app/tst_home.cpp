@@ -96,6 +96,9 @@ private slots:
     void buttonSignals();
     void refreshSignal();
     void noUninstallAfterAnUninstall();
+    void updateLineAndButton();
+    void noUpdateWithoutAVersion();
+    void resumeComesBeforeUpdate();
 };
 
 void TestHome::initTestCase()
@@ -591,6 +594,115 @@ void TestHome::noUninstallAfterAnUninstall()
     QVERIFY(!screen.cards().first()->uninstallButton()->isVisibleTo(screen.cards().first()));
     screen.setEntries({appleIn(QStringLiteral("classic-6g"))}, {classic, video}, kHost);
     QVERIFY(!screen.cards().first()->uninstallButton()->isVisibleTo(screen.cards().first()));
+}
+
+// Update section 8: on `ready` with a `tacetos` firmware line, the line in `accent` under the
+// firmware line, and Update as the main button beside a secondary Uninstall.
+void TestHome::updateLineAndButton()
+{
+    IpodCard card;
+    card.show();
+    card.setEntry(entryOf(QStringLiteral("1-2"), ScreenKind::Ready, ipodIn(IpodState::Ready)),
+                  models(), kHost);
+    QVERIFY(!card.updateLabel()->isVisibleTo(&card));
+    QCOMPARE(card.wizardButton()->text(), QStringLiteral("Uninstall"));
+    QVERIFY(!card.uninstallButton()->isVisibleTo(&card));
+
+    QSignalSpy actions(&card, &IpodCard::actionRequested);
+    card.setUpdate(QStringLiteral("0.3.0"));
+    QVERIFY(card.updateLabel()->isVisibleTo(&card));
+    QCOMPARE(card.updateLabel()->text(), QStringLiteral("Update available: TacetOS 0.3.0"));
+    QCOMPARE(card.updateLabel()->property("role").toString(), QStringLiteral("accent"));
+    const auto *firmware = card.findChild<QLabel *>(QStringLiteral("ipodFirmware"));
+    QVERIFY(firmware->isVisibleTo(&card));
+    QVERIFY(card.updateLabel()->y() > firmware->y());
+    QCOMPARE(card.wizardButton()->text(), QStringLiteral("Update"));
+    QCOMPARE(card.wizardButton()->property("role").toString(), QStringLiteral("primary"));
+    QVERIFY(card.uninstallButton()->isVisibleTo(&card));
+    QCOMPARE(card.uninstallButton()->property("role").toString(), QStringLiteral("secondary"));
+    QCOMPARE(card.openButton()->property("role").toString(), QStringLiteral("secondary"));
+    QVERIFY(card.ejectButton()->isVisibleTo(&card));
+    // Eject, Show files, Uninstall, then Update, left to right.
+    QVERIFY(card.ejectButton()->x() < card.openButton()->x());
+    QVERIFY(card.openButton()->x() < card.uninstallButton()->x());
+    QVERIFY(card.uninstallButton()->x() < card.wizardButton()->x());
+
+    card.wizardButton()->click();
+    card.uninstallButton()->click();
+    QCOMPARE(actions.size(), 2);
+    QCOMPARE(actions.at(0).at(0).value<HomeAction>(), HomeAction::UpdateWizard);
+    QCOMPARE(actions.at(1).at(0).value<HomeAction>(), HomeAction::UninstallWizard);
+
+    // Only on `ready`: a busy card shows neither.
+    card.setEntry(entryOf(QStringLiteral("1-2"), ScreenKind::Busy, ipodIn(IpodState::Ready)),
+                  models(), kHost);
+    QVERIFY(!card.updateLabel()->isVisibleTo(&card));
+    QVERIFY(!card.wizardButton()->isVisibleTo(&card));
+    // A wizard window open: only "Show the wizard".
+    card.setEntry(entryOf(QStringLiteral("1-2"), ScreenKind::Ready, ipodIn(IpodState::Ready)),
+                  models(), kHost);
+    card.setWizardState(false, true);
+    QVERIFY(!card.updateLabel()->isVisibleTo(&card));
+    QCOMPARE(card.wizardButton()->text(), QStringLiteral("Show the wizard"));
+    card.setWizardState(false, false);
+    QCOMPARE(card.wizardButton()->text(), QStringLiteral("Update"));
+
+    // A firmware that is not ours, or a `custom` one, never gets the update.
+    DetectedIpod custom = ipodIn(IpodState::Ready);
+    custom.firmwareLine.kind = FirmwareKind::Custom;
+    card.setEntry(entryOf(QStringLiteral("1-2"), ScreenKind::Ready, custom), models(), kHost);
+    QVERIFY(!card.updateLabel()->isVisibleTo(&card));
+    QCOMPARE(card.wizardButton()->text(), QStringLiteral("Uninstall"));
+
+    // The home screen keeps the version for the card of the port.
+    HomeScreen screen;
+    const ScreenEntry ready =
+        entryOf(QStringLiteral("1-2"), ScreenKind::Ready, ipodIn(IpodState::Ready));
+    screen.setUpdate(QStringLiteral("1-2"), QStringLiteral("0.3.0"));
+    screen.setEntries({ready}, models(), kHost);
+    IpodCard *shown = screen.cards().first();
+    QCOMPARE(shown->wizardButton()->text(), QStringLiteral("Update"));
+    screen.setEntries({ready}, models(), kHost);
+    QCOMPARE(shown->wizardButton()->text(), QStringLiteral("Update"));
+    screen.setUpdate(QStringLiteral("1-2"), QString());
+    QCOMPARE(shown->wizardButton()->text(), QStringLiteral("Uninstall"));
+    QVERIFY(!shown->updateLabel()->isVisibleTo(shown));
+}
+
+void TestHome::noUpdateWithoutAVersion()
+{
+    IpodCard card;
+    card.show();
+    card.setEntry(entryOf(QStringLiteral("1-2"), ScreenKind::Ready, ipodIn(IpodState::Ready)),
+                  models(), kHost);
+    card.setUpdate(QString());
+    QVERIFY(!card.updateLabel()->isVisibleTo(&card));
+    QCOMPARE(card.wizardButton()->text(), QStringLiteral("Uninstall"));
+    QVERIFY(!card.uninstallButton()->isVisibleTo(&card));
+}
+
+// The flow in progress comes first: Resume is the only main button and the line is hidden.
+void TestHome::resumeComesBeforeUpdate()
+{
+    IpodCard card;
+    card.show();
+    card.setEntry(entryOf(QStringLiteral("1-2"), ScreenKind::Ready, ipodIn(IpodState::Ready)),
+                  models(), kHost);
+    card.setUpdate(QStringLiteral("0.3.0"));
+    card.setWizardState(true, false);
+    QVERIFY(!card.updateLabel()->isVisibleTo(&card));
+    QCOMPARE(card.wizardButton()->text(), QStringLiteral("Resume"));
+    QVERIFY(!card.uninstallButton()->isVisibleTo(&card));
+    int mains = 0;
+    for (QPushButton *button : card.findChildren<QPushButton *>())
+        if (button->isVisibleTo(&card) &&
+            button->property("role").toString() == QLatin1String("primary"))
+            ++mains;
+    QCOMPARE(mains, 1);
+    // Once the progress file is gone the update comes back.
+    card.setWizardState(false, false);
+    QVERIFY(card.updateLabel()->isVisibleTo(&card));
+    QCOMPARE(card.wizardButton()->text(), QStringLiteral("Update"));
 }
 
 void TestHome::refreshSignal()

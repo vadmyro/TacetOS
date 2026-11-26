@@ -211,6 +211,68 @@ private slots:
         }
     }
 
+    // Update section 7: the first screen has the versions, the backup folder and the plan, and no
+    // path or package; the end says the new version is on the iPod.
+    void updateFirstScreenAndEnd()
+    {
+        m_scripts.insert(QString(step::download), [](StepContext &c) {
+            c.setPackage(QStringLiteral("/d/updates/0.3.0/ipodvideo/m.json"), QStringLiteral("ab"),
+                         QStringLiteral("0.3.0"));
+            return StepOutcome::done();
+        });
+        m_scripts.insert(QString(step::finish), [](StepContext &c) {
+            c.setFact(QStringLiteral("version"), c.updateVersion());
+            return StepOutcome::done();
+        });
+        WizardTarget t = target();
+        t.tacetosVersion = QStringLiteral("0.2.0");
+        t.updateVersion = QStringLiteral("0.3.0");
+        WizardRunner runner(m_dir.path(), factory());
+        WizardWindow w(t, options(), &runner, WizardEntry::Update);
+        QCOMPARE(w.pageName(), QStringLiteral("update"));
+        QCOMPARE(w.findChild<QLabel *>("wizardTitle")->text(), QStringLiteral("Update TacetOS"));
+        QCOMPARE(w.findChild<QLabel *>("updateVersions")->text(),
+                 QStringLiteral("TacetOS 0.2.0 > 0.3.0"));
+        QVERIFY(!w.findChild<QLabel *>("updateBackupFolderLabel")->text().isEmpty());
+        QCOMPARE(w.findChild<QLabel *>("updatePlan")->text(),
+                 QStringLiteral("What will happen: download, checks, backup, firmware, check, "
+                                "done. Keep the iPod plugged in."));
+        QCOMPARE(w.stepLabels().first(), QStringLiteral("Download"));
+        QCOMPARE(buttonNamed(&w, "wizardMain")->text(), QStringLiteral("Update"));
+        QVERIFY(buttonNamed(&w, "wizardMain")->isEnabled());
+
+        QSignalSpy ended(&w, &WizardWindow::flowEnded);
+        QTest::mouseClick(buttonNamed(&w, "wizardMain"), Qt::LeftButton);
+        QTRY_VERIFY(w.donePage()->isFinished());
+        QCOMPARE(w.donePage()->titleText(), QStringLiteral("TacetOS 0.3.0 is on the iPod"));
+        QCOMPARE(w.donePage()->ejectNote(),
+                 QStringLiteral("Eject it: it starts on the new version."));
+        // The ways of starting each firmware were given by the install.
+        QVERIFY(w.donePage()->startingText().isEmpty());
+    }
+
+    // Update section 6: the failures of the download, in the words of the spec.
+    void updateDownloadFailures()
+    {
+        m_scripts.insert(QString(step::download), [](StepContext &) {
+            return StepOutcome::failed(QString(error::downloadSpace),
+                                       QStringLiteral("120 MB needed, 40 MB free"));
+        });
+        WizardTarget t = target();
+        t.tacetosVersion = QStringLiteral("0.2.0");
+        t.updateVersion = QStringLiteral("0.3.0");
+        WizardRunner runner(m_dir.path(), factory());
+        WizardWindow w(t, options(), &runner, WizardEntry::Update);
+        QSignalSpy ended(&w, &WizardWindow::flowEnded);
+        QTest::mouseClick(buttonNamed(&w, "wizardMain"), Qt::LeftButton);
+        QTRY_COMPARE(ended.count(), 1);
+        QCOMPARE(w.pageName(), QStringLiteral("step"));
+        QCOMPARE(w.findChild<QLabel *>("stepFailure")->text(),
+                 QStringLiteral("Not enough space on this computer to download the update: 120 MB "
+                                "needed, 40 MB free"));
+        ProgressStore(m_dir.path()).remove(t.serial);
+    }
+
     void navigationToTheEnd()
     {
         WizardRunner runner(m_dir.path(), factory());
@@ -873,7 +935,7 @@ private slots:
             first.start(
                 {QStringLiteral("SER1"), QStringLiteral("video"),
                  FlowShape{Family::Partition, FlowKind::Uninstall, InstallPath::None, false},
-                 QString(), QString()});
+                 QString(), QString(), QString()});
             QVERIFY(first.waitFinished(5000));
         }
         m_scripts.clear();
