@@ -37,12 +37,17 @@ public:
     // a Classic under Apple's firmware is not offered Uninstall again.
     void setWizardState(bool hasProgress, bool windowOpen, bool uninstalled = false);
 
+    // Update section 8: the version the channel has for this iPod, empty when there is none. The
+    // card shows it on `ready` with a `tacetos` firmware line, unless a progress file exists.
+    void setUpdate(const QString &version);
+
     QString portPath() const { return portPath_; }
     QPushButton *wizardButton() const { return wizard_; }
     QPushButton *uninstallButton() const { return uninstall_; }
     QPushButton *ejectButton() const { return eject_; }
     QPushButton *openButton() const { return open_; }
     QPushButton *bootLogoButton() const { return bootLogo_; }
+    QLabel *updateLabel() const { return update_; }
 
 signals:
     void actionRequested(tacetos::HomeAction action);
@@ -67,6 +72,7 @@ private:
     QFrame *dot_;
     QLabel *state_;
     QLabel *firmware_;
+    QLabel *update_;
     QProgressBar *spaceBar_;
     QProgressBar *busyBar_;
     QLabel *spaceLabel_;
@@ -81,6 +87,9 @@ private:
     bool wizardShown_ = false;
     bool firmwareIsOurs_ = false;
     bool isClassic_ = false;
+    // Update section 8: `ready` with a `tacetos` firmware line, and the version of the channel.
+    bool updatable_ = false;
+    QString updateVersion_;
     bool hasProgress_ = false;
     bool uninstalled_ = false;
     bool windowOpen_ = false;

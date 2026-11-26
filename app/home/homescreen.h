@@ -44,6 +44,9 @@ public:
     void setWizardState(const QString &port, bool hasProgress, bool windowOpen,
                         bool uninstalled = false);
 
+    // Update section 8: the version the channel has for the iPod of this port, empty for none.
+    void setUpdate(const QString &port, const QString &version);
+
 signals:
     void actionRequested(const QString &port, tacetos::HomeAction action);
     void refreshRequested();
@@ -72,6 +75,7 @@ private:
         bool uninstalled = false;
     };
     QHash<QString, WizardFlags> wizardState_;
+    QHash<QString, QString> updates_;
     bool detectionAvailable_ = true;
 };
 

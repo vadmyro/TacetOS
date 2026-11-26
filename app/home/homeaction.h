@@ -24,6 +24,8 @@ enum class HomeAction {
     UninstallWizard,
     ResumeWizard,
     ShowWizard,
+    // Update section 8: the update of a `tacetos` iPod when the channel has a newer version.
+    UpdateWizard,
     // Boot screen section 8.1: opens the dialog of the boot logo.
     BootLogo,
 };

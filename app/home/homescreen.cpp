@@ -187,6 +187,7 @@ void HomeScreen::setEntries(const QList<ScreenEntry> &entries, const QList<Model
         card->setEntry(entry, models, host);
         const auto flags = wizardState_.value(entry.portPath);
         card->setWizardState(flags.hasProgress, flags.windowOpen, flags.uninstalled);
+        card->setUpdate(updates_.value(entry.portPath));
         card->setNameInButtons(entries.size() > 1);
         kept.append(card);
     }
@@ -218,6 +219,17 @@ void HomeScreen::setWizardState(const QString &port, bool hasProgress, bool wind
     for (IpodCard *card : std::as_const(cards_))
         if (card->portPath() == port)
             card->setWizardState(hasProgress, windowOpen, uninstalled);
+}
+
+void HomeScreen::setUpdate(const QString &port, const QString &version)
+{
+    if (version.isEmpty())
+        updates_.remove(port);
+    else
+        updates_.insert(port, version);
+    for (IpodCard *card : std::as_const(cards_))
+        if (card->portPath() == port)
+            card->setUpdate(version);
 }
 
 void HomeScreen::updateTabOrder()

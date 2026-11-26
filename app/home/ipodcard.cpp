@@ -233,6 +233,13 @@ IpodCard::IpodCard(QWidget *parent) : QFrame(parent)
     firmware_->setFont(fontFor(TextStyle::Secondary));
     text->addWidget(firmware_);
 
+    update_ = new QLabel(this);
+    update_->setObjectName(QStringLiteral("ipodUpdate"));
+    update_->setProperty("role", QStringLiteral("accent"));
+    update_->setFont(fontFor(TextStyle::Secondary));
+    update_->hide();
+    text->addWidget(update_);
+
     spaceBar_ = new QProgressBar(this);
     spaceBar_->setObjectName(QStringLiteral("spaceBar"));
     spaceBar_->setRange(0, 1000);
@@ -382,9 +389,11 @@ void IpodCard::setEntry(const ScreenEntry &entry, const QList<Model> &models, Ho
                    (kind == ScreenKind::Ready || kind == ScreenKind::NotMounted ||
                     kind == ScreenKind::Attention) &&
                    entry.ipod.has_value();
+    updatable_ = false;
     if (entry.ipod) {
         const FirmwareKind line = entry.ipod->firmwareLine.kind;
         firmwareIsOurs_ = line == FirmwareKind::Tacetos || line == FirmwareKind::Custom;
+        updatable_ = kind == ScreenKind::Ready && line == FirmwareKind::Tacetos;
         isClassic_ = false;
         for (const Model &m : models)
             if (m.id == entry.ipod->model && m.family == QLatin1String("classic"))
@@ -406,6 +415,13 @@ void IpodCard::setEntry(const ScreenEntry &entry, const QList<Model> &models, Ho
     drawModel();
 }
 
+void IpodCard::setUpdate(const QString &version)
+{
+    updateVersion_ = version;
+    updateWizardButtons();
+    updateButtonNames();
+}
+
 void IpodCard::setWizardState(bool hasProgress, bool windowOpen, bool uninstalled)
 {
     hasProgress_ = hasProgress;
@@ -419,6 +435,10 @@ void IpodCard::setWizardState(bool hasProgress, bool windowOpen, bool uninstalle
 // is open (the card then shows the iPod as held, with that one button).
 void IpodCard::updateWizardButtons()
 {
+    // Update section 8: the flow in progress comes first.
+    const bool update = updatable_ && !updateVersion_.isEmpty() && !hasProgress_;
+    update_->setText(htr("Update available: TacetOS %1").arg(updateVersion_));
+    update_->setVisible(update && !windowOpen_);
     if (windowOpen_) {
         eject_->hide();
         bootLogo_->hide();
@@ -435,13 +455,17 @@ void IpodCard::updateWizardButtons()
     bootLogo_->setVisible(bootLogoShown_);
     open_->setVisible(openShown_);
     wizard_->setVisible(wizardShown_);
-    uninstall_->setVisible(wizardShown_ && !hasProgress_ && !firmwareIsOurs_ && isClassic_ &&
-                           !uninstalled_);
+    // Uninstall is secondary beside Install TacetOS on a Classic, and beside Update.
+    uninstall_->setVisible(wizardShown_ && !hasProgress_ &&
+                           ((!firmwareIsOurs_ && isClassic_ && !uninstalled_) || update));
     if (!wizardShown_)
         return;
     if (hasProgress_) {
         wizard_->setText(htr("Resume"));
         wizardAction_ = HomeAction::ResumeWizard;
+    } else if (update) {
+        wizard_->setText(htr("Update"));
+        wizardAction_ = HomeAction::UpdateWizard;
     } else if (firmwareIsOurs_) {
         wizard_->setText(htr("Uninstall"));
         wizardAction_ = HomeAction::UninstallWizard;
