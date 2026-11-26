@@ -62,6 +62,10 @@ struct WizardTarget
     qint64 volumeUsed = 0;
     qint64 keepBytes = 0;
     qint64 partitionBytes = 0;
+    // An update (update-channel.md section 7): the version of TacetOS on the iPod and the one
+    // the channel has, as the first screen shows them.
+    QString tacetosVersion;
+    QString updateVersion;
 };
 
 struct WizardOptions
@@ -89,7 +93,7 @@ struct WizardOptions
 };
 
 // What opened the window (screens section 1.1).
-enum class WizardEntry { Install, Uninstall, Resume };
+enum class WizardEntry { Install, Uninstall, Resume, Update };
 
 // The window of the install wizard for one iPod (docs/specs/install-screens.md sections 1, 2,
 // 11 and 12): the steps on the left, the page of the step on the right, the footer. It is
@@ -105,7 +109,8 @@ public:
     const WizardTarget &target() const { return target_; }
     wizard::WizardRunner *runner() const { return runner_; }
 
-    // The page that shows: `install`, `uninstall`, `resume`, `step`, `offer`, or the page of a
+    // The page that shows: `install`, `uninstall`, `update`, `resume`, `step`, `offer`, or the
+    // page of a
     // step: `diagnose`, `backup`, `format`, `dfu`, `write` (firmware, bootloader, Disk Mode and the
     // restart of the Classic), `remove` (the steps of an uninstall), `done`, and `report` over
     // them.
@@ -164,6 +169,7 @@ private:
 
     void build();
     QWidget *buildFirstPage();
+    QWidget *buildUpdatePage();
     QWidget *buildResumePage();
     QWidget *buildStepPage();
     QWidget *buildOfferPage();
@@ -178,6 +184,7 @@ private:
     void retry();
     QString backupFolder() const;
     void refreshFirst();
+    void refreshUpdate();
     void refreshFooter();
     void setItems(const QStringList &steps, int done);
     void setItemState(int item, const QString &state);
@@ -262,6 +269,9 @@ private:
     QLabel *packageWhy_ = nullptr;
     QLabel *folderLabel_ = nullptr;
     QLabel *plan_ = nullptr;
+    QLabel *updateVersions_ = nullptr;
+    QLabel *updateFolderLabel_ = nullptr;
+    QLabel *updatePlan_ = nullptr;
     QLabel *firstError_ = nullptr;
 
     QLabel *resumeTitle_ = nullptr;

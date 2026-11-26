@@ -251,11 +251,17 @@ void DonePage::showFinish(const QJsonObject &summary)
     const QString folder = summary.value(QStringLiteral("backup")).toString();
     if (!folder.isEmpty())
         folderPath_ = folder;
-    title_->setText(wtr("TacetOS is installed"));
     QString what = version.isEmpty() ? wtr("TacetOS") : wtr("TacetOS %1").arg(version);
-    subtitle_->setText(name_.isEmpty() ? what + QLatin1Char('.')
-                                       : wtr("%1 on %2.").arg(what, name_));
-    const QStringList lines = classic_ ? classicLines() : lines_;
+    if (update_) {
+        title_->setText(wtr("%1 is on the iPod").arg(what));
+        subtitle_->setText(name_);
+    } else {
+        title_->setText(wtr("TacetOS is installed"));
+        subtitle_->setText(name_.isEmpty() ? what + QLatin1Char('.')
+                                           : wtr("%1 on %2.").arg(what, name_));
+    }
+    // An update changes no way of starting: those lines were given by the install.
+    const QStringList lines = update_ ? QStringList() : classic_ ? classicLines() : lines_;
     if (lines.isEmpty()) {
         starting_->hide();
     } else {
@@ -275,7 +281,8 @@ void DonePage::showFinish(const QJsonObject &summary)
                                    .arg(QLocale().toString(files_), backupSizeText(bytes_)));
     music_->setVisible(clean_ && hasBackup);
     ejected_ = false;
-    ejectLine_->setText(wtr("Eject the iPod before you unplug it."));
+    ejectLine_->setText(update_ ? wtr("Eject it: it starts on the new version.")
+                                : wtr("Eject the iPod before you unplug it."));
     eject_->setEnabled(true);
     finish_->show();
     eject_->setFocus();

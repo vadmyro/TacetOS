@@ -3,6 +3,7 @@
 
 #include "wizard/wizardlauncher.h"
 
+#include "address.h"
 #include "backup.h"
 #include "checks.h"
 #include "classicdfu.h"
@@ -154,7 +155,8 @@ bool WizardLauncher::realWrites() const
     return installer::realWritesAllowed() && helperFound();
 }
 
-WizardWindow *WizardLauncher::open(const QString &port, HomeAction action)
+WizardWindow *WizardLauncher::open(const QString &port, HomeAction action,
+                                   const QString &updateVersion)
 {
     std::optional<device::DetectedIpod> found;
     for (const device::DetectedIpod &ipod : tracker_.ipods()) {
@@ -191,6 +193,7 @@ WizardWindow *WizardLauncher::open(const QString &port, HomeAction action)
     sources.appVersion = config_.appVersion;
     sources.installRecords = installRecordsOf(config_.backupRoot, serial);
     sources.portPath = ipod.portPath;
+    sources.channel = update::channelOfThisBuild().address;
 
     auto session = std::make_shared<Session>();
     session->factory =
@@ -207,6 +210,8 @@ WizardWindow *WizardLauncher::open(const QString &port, HomeAction action)
     target.bootloaderTarget = model.bootloaderTarget;
     target.firmwareFolder = model.firmwareFolder;
     target.family = family;
+    target.tacetosVersion = ipod.firmwareLine.version;
+    target.updateVersion = updateVersion;
     target.macFormat = ipod.volume && (ipod.volume->filesystem == QLatin1String("hfsplus") ||
                                        ipod.volume->filesystem == QLatin1String("hfs"));
     if (family == Family::Dfu && ipod.volume)
@@ -268,6 +273,7 @@ WizardWindow *WizardLauncher::open(const QString &port, HomeAction action)
 
     const WizardEntry entry = action == HomeAction::UninstallWizard ? WizardEntry::Uninstall
                               : action == HomeAction::ResumeWizard  ? WizardEntry::Resume
+                              : action == HomeAction::UpdateWizard  ? WizardEntry::Update
                                                                     : WizardEntry::Install;
     auto *window = new WizardWindow(target, options, session->runner.get(), entry);
     window->setAttribute(Qt::WA_DeleteOnClose);

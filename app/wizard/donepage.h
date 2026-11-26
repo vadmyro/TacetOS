@@ -43,6 +43,9 @@ public:
 
     // A clean install: "Put my music back" is shown.
     void setCleanInstall(bool clean) { clean_ = clean; }
+    // An update (update-channel.md section 7): "TacetOS 0.3.0 is on the iPod", and the iPod starts
+    // on the new version once ejected.
+    void setUpdate(bool update) { update_ = update; }
 
     // The version of the package, when the facts of `finish` have none.
     void setVersion(const QString &version) { version_ = version; }
@@ -93,6 +96,7 @@ private:
     qint64 bytes_ = 0;
     bool classic_ = false;
     bool clean_ = false;
+    bool update_ = false;
     bool checking_ = false;
     bool failed_ = false;
     bool finished_ = false;

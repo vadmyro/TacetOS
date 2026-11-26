@@ -56,6 +56,8 @@ QString wtr(const char *text)
 // Section 13.1: the label of a step.
 QString labelOf(const QString &name)
 {
+    if (name == step::download)
+        return wtr("Download");
     if (name == step::diagnose)
         return wtr("Checks");
     if (name == step::backupFull || name == step::backupKeep || name == step::backupSettings)
@@ -149,7 +151,9 @@ WizardWindow::WizardWindow(const WizardTarget &target, const WizardOptions &opti
     notify_ = [this](const QString &text) { QMessageBox::information(this, QString(), text); };
 
     shape_.family = target_.family;
-    shape_.kind = entry_ == WizardEntry::Uninstall ? FlowKind::Uninstall : FlowKind::Install;
+    shape_.kind = entry_ == WizardEntry::Uninstall ? FlowKind::Uninstall
+                  : entry_ == WizardEntry::Update  ? FlowKind::Update
+                                                   : FlowKind::Install;
     shape_.macFormat = target_.macFormat;
     shape_.bootloaderFirst = target_.bootloaderFirst;
     shape_.path = shape_.kind == FlowKind::Install ? path_ : InstallPath::None;
@@ -167,8 +171,11 @@ WizardWindow::WizardWindow(const WizardTarget &target, const WizardOptions &opti
             const QString step = saved_.steps.value(saved_.current);
             resumeTitle_->setText((saved_.shape.kind == FlowKind::Uninstall
                                        ? wtr("An uninstall was stopped at \"%1\"")
+                                   : saved_.shape.kind == FlowKind::Update
+                                       ? wtr("An update was stopped at \"%1\"")
                                        : wtr("An install was stopped at \"%1\""))
                                       .arg(labelOf(step)));
+            done_->setUpdate(saved_.shape.kind == FlowKind::Update);
             resumeDates_->setText(
                 wtr("Started on %1, stopped at %2.")
                     .arg(QLocale().toString(saved_.started.toLocalTime(), QLocale::ShortFormat),
@@ -188,6 +195,9 @@ WizardWindow::WizardWindow(const WizardTarget &target, const WizardOptions &opti
     if (entry_ == WizardEntry::Uninstall) {
         setItems(stepsFor(shape_), 0);
         showPage(QStringLiteral("uninstall"));
+    } else if (entry_ == WizardEntry::Update) {
+        refreshUpdate();
+        showPage(QStringLiteral("update"));
     } else {
         refreshFirst();
         showPage(QStringLiteral("install"));
@@ -225,6 +235,7 @@ void WizardWindow::build()
     auto *headerLayout = new QVBoxLayout(header);
     headerLayout->setContentsMargins(24, 8, 24, 8);
     title_ = new QLabel(entry_ == WizardEntry::Uninstall ? wtr("Uninstall TacetOS")
+                        : entry_ == WizardEntry::Update  ? wtr("Update TacetOS")
                                                          : wtr("Install TacetOS"),
                         header);
     title_->setObjectName(QStringLiteral("wizardTitle"));
@@ -257,6 +268,7 @@ void WizardWindow::build()
     uninstallLayout->addWidget(uninstallText);
     uninstallLayout->addStretch();
     addPage(QStringLiteral("uninstall"), uninstall);
+    addPage(QStringLiteral("update"), buildUpdatePage());
     addPage(QStringLiteral("resume"), buildResumePage());
     addPage(QStringLiteral("step"), buildStepPage());
     addPage(QStringLiteral("offer"), buildOfferPage());
@@ -297,6 +309,7 @@ void WizardWindow::build()
     done_ = new DonePage(runner_);
     done_->setIpod(target_.model, target_.name);
     done_->setClassic(target_.family == Family::Dfu);
+    done_->setUpdate(shape_.kind == FlowKind::Update);
     connect(done_, &DonePage::closeRequested, this, &QWidget::close);
     addPage(QStringLiteral("done"), done_);
     if (options_.ejecter) {
@@ -386,6 +399,29 @@ QWidget *WizardWindow::buildFirstPage()
 
     plan_ = label("planSummary", page);
     layout->addWidget(plan_);
+    layout->addStretch();
+    return page;
+}
+
+// Update section 7: no path and no package, the versions, the backup folder and the plan.
+QWidget *WizardWindow::buildUpdatePage()
+{
+    auto *page = new QWidget;
+    auto *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(32, 32, 32, 32);
+    updateVersions_ = label("updateVersions", page);
+    updateVersions_->setProperty("role", QStringLiteral("title"));
+    layout->addWidget(updateVersions_);
+    auto *row = new QHBoxLayout;
+    row->addWidget(new QLabel(wtr("Backup folder"), page));
+    updateFolderLabel_ = label("updateBackupFolderLabel", page, false);
+    row->addWidget(updateFolderLabel_, 1);
+    QPushButton *change = button(wtr("Change..."), "secondary", "updateBackupFolderChange", page);
+    row->addWidget(change);
+    connect(change, &QPushButton::clicked, this, &WizardWindow::changeFolder);
+    layout->addLayout(row);
+    updatePlan_ = label("updatePlan", page);
+    layout->addWidget(updatePlan_);
     layout->addStretch();
     return page;
 }
@@ -640,7 +676,8 @@ void WizardWindow::showPage(const QString &name)
         beforeReport_ = name;
     else
         pages_->setCurrentWidget(pageOf_.value(name));
-    if (name == QLatin1String("install") || name == QLatin1String("uninstall"))
+    if (name == QLatin1String("install") || name == QLatin1String("uninstall") ||
+        name == QLatin1String("update"))
         main_ = Main::Start;
     else if (name == QLatin1String("resume") || name == QLatin1String("offer"))
         main_ = Main::None;
@@ -656,8 +693,11 @@ void WizardWindow::refreshFooter()
     const bool onPage = isFlowPage(currentFlowPage());
     main_button_->setVisible(main_ != Main::None);
     if (main_ == Main::Start) {
-        main_button_->setText(entry_ == WizardEntry::Uninstall ? wtr("Uninstall") : wtr("Start"));
+        main_button_->setText(entry_ == WizardEntry::Uninstall ? wtr("Uninstall")
+                              : entry_ == WizardEntry::Update  ? wtr("Update")
+                                                               : wtr("Start"));
         main_button_->setEnabled(entry_ == WizardEntry::Uninstall ||
+                                 entry_ == WizardEntry::Update ||
                                  (path_ != InstallPath::None && packageOk_));
     } else if (main_ == Main::Close) {
         main_button_->setText(wtr("Close"));
@@ -691,6 +731,10 @@ qint64 WizardWindow::free() const
 
 void WizardWindow::refreshFirst()
 {
+    if (shape_.kind == FlowKind::Update) {
+        refreshUpdate();
+        return;
+    }
     const qint64 cleanNeed =
         backupSpaceNeeded(BackupKind::Full, target_.volumeUsed, 0, target_.partitionBytes);
     const qint64 keepNeed = backupSpaceNeeded(BackupKind::Keep, target_.volumeUsed,
@@ -736,6 +780,22 @@ void WizardWindow::refreshFirst()
                          target_.partitionBytes;
     plan_->setText(wtr("What will happen: %1. %2. Keep the iPod plugged in.")
                        .arg(words.join(QStringLiteral(", ")), duration(bytes / kCopySpeedGuess)));
+    refreshFooter();
+}
+
+// Update section 7: "TacetOS 0.2.0 > 0.3.0", the folder, and what will happen.
+void WizardWindow::refreshUpdate()
+{
+    updateVersions_->setText(
+        wtr("TacetOS %1 > %2").arg(target_.tacetosVersion, target_.updateVersion));
+    updateFolderLabel_->setText(homeShort(options_.backupRoot));
+    if (!active_)
+        setItems(stepsFor(shape_), 0);
+    QStringList words;
+    for (const QString &item : stepLabels())
+        words.append(item.toLower());
+    updatePlan_->setText(wtr("What will happen: %1. Keep the iPod plugged in.")
+                             .arg(words.join(QStringLiteral(", "))));
     refreshFooter();
 }
 
@@ -871,7 +931,11 @@ void WizardWindow::onProgress(qint64 done, qint64 total)
     if (total > 0) {
         bar_->setRange(0, 1000);
         bar_->setValue(int(qBound(qint64(0), done * 1000 / total, qint64(1000))));
-        barText_->setText(wtr("%1 of %2").arg(gigabytes(done), gigabytes(total)));
+        // A download is a few megabytes: its sizes in the units that fit.
+        const bool small = currentStep_ == step::download;
+        barText_->setText(wtr("%1 of %2")
+                              .arg(small ? sizeText(done) : gigabytes(done),
+                                   small ? sizeText(total) : gigabytes(total)));
     } else {
         bar_->setRange(0, 0);
     }
@@ -919,9 +983,11 @@ void WizardWindow::onFailed(int index, const QString &name, const QString &code,
 {
     if (index < itemOfStep_.size())
         setItemState(itemOfStep_.at(index), QStringLiteral("failed"));
-    // The detail (the check that blocks, the file that failed) stays with the code.
-    const QString text = detail.isEmpty()
-                             ? message(code)
+    // The detail (the check that blocks, the file that failed) stays with the code. The space a
+    // download needs is part of its sentence (update section 6).
+    const QString text = detail.isEmpty() ? message(code)
+                         : code == QString(error::downloadSpace)
+                             ? message(code) + QStringLiteral(": ") + detail
                              : message(code) + QStringLiteral(" (") + detail + QLatin1Char(')');
     failure_->setText(text);
     failure_->show();
@@ -974,6 +1040,15 @@ QString WizardWindow::message(const QString &code) const
         return wtr("This iPod has no serial number, so the wizard cannot start.");
     if (code == QString(error::cancelled))
         return wtr("Stopped.");
+    // Update section 6.
+    if (code == QString(error::updateGone))
+        return wtr("This update is no longer available. Press Refresh");
+    if (code == QString(error::downloadSpace))
+        return wtr("Not enough space on this computer to download the update");
+    if (code == QString(error::downloadDamaged))
+        return wtr("The download is damaged. Try again");
+    if (code == QString(error::downloadFailed))
+        return wtr("The update could not be downloaded. Check the connection, then try again");
     return code;
 }
 
@@ -994,7 +1069,7 @@ void WizardWindow::onCancel()
 {
     const QString page = pageName();
     if (page == QLatin1String("install") || page == QLatin1String("uninstall") ||
-        page == QLatin1String("resume") || !active_) {
+        page == QLatin1String("update") || page == QLatin1String("resume") || !active_) {
         close();
         return;
     }
@@ -1012,8 +1087,12 @@ void WizardWindow::start()
     s.serial = target_.serial;
     s.model = target_.model;
     s.shape = shape_;
-    s.packageManifest = packageManifest_;
-    s.packageSha256 = packageSha_;
+    if (shape_.kind == FlowKind::Update) {
+        s.version = target_.updateVersion;
+    } else {
+        s.packageManifest = packageManifest_;
+        s.packageSha256 = packageSha_;
+    }
     const QString code = runner_->start(s);
     if (!code.isEmpty()) {
         firstError_->setText(message(code));
@@ -1065,8 +1144,7 @@ void WizardWindow::openReport()
     in.model = target_.model;
     in.family = target_.family == Family::Dfu ? QStringLiteral("dfu") : QStringLiteral("partition");
     in.serial = target_.serial;
-    in.flow = shape_.kind == FlowKind::Uninstall ? QStringLiteral("uninstall")
-                                                 : QStringLiteral("install");
+    in.flow = kindName(shape_.kind);
     in.path = path_ == InstallPath::Keep    ? QStringLiteral("keep")
               : path_ == InstallPath::Clean ? QStringLiteral("clean")
                                             : QString();

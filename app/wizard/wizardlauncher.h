@@ -63,7 +63,9 @@ public:
 
     // Section 1.1: opens the window of the iPod of this port for an action of the home screen,
     // or brings the one that is open to the front. Returns null when the iPod is not known.
-    WizardWindow *open(const QString &port, HomeAction action);
+    // `updateVersion` is the version the channel has, for `UpdateWizard`.
+    WizardWindow *open(const QString &port, HomeAction action,
+                       const QString &updateVersion = QString());
 
     // Screens section 11: the writes are on only in a build that allows them, with the helper
     // found.
