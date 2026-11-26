@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "address.h"
 #include "automount.h"
 #include "home/homeaction.h"
 #include "journal.h"
@@ -25,6 +26,7 @@ class QCloseEvent;
 namespace tacetos {
 
 class HomeScreen;
+class UpdateWatcher;
 
 // Opens a folder in the file manager of the system. The window is given one so that a test
 // never opens anything.
@@ -66,6 +68,11 @@ public:
     // writing. The real app calls this itself; a test calls it with its own folders.
     void attachWizard(const WizardLauncher::Config &config);
     WizardLauncher *wizard() const { return launcher_.get(); }
+    // Update section 8: the cards of `tacetos` iPods read this channel. The real app calls this
+    // with the address of its build; a test calls it with its own channel, and without it
+    // nothing is read.
+    void attachUpdateChannel(const update::ChannelAddress &address);
+    UpdateWatcher *updateWatcher() const { return updates_.get(); }
     // Section 1.3: why the app cannot quit now, empty when it can.
     QString quitRefusal() const;
 
@@ -106,6 +113,8 @@ private:
     // Mount and mount read only open the mount point when they end well: the id of the
     // operation that asked, by port.
     QHash<QString, quint64> openAfter_;
+    // It holds a pointer to the journal.
+    std::unique_ptr<UpdateWatcher> updates_;
     // Last: it holds references to the tracker and the journal, and its windows go first.
     std::unique_ptr<WizardLauncher> launcher_;
 };

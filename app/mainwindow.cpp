@@ -5,6 +5,7 @@
 
 #include "home/bootlogodialog.h"
 #include "home/homescreen.h"
+#include "home/updatewatcher.h"
 
 #include <QCloseEvent>
 #include <QDesktopServices>
@@ -102,6 +103,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), open_(openFolderI
     wizard.appVersion = QStringLiteral(TACETOS_VERSION);
     wizard.models = models_;
     attachWizard(wizard);
+    const update::ChannelChoice channel = update::channelOfThisBuild();
+    for (const QString &line : channel.log)
+        journal_->add(journal::Level::Info, journal::Domain::App, QString(), line);
+    attachUpdateChannel(channel.address);
     driver_->start();
 #else
     // Detection is not there yet on this system: a plain message, no error.
@@ -132,6 +137,16 @@ void MainWindow::attachWizard(const WizardLauncher::Config &config)
     connect(launcher_.get(), &WizardLauncher::stateChanged, this, &MainWindow::showWizardState);
     // The buttons of a card are those of the first screen: the progress files that wait are
     // known at once.
+    showEntries();
+}
+
+void MainWindow::attachUpdateChannel(const update::ChannelAddress &address)
+{
+    if (updates_ || !model_)
+        return;
+    updates_ = std::make_unique<UpdateWatcher>(address, journal_.get());
+    connect(updates_.get(), &UpdateWatcher::updateChanged, this,
+            [this](const QString &port) { home_->setUpdate(port, updates_->updateFor(port)); });
     showEntries();
 }
 
@@ -224,7 +239,11 @@ void MainWindow::wire(DeviceSource *source, const Clock *clock, DiskActions *act
     connect(model_.get(), &DeviceStateModel::listChanged, this, &MainWindow::showEntries);
     connect(runner_.get(), &OperationRunner::operationChanged, this, &MainWindow::onOperation);
     connect(home_, &HomeScreen::actionRequested, this, &MainWindow::onAction);
-    connect(home_, &HomeScreen::refreshRequested, this, [this] { model_->refresh(); });
+    connect(home_, &HomeScreen::refreshRequested, this, [this] {
+        model_->refresh();
+        if (updates_)
+            updates_->refresh();
+    });
     showEntries();
 }
 
@@ -234,6 +253,8 @@ void MainWindow::showEntries()
     home_->setEntries(entries, models_);
     for (const ScreenEntry &entry : entries)
         showWizardState(entry.portPath);
+    if (updates_)
+        updates_->show(entries, models_);
 }
 
 void MainWindow::onAction(const QString &port, HomeAction action)
@@ -262,8 +283,12 @@ void MainWindow::onAction(const QString &port, HomeAction action)
     case HomeAction::UninstallWizard:
     case HomeAction::ResumeWizard:
     case HomeAction::ShowWizard:
+    case HomeAction::UpdateWizard:
         if (launcher_)
-            launcher_->open(port, action);
+            launcher_->open(port, action,
+                            action == HomeAction::UpdateWizard && updates_
+                                ? updates_->updateFor(port)
+                                : QString());
         emit wizardRequested(port, action);
         break;
     }
