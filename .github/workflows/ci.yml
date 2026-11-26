@@ -17,6 +17,12 @@ on:
       - 'firmware/**'
       - 'tests/**'
       - '**/CMakeLists.txt'
+    # Every branch, and the release tags. With tags alone, a push to a branch would no
+    # longer start the CI. GitHub does not apply the paths above to a tag.
+    branches:
+      - '**'
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 permissions:
@@ -171,8 +177,15 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       targets: ${{ steps.models.outputs.targets }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v7
+
+      - name: Version of the packages
+        # One version for every model (update-channel.md, section 5). On a tag that is not
+        # the project version, version.sh fails here, before anything is built.
+        id: version
+        run: echo "version=$(bash firmware/version.sh)" >> "$GITHUB_OUTPUT"
 
       - name: List the models
         # One build per model of models/models.toml, named by its bootloader target.
@@ -252,10 +265,10 @@ jobs:
         run: bash firmware/apply.sh --dest "$RUNNER_TEMP/fw/src"
 
       - name: Build the firmware
-        run: bash firmware/build.sh --target "$TARGET" --type N --src "$RUNNER_TEMP/fw/src" --out "$RUNNER_TEMP/fw/out" --toolchain "$RUNNER_TEMP/toolchain"
+        run: bash firmware/build.sh --target "$TARGET" --type N --version "${{ needs.firmware-prepare.outputs.version }}" --src "$RUNNER_TEMP/fw/src" --out "$RUNNER_TEMP/fw/out" --toolchain "$RUNNER_TEMP/toolchain"
 
       - name: Build the bootloader
-        run: bash firmware/build.sh --target "$TARGET" --type B --src "$RUNNER_TEMP/fw/src" --out "$RUNNER_TEMP/fw/out" --toolchain "$RUNNER_TEMP/toolchain"
+        run: bash firmware/build.sh --target "$TARGET" --type B --version "${{ needs.firmware-prepare.outputs.version }}" --src "$RUNNER_TEMP/fw/src" --out "$RUNNER_TEMP/fw/out" --toolchain "$RUNNER_TEMP/toolchain"
 
       - name: Check the branding of the builds
         # The listed plugins the base does not build for this model are shown first (branding 7.7).
@@ -265,7 +278,7 @@ jobs:
           bash firmware/check-build.sh --target "$TARGET" --types N,B --plugins --src "$RUNNER_TEMP/fw/src" --out "$RUNNER_TEMP/fw/out"
 
       - name: Package
-        run: bash firmware/package.sh --target "$TARGET" --in "$RUNNER_TEMP/fw/out" --out "$RUNNER_TEMP/fw/package"
+        run: bash firmware/package.sh --target "$TARGET" --version "${{ needs.firmware-prepare.outputs.version }}" --in "$RUNNER_TEMP/fw/out" --out "$RUNNER_TEMP/fw/package"
 
       - name: Check the package against its manifest
         working-directory: ${{ runner.temp }}/fw/package
@@ -320,7 +333,7 @@ jobs:
         run: bash firmware/apply.sh --dest "$RUNNER_TEMP/fw/src"
 
       - name: Build the simulator
-        run: bash firmware/build.sh --target "$TARGET" --type S --src "$RUNNER_TEMP/fw/src" --out "$RUNNER_TEMP/fw/out"
+        run: bash firmware/build.sh --target "$TARGET" --type S --version "${{ needs.firmware-prepare.outputs.version }}" --src "$RUNNER_TEMP/fw/src" --out "$RUNNER_TEMP/fw/out"
 
       - name: Check the branding of the build
         run: bash firmware/check-build.sh --target "$TARGET" --types S --src "$RUNNER_TEMP/fw/src" --out "$RUNNER_TEMP/fw/out"
@@ -332,3 +345,63 @@ jobs:
           path: ${{ runner.temp }}/fw/out/
           retention-days: 30
           if-no-files-found: error
+
+  release:
+    # On a tag vX.Y.Z only: a draft release with the package of every model and the index
+    # (update-channel.md, section 2). Never published by the CI (drafts until the beta).
+    name: release (draft)
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [format, build, firmware-prepare, firmware, simulator]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.firmware-prepare.outputs.version }}
+      TAG: ${{ github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download firmware packages
+        # Collect the packages from all 10 firmware job runs (one per target).
+        # Only the firmware packages: the simulators (tacetos-sim-*) are not part of a release.
+        uses: actions/download-artifact@v7
+        with:
+          path: ${{ runner.temp }}/packages
+          pattern: tacetos-ipod*
+
+      - name: Flatten and list packages
+        id: flatten
+        run: |
+          mkdir -p "$RUNNER_TEMP/release"
+          find "$RUNNER_TEMP/packages" -type f -exec mv {} "$RUNNER_TEMP/release/" \;
+          echo "package count: $(ls "$RUNNER_TEMP/release" | wc -l)"
+          ls -lh "$RUNNER_TEMP/release/"
+
+      - name: Create release index
+        run: bash firmware/release-index.sh --dir "$RUNNER_TEMP/release" --version "$VERSION"
+
+      - name: Replace the draft of this tag
+        # The same tag again makes the draft again, never a second one. A published release
+        # with this tag is never touched.
+        run: |
+          state="$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null || echo none)"
+          case "$state" in
+            none) ;;
+            true) gh release delete "$TAG" --yes ;;
+            *) echo "$TAG is already published" >&2; exit 1 ;;
+          esac
+
+      - name: Create the draft release
+        run: |
+          count="$(ls "$RUNNER_TEMP/release" | wc -l)"
+          [ "$count" -eq 31 ] || { echo "expected 31 files, found $count" >&2; ls "$RUNNER_TEMP/release" >&2; exit 1; }
+          gh release create "$TAG" "$RUNNER_TEMP"/release/* --draft \
+            --title "TacetOS $VERSION" --notes "Draft, not public before the beta."
+
+      - name: Read the files of the release back
+        # GitHub may change a file name; every name and size must be ours.
+        run: |
+          gh release view "$TAG" --json assets --jq '.assets[] | "\(.name) \(.size)"' | sort > "$RUNNER_TEMP/online.txt"
+          (cd "$RUNNER_TEMP/release" && for f in *; do echo "$f $(stat -c %s "$f")"; done) | sort > "$RUNNER_TEMP/local.txt"
+          diff "$RUNNER_TEMP/local.txt" "$RUNNER_TEMP/online.txt"
