@@ -103,6 +103,9 @@ private slots:
     void customFirmwareFromInfoFile();
     void tacetosFromDistributionLine();
     void distributionNameIsNotRepeated();
+    void buildLineOfARelease();
+    void buildLineOfADevelopmentBuild();
+    void infoFileWithoutTheBuildLine();
     void infoFileBeatsSysInfo();
     void infoFileOfAnotherModelIsNotUsed();
     void unknownTargetIsNotCustom();
@@ -234,6 +237,66 @@ void TstDeviceFirmware::distributionNameIsNotRepeated()
     files.version = QStringLiteral("tacetos 0.3");
     QCOMPARE(identifyFirmware(files, QMap<QString, QString>(), RunningFirmware::Unknown).version,
              QStringLiteral("0.3"));
+}
+
+// The line patch 0015 writes, read with the key of the constants file.
+void TstDeviceFirmware::buildLineOfARelease()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    putInfoFile(dir, QStringLiteral("TacetOS: 0.3.0\n"));
+    const MarkerReading markers = readMarkers(dir.path(), g_models);
+    QCOMPARE(markers.firmware.files, FirmwareFiles::Tacetos);
+    QCOMPARE(markers.firmware.version, QStringLiteral("0.3.0"));
+    const MergeResult result = mergeEvidence(classicWith(markers), g_models);
+    QCOMPARE(result.ipod.firmwareLine.kind, FirmwareKind::Tacetos);
+    QCOMPARE(result.ipod.firmwareLine.version, QStringLiteral("0.3.0"));
+    QVERIFY(!result.ipod.firmwareLine.development);
+    QCOMPARE(firmwareMessage(result.ipod), QStringLiteral("TacetOS 0.3.0"));
+}
+
+void TstDeviceFirmware::buildLineOfADevelopmentBuild()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    putInfoFile(dir, QStringLiteral("TacetOS: 0.3.0-dev+g5a1b2c3d4e5f\n"));
+    const MarkerReading markers = readMarkers(dir.path(), g_models);
+    QCOMPARE(markers.firmware.files, FirmwareFiles::Tacetos);
+    // The whole version is kept for the update channel.
+    QCOMPARE(markers.firmware.version, QStringLiteral("0.3.0-dev+g5a1b2c3d4e5f"));
+    const MergeResult result = mergeEvidence(classicWith(markers), g_models);
+    QCOMPARE(result.ipod.firmwareLine.version, QStringLiteral("0.3.0"));
+    QVERIFY(result.ipod.firmwareLine.development);
+    QCOMPARE(firmwareMessage(result.ipod), QStringLiteral("TacetOS 0.3.0 (development build)"));
+
+    // The commit is logged, never shown.
+    QStringList log;
+    identifyFirmware(result.ipod.firmware, QMap<QString, QString>(), RunningFirmware::Unknown,
+                     &log);
+    QCOMPARE(log, QStringList{QStringLiteral("firmware: tacetos 0.3.0-dev+g5a1b2c3d4e5f")});
+
+    // Without the commit, still a development build.
+    FirmwareInfo files;
+    files.files = FirmwareFiles::Tacetos;
+    files.version = QStringLiteral("0.3.0-dev");
+    const FirmwareLine line =
+        identifyFirmware(files, QMap<QString, QString>(), RunningFirmware::Unknown);
+    QCOMPARE(line.version, QStringLiteral("0.3.0"));
+    QVERIFY(line.development);
+}
+
+void TstDeviceFirmware::infoFileWithoutTheBuildLine()
+{
+    // A build of the base: the same file with no TacetOS line.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    putInfoFile(dir);
+    const MarkerReading markers = readMarkers(dir.path(), g_models);
+    QCOMPARE(markers.firmware.files, FirmwareFiles::Present);
+    QVERIFY(markers.firmware.version.isEmpty());
+    const MergeResult result = mergeEvidence(classicWith(markers), g_models);
+    QCOMPARE(result.ipod.firmwareLine.kind, FirmwareKind::Custom);
+    QCOMPARE(firmwareMessage(result.ipod), QStringLiteral("Custom firmware 4.0"));
 }
 
 void TstDeviceFirmware::infoFileBeatsSysInfo()
