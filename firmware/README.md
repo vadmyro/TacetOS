@@ -7,6 +7,8 @@ The TacetOS firmware is **not a diverging fork**: it is a short stack of patches
 | `base.lock` | The base sources and the exact commit we build on |
 | `patches/` | Our patches, applied in order |
 | `backports.md` | Newer features brought in one at a time |
+| `version.sh` | Prints the TacetOS version, the same for every model, its packages and the TacetOS line of its info file |
+| `release-index.sh` | Checks the packages of a release and writes its index (`docs/specs/update-channel.md`, section 3) |
 | `follow.sh` | Tries our backports, patches and branding on the newest commit of the base's development branch and writes a report of the conflicts |
 | `apply.sh` | Downloads the base at the locked commit, applies the patches, then runs `brand.sh` |
 | `brand.sh` | Puts the TacetOS name and logo in place of the base's, in the language files and the images, and writes the built-in boot logo (needs Python 3 with Pillow) |
@@ -35,6 +37,8 @@ bash firmware/check-build.sh --target ipod6g --types N,B --plugins
 bash firmware/package.sh --target ipod6g
 ```
 
+The build and the package take their version from `version.sh` (or both from `--version`). The build writes it in the info file of the firmware folder as the line `TacetOS: <version>` (patch 0015), which the app reads to tell a TacetOS firmware from another build of the base (`docs/specs/detection.md`, section 7.3).
+
 CI also builds the simulator of every model (job `simulator`, one artifact per model named `tacetos-sim-<target>`, kept 30 days). It is a test tool, so it is not part of a package: a later step runs it to compare the theme previews with the real screens. Locally, `build.sh --target ipod6g --type S` needs the SDL 2 development files, and `check-build.sh --target ipod6g --types S` checks it.
 
 A package is three files side by side, all named after the model and the version:
@@ -51,7 +55,7 @@ The manifest is a JSON object:
 |---|---|---|
 | `format` | number | Version of this format, `1`. The app refuses any other value |
 | `target` | text | The model the files are for, as `bootloader_target` in `models/models.toml` (`ipod6g`) |
-| `version` | text | The project version from `CMakeLists.txt`, then `+g` and the short commit of this repository (`0.0.1+g5783155a1b2c`). Letters, digits, `.`, `+` and `-` only |
+| `version` | text | Given by `version.sh` (`docs/specs/update-channel.md`, section 5): `X.Y.Z` on a tag `vX.Y.Z`, else `X.Y.Z-dev+g` and the short commit of this repository (`0.3.0-dev+g5783155a1b2c`). `X.Y.Z` is the version of `project()` in `CMakeLists.txt`. Letters, digits, `.`, `+` and `-` only |
 | `baseCommit` | text | The base commit the firmware was built on (`base.lock`) |
 | `backports` | list of text | The commits brought in on top of it, in order (`base.lock`) |
 | `patches` | text | sha256 of our patch set: for each file of `patches/` in the order they are applied, its name, a line feed, then its content |

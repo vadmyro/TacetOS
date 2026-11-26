@@ -11,6 +11,7 @@
 #   --type N|B|S       N firmware, B bootloader, S simulator
 #   --src DIR          prepared sources (default: firmware/work/src)
 #   --out DIR          where the results are copied (default: firmware/work/out)
+#   --version TEXT     TacetOS version written in the info file (default: from version.sh)
 #   --toolchain DIR    cross compiler install prefix (default: ~/.cache/tacetos/toolchain)
 #   --jobs N           parallel jobs (default: number of CPUs)
 #   --toolchain-only   only build the cross compiler if it is missing, then stop
@@ -32,6 +33,7 @@ target=""
 type=""
 src="$here/work/src"
 out="$here/work/out"
+version=""
 toolchain="${XDG_CACHE_HOME:-$HOME/.cache}/tacetos/toolchain"
 jobs="$(nproc 2>/dev/null || echo 2)"
 toolchain_only=0
@@ -44,6 +46,7 @@ while [ $# -gt 0 ]; do
         --type)      type="${2:?--type needs N, B or S}"; shift 2 ;;
         --src)       src="${2:?--src needs a directory}"; shift 2 ;;
         --out)       out="${2:?--out needs a directory}"; shift 2 ;;
+        --version)   version="${2:?--version needs a text}"; shift 2 ;;
         --toolchain) toolchain="${2:?--toolchain needs a directory}"; shift 2 ;;
         --jobs)      jobs="${2:?--jobs needs a number}"; shift 2 ;;
         --toolchain-only) toolchain_only=1; shift ;;
@@ -99,6 +102,14 @@ if [ "$toolchain_only" = 1 ]; then
     exit 0
 fi
 
+# The TacetOS version, the same as the package's (update-channel.md, section 5). Patch 0015
+# writes it in the info file as the TacetOS line, read by the app (detection.md, section 7.3).
+if [ -z "$version" ]; then
+    version="$(bash "$here/version.sh")" || die "failed to get version from $here/version.sh"
+fi
+case "$version" in *[!A-Za-z0-9.+-]*|"") die "version must use letters, digits, '.', '+' and '-' only: $version" ;; esac
+export TACETOS_VERSION="$version"
+
 # The base's make passes every source path in a single shell command, which
 # overflows the system limit when the sources sit under a long path: the build
 # goes through a short link to them, and its build folder sits next to the link.
@@ -112,7 +123,7 @@ builddir="$short/build"
 rm -rf "$builddir"
 mkdir -p "$builddir"
 
-echo "== configure: $target, type $type${configure_folder:+, folder $folder}"
+echo "== configure: $target, type $type, version $version${configure_folder:+, folder $folder}"
 cd "$builddir"
 "$src/$CONFIGURE_SCRIPT" --target="$target" --type="$type" "${configure_folder[@]}"
 

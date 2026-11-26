@@ -10,7 +10,7 @@
 #   --target MODEL     the model the files were built for (as in build.sh)
 #   --in DIR           where build.sh copied its results (default: firmware/work/out)
 #   --out DIR          where the package is written (default: firmware/work/package)
-#   --version TEXT     package version (default: project version + "+g" + short commit)
+#   --version TEXT     package version (default: from version.sh)
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -63,10 +63,8 @@ firmware_in="$(find_one firmware "$ARTIFACTS_N" '*.zip')"
 bootloader_in="$(find_one bootloader "$ARTIFACTS_B" '*')"
 
 if [ -z "$version" ]; then
-    project_version="$(sed -n 's/^ *VERSION \([0-9][0-9.]*\)$/\1/p' "$repo/CMakeLists.txt" | head -n 1)"
-    [ -n "$project_version" ] || die "no VERSION in $repo/CMakeLists.txt"
-    commit="$(git -C "$repo" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
-    version="$project_version+g$commit"
+    version="$(bash "$here/version.sh")"
+    [ -n "$version" ] || die "failed to get version from $here/version.sh"
 fi
 case "$version" in *[!A-Za-z0-9.+-]*|"") die "version must use letters, digits, '.', '+' and '-' only: $version" ;; esac
 
