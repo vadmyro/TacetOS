@@ -141,8 +141,8 @@ It is written **before each step starts** (the step is `running`), **when a step
 | `serial` | text | The serial, as detection gave it (not made safe) |
 | `model` | text | The model id of `models/models.toml` |
 | `family` | text | `partition` or `dfu` |
-| `flow` | text | `install` or `uninstall` |
-| `path` | text | `clean` or `keep` for an install, absent for an uninstall |
+| `flow` | text | `install`, `uninstall` or `update` |
+| `path` | text | `clean` or `keep` for an install, absent for an uninstall or an update |
 | `macFormat` | boolean | Whether the music volume was in Mac format at the first `diagnose` |
 | `bootloaderFirst` | boolean | Section 2.3: the bootloader of a Classic goes in before the old firmware folder moves. Absent in a file written before the key existed: false |
 | `steps` | list of text | The list of section 2.3, as computed when the flow started |
@@ -150,7 +150,8 @@ It is written **before each step starts** (the step is `running`), **when a step
 | `status` | text | `running`, `waiting`, `failed` or `next` (the step at `current` has not started) |
 | `error` | text | The code of the failure when `status` is `failed`, else absent |
 | `backup` | text | The absolute path of the dated backup folder of this flow, once `backup-*` has started |
-| `package` | object | For an install: the absolute path of the package manifest and its sha256 (section 7.1) |
+| `package` | object | For an install or an update: the absolute path of the package manifest and its sha256 (section 7.1). Empty texts in an update until `download` is done |
+| `version` | text | For an update only: the version it installs (`update-channel.md` section 7) |
 | `facts` | object | What a step found and a later step needs, by step name (below) |
 | `started`, `updated` | text | UTC, ISO 8601 |
 

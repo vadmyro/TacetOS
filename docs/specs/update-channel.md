@@ -54,7 +54,7 @@ Any other value is ignored, with one log line, and the default address stays. Th
 
 **Rules of the reads**:
 
-- HTTPS only, except the cases above. A redirect is followed only to an `https://` address, `REDIRECT_MAX` (5) times at most.
+- HTTPS only, except the cases above. A redirect is followed only to an `https://` address, `REDIRECT_MAX` (5) times at most. The one exception is for the fake server of the tests: from an `http://` address on the computer itself, a redirect may also go to another `http://` address on the computer itself. A redirect to `http://` anywhere else is always refused.
 - A read that gets no byte for `CHANNEL_TIMEOUT` (15 s) fails. So does a file larger than its limit: `INDEX_MAX` for the index, the `size` of the index for a manifest, the `size` of the manifest for a package file. The read stops at the limit and does not keep the rest.
 - A missing file (HTTP 404, or no file in the folder) is not an error: it means "no update" (section 8).
 
@@ -99,9 +99,11 @@ The flow `update` of the wizard (`install-wizard.md` section 2) writes the new f
 Rules:
 
 - `firmware` is the step of `install-wizard.md` section 7, unchanged: the space, what is kept (section 7.3), unpack, copy of the kept files, swap, check after, and the resume after a cut (section 7.5). The settings, the themes and the data of the plugins stay.
+- `diagnose` runs the checks of "keep my music" (`install-wizard.md` section 4), with the package of the download, except `apple-firmware`: the bootloader is the one of the install, which checked that version, and a Classic that runs TacetOS has no device sheet to read it from.
 - `backup-settings` is the step of the uninstall (`install-wizard.md` section 5.3), unchanged: the kept files go to the backup folder before anything is written, so a failed update can always give them back.
 - **The bootloader is written only for `bootloaderFirst`** (D61): an iPod Classic whose old firmware folder is still on the volume and whose bootloader may not know the new folder (`firmware-branding.md` section 8.3). `bootloaderFirst` is read the same way as for "keep my music", when the flow starts, then kept in the progress file. Any other change of bootloader goes through Uninstall, then Install.
-- The progress file gets the flow `update` and the version it installs. A resume of an update starts again at the step that was cut, as for an install.
+- The progress file gets the flow `update` and the version it installs (key `version`); its `package` is empty until `download` is done. A resume of an update starts again at the step that was cut, as for an install, and runs `diagnose` again first when the cut came after it.
+- `verify` checks the firmware folder and the bootloader state of an older iPod as for an install. On a Classic it reads what runs only after `classic-bootloader`: an update without it has not touched the bootloader.
 - **The first screen** of the update window: the title "Update TacetOS", the line "TacetOS 0.2.0 > 0.3.0", the backup folder line of `install-screens.md` section 2.1, the "What will happen" line (download, checks, backup of the settings, firmware, check), and the main button "Update". There is no path to choose and no package to pick. The other screens are those of the install.
 - **The end**: `finish` says "TacetOS 0.3.0 is on the iPod. Eject it: it starts on the new version." and offers Eject, as for an install.
 
