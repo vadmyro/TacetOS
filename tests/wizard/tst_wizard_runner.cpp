@@ -129,10 +129,11 @@ StepFactory factoryFor(const std::shared_ptr<Script> &script, const QString &dat
 
 const FlowShape kClassicKeep{Family::Dfu, FlowKind::Install, InstallPath::Keep, false};
 const FlowShape kOlderClean{Family::Partition, FlowKind::Install, InstallPath::Clean, false};
+const FlowShape kClassicUpdate{Family::Dfu, FlowKind::Update, InstallPath::None, false, true};
 
 WizardRunner::Start startOf(const FlowShape &shape, const QString &serial = kSerial)
 {
-    return {serial, kModel, shape, QStringLiteral("/p/m.json"), QStringLiteral("ab")};
+    return {serial, kModel, shape, QStringLiteral("/p/m.json"), QStringLiteral("ab"), QString()};
 }
 
 QJsonObject readFile(const QString &path)
@@ -188,6 +189,7 @@ private slots:
     void refusedFiles_data();
     void refusedFiles();
     void bootloaderFirstKept();
+    void updateKept();
     void noProgress();
     void otherFamilyIsMismatch();
     void twoFlowsOnOneIpod();
@@ -252,7 +254,8 @@ void TstWizardRunner::cutAtEachStep_data()
     QTest::addColumn<FlowShape>("shape");
     QTest::addColumn<int>("cut");
     for (const auto &[label, shape] :
-         {std::pair{"classic keep", kClassicKeep}, std::pair{"older clean", kOlderClean}}) {
+         {std::pair{"classic keep", kClassicKeep}, std::pair{"older clean", kOlderClean},
+          std::pair{"classic update", kClassicUpdate}}) {
         const int n = stepsFor(shape).size();
         for (int i = 0; i < n; ++i)
             QTest::addRow("%s, step %d", label, i) << shape << i;
@@ -286,10 +289,11 @@ void TstWizardRunner::cutAtEachStep()
     QVERIFY(finished.wait(5000));
 
     // Section 3.3: the diagnosis first, then the step that was cut, run with its
-    // rule of resume, then the rest.
+    // rule of resume, then the rest. An update downloads before its diagnosis.
     QStringList expected = steps.mid(cut);
-    if (cut > 0)
-        expected.prepend(steps.first());
+    const int diagnosis = steps.indexOf(QString(step::diagnose));
+    if (cut > diagnosis)
+        expected.prepend(steps.at(diagnosis));
     QCOMPARE(second->ranNow(), expected);
     QCOMPARE(second->resumed, QStringList{steps.at(cut)});
     QVERIFY(!QFile::exists(store.filePath(kSerial)));
@@ -475,6 +479,55 @@ void TstWizardRunner::bootloaderFirstKept()
     before.remove(QStringLiteral("bootloaderFirst"));
     QCOMPARE(parseProgress(QJsonDocument(before).toJson(), kSerial, &read), QString());
     QVERIFY(!read.shape.bootloaderFirst);
+}
+
+// Update section 7: the flow `update`, the version it installs, and its package once
+// `download` gave it. A file of an update with no version is refused.
+void TstWizardRunner::updateKept()
+{
+    Progress progress;
+    progress.appVersion = QStringLiteral("0.0.1");
+    progress.serial = kSerial;
+    progress.model = kModel;
+    progress.shape = kClassicUpdate;
+    progress.steps = stepsFor(kClassicUpdate);
+    progress.version = QStringLiteral("0.3.0");
+    progress.started = progress.updated = QDateTime::currentDateTimeUtc();
+    const QJsonObject object = toJson(progress);
+    QCOMPARE(object.value(QStringLiteral("flow")).toString(), QStringLiteral("update"));
+    QVERIFY(!object.contains(QStringLiteral("path")));
+    Progress read;
+    QCOMPARE(parseProgress(QJsonDocument(object).toJson(), kSerial, &read), QString());
+    QCOMPARE(read.shape, kClassicUpdate);
+    QCOMPARE(read.version, QStringLiteral("0.3.0"));
+    QVERIFY(read.packageManifest.isEmpty());
+
+    progress.packageManifest = QStringLiteral("/d/updates/0.3.0/ipod6g/m.json");
+    progress.packageSha256 = QStringLiteral("ab");
+    QCOMPARE(parseProgress(QJsonDocument(toJson(progress)).toJson(), kSerial, &read), QString());
+    QCOMPARE(read.packageManifest, progress.packageManifest);
+    QCOMPARE(read.packageSha256, QStringLiteral("ab"));
+
+    QJsonObject noVersion = object;
+    noVersion.remove(QStringLiteral("version"));
+    QVERIFY(!parseProgress(QJsonDocument(noVersion).toJson(), kSerial, &read).isEmpty());
+    QJsonObject withPath = object;
+    withPath.insert(QStringLiteral("path"), QStringLiteral("keep"));
+    QVERIFY(!parseProgress(QJsonDocument(withPath).toJson(), kSerial, &read).isEmpty());
+
+    // The version of the start goes in the file from its first write.
+    QTemporaryDir dir;
+    auto script = std::make_shared<Script>();
+    WizardRunner runner(dir.path(), factoryFor(script, dir.path()));
+    QSignalSpy finished(&runner, &WizardRunner::flowFinished);
+    WizardRunner::Start start = startOf(kClassicUpdate);
+    start.packageManifest.clear();
+    start.packageSha256.clear();
+    start.version = QStringLiteral("0.3.0");
+    script->acts.insert(QString(step::download), Act::ReadProgress);
+    QCOMPARE(runner.start(start), QString());
+    QVERIFY(finished.wait(5000));
+    QCOMPARE(script->seen.value(0), QString());
 }
 
 void TstWizardRunner::refusedFiles()

@@ -9,6 +9,7 @@
 
 #include "../../src/device/constants.h"
 #include "../../src/installer/constants.h"
+#include "address.h"
 #include "bootloaderfile.h"
 #include "classiccmds.h"
 #include "dfuimage.h"
@@ -44,6 +45,7 @@ using tacetos::fakepod::FakePod;
 using tacetos::fakepod::FakePodSpec;
 using tacetos::wizard::testing::makeTestPackage;
 using tacetos::wizard::testing::TestPackage;
+using tacetos::wizard::testing::writeTestIndex;
 namespace device = tacetos::device;
 namespace helper = tacetos::helper;
 
@@ -336,6 +338,11 @@ public:
     void setBackupFolder(const QString &path) override { m_inner.setBackupFolder(path); }
     QString packageManifest() const override { return m_inner.packageManifest(); }
     QString packageSha256() const override { return m_inner.packageSha256(); }
+    QString updateVersion() const override { return m_inner.updateVersion(); }
+    void setPackage(const QString &manifest, const QString &sha256, const QString &version) override
+    {
+        m_inner.setPackage(manifest, sha256, version);
+    }
 
 private:
     StepContext &m_inner;
@@ -408,6 +415,11 @@ private:
         // The step the first run holds still in, and whether it got there.
         QString holdStep;
         std::atomic<bool> reached{false};
+        // An update: the version of TacetOS detection shows on the iPod, the channel and the
+        // version it has.
+        QString tacetos;
+        QString channel;
+        QString updateVersion;
 
         void shutdown()
         {
@@ -432,6 +444,8 @@ private:
         ipod.model = r.modelId;
         ipod.variant.key = QStringLiteral("e2e");
         ipod.state = device::IpodState::Ready;
+        if (!r.tacetos.isEmpty())
+            ipod.firmwareLine = {device::FirmwareKind::Tacetos, r.tacetos, false};
         if (withVolume) {
             // The volume is a folder on the disk of the test, so the room checks read
             // these figures: 1 GB with 100 MB used.
@@ -484,6 +498,11 @@ private:
         config.portPath = kPort;
         config.volumeReturnMs = 5000;
         config.returnMs = 5000;
+        if (!r.channel.isEmpty()) {
+            config.channel.kind = tacetos::update::ChannelAddress::Kind::Folder;
+            config.channel.folder = r.channel;
+            config.channelTimeoutMs = 5000;
+        }
         config.udisksProbe = [] { return UdisksInfo{true, true, QStringLiteral("2.10.1")}; };
         const bool realWrites = r.realWrites;
         config.helloReader = [realWrites] {
@@ -664,6 +683,36 @@ private:
                 r.classic && bootloaderFirst(r.volume, r.folder, r.installRecords, r.serial)};
     }
 
+    // Update section 9: a channel with TacetOS 0.3.0 for the model of the rig, in a folder.
+    void newChannel(Rig &r, const QString &folder = QString(device::kFirmwareFolder))
+    {
+        r.channel = newFolder(QStringLiteral("channel"));
+        r.updateVersion = QStringLiteral("0.3.0");
+        const QByteArray boot =
+            r.classic ? classicBootFile(pattern(4096, 0x43)) : BootloaderFile::build(r.target);
+        const TestPackage package =
+            makeTestPackage(r.channel, r.target, boot,
+                            infoFiles(r.target, {{QStringLiteral("a.txt"), "a2"},
+                                                 {QStringLiteral("new.txt"), "n"}}),
+                            folder, r.updateVersion);
+        QVERIFY(!writeTestIndex(r.channel, r.updateVersion, {{r.target, package}}).isEmpty());
+    }
+
+    // The files of the user in the firmware folder (install-wizard section 7.3): the settings,
+    // a theme and a saved game.
+    static QMap<QString, QByteArray> userFiles()
+    {
+        return {{QStringLiteral("config.cfg"), "volume: -12\n"},
+                {QStringLiteral("themes/mine.cfg"), "wps: mine.wps\n"},
+                {QStringLiteral("rocks.data/game.sav"), pattern(700, 3)}};
+    }
+
+    static QByteArray readBytes(const QString &path)
+    {
+        QFile file(path);
+        return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray("?");
+    }
+
     // Runs a whole flow, or resumes it. Returns the code it stopped with, empty
     // when every step is done.
     QString runFlow(Rig &r, FlowKind kind, InstallPath path, bool resume = false)
@@ -682,6 +731,8 @@ private:
             s.packageManifest = r.package.manifest;
             s.packageSha256 = r.package.sha256;
         }
+        if (kind == FlowKind::Update)
+            s.version = r.updateVersion;
         QSignalSpy finished(r.runner.get(), &WizardRunner::flowFinished);
         QSignalSpy stopped(r.runner.get(), &WizardRunner::flowStopped);
         const QString refused =
@@ -703,8 +754,12 @@ private:
         s.serial = r.serial;
         s.model = r.modelId;
         s.shape = shapeOf(r, kind, path);
-        s.packageManifest = r.package.manifest;
-        s.packageSha256 = r.package.sha256;
+        if (kind == FlowKind::Update) {
+            s.version = r.updateVersion;
+        } else {
+            s.packageManifest = r.package.manifest;
+            s.packageSha256 = r.package.sha256;
+        }
         QCOMPARE(r.runner->start(s), QString());
         QVERIFY2(QTest::qWaitFor([&r] { return r.reached.load(); }, 60000), qPrintable(r.holdStep));
         // The runner goes away in the middle of the step: a cut.
@@ -879,6 +934,95 @@ private slots:
         QVERIFY(!QDir(r->volume).exists(kFolder));
         QCOMPARE(treeHash(r->music), music);
         r->shutdown();
+    }
+
+    void legacyUpdate_data()
+    {
+        QTest::addColumn<QString>("cut");
+        QTest::newRow("whole") << QString();
+        // A cut in `diagnose` is in tst_wizard_runner: here its calls to the helper after the cut
+        // would wait for the thread of the test, which waits for the runner.
+        for (const QLatin1String name : {step::download, step::backupSettings, step::firmware})
+            QTest::newRow(name.data()) << QString(name);
+    }
+
+    // Update section 9 "The update": an older iPod with TacetOS 0.2.0 and the user's files in
+    // its firmware folder, updated to 0.3.0 from a local channel; cut in a step, then resumed.
+    // The new firmware is there, the user's files are the same bytes, the settings are in the
+    // backup, the bootloader is not touched, and only the download of 0.3.0 stays.
+    void legacyUpdate()
+    {
+        QFETCH(QString, cut);
+        auto r = legacyRig(QStringLiteral("ipod-video"), QStringLiteral("8K7E2EUPDATE"));
+        QVERIFY(r);
+        QCOMPARE(runFlow(*r, FlowKind::Install, InstallPath::Keep), QString());
+        const QString folder = r->volume + "/" + kFolder;
+        const QMap<QString, QByteArray> mine = userFiles();
+        for (auto it = mine.cbegin(); it != mine.cend(); ++it)
+            QVERIFY(put(folder + "/" + it.key(), it.value()));
+        const QByteArray music = treeHash(r->music);
+        QVERIFY(QDir().mkpath(r->data + "/updates/0.1.0/" + r->target));
+        r->tacetos = QStringLiteral("0.2.0");
+        r->waits.clear();
+        newChannel(*r);
+        QCOMPARE(stepsFor(shapeOf(*r, FlowKind::Update, InstallPath::None)).first(),
+                 QString(step::download));
+
+        if (!cut.isEmpty()) {
+            r->holdStep = cut;
+            runAndCut(*r, FlowKind::Update, InstallPath::None);
+            QVERIFY(ProgressStore(r->data).exists(r->serial));
+            QCOMPARE(readBytes(folder + "/a.txt"), QByteArray("a"));
+            r->holdStep.clear();
+        }
+        QCOMPARE(runFlow(*r, FlowKind::Update, InstallPath::None, !cut.isEmpty()), QString());
+        QCOMPARE(readBytes(folder + "/a.txt"), QByteArray("a2"));
+        QCOMPARE(readBytes(folder + "/new.txt"), QByteArray("n"));
+        for (auto it = mine.cbegin(); it != mine.cend(); ++it)
+            QCOMPARE(readBytes(folder + "/" + it.key()), it.value());
+        const QString backup = backupOf(*r);
+        QVERIFY(!backup.isEmpty());
+        QCOMPARE(readBytes(backupVolumeFolder(backup) + "/" + kFolder + "/config.cfg"),
+                 mine.value(QStringLiteral("config.cfg")));
+        QCOMPARE(stateOf(*r), QStringLiteral("installed"));
+        QCOMPARE(treeHash(r->music), music);
+        QVERIFY(!ProgressStore(r->data).exists(r->serial));
+        QCOMPARE(QDir(r->data + "/updates").entryList(QDir::Dirs | QDir::NoDotAndDotDot),
+                 QStringList{QStringLiteral("0.3.0")});
+        // Nothing waited for Disk Mode: an update writes no sector.
+        QVERIFY(!r->waits.contains(QString(step::diskMode)));
+        r->shutdown();
+    }
+
+    // Update section 7 and branding section 8.3: a Classic whose firmware is still in the old
+    // folder. The bootloader goes in first, then the firmware moves to the folder of its model.
+    void classicUpdateBootloaderFirst()
+    {
+        auto r = classicRig(QStringLiteral("8K7E2EUPCL"));
+        QVERIFY(r);
+        r->folder = kOwnFolder;
+        const QString old = r->volume + "/" + kFolder;
+        QVERIFY(put(old + "/" + QString(device::kFirmwareInfoFile), "Target: ipod6g\n"));
+        const QMap<QString, QByteArray> mine = userFiles();
+        for (auto it = mine.cbegin(); it != mine.cend(); ++it)
+            QVERIFY(put(old + "/" + it.key(), it.value()));
+        r->tacetos = QStringLiteral("0.2.0");
+        newChannel(*r, kOwnFolder);
+        const FlowShape shape = shapeOf(*r, FlowKind::Update, InstallPath::None);
+        QVERIFY(shape.bootloaderFirst);
+        const QStringList steps = stepsFor(shape);
+        QVERIFY(steps.indexOf(QString(step::classicBootloader)) >= 0);
+        QVERIFY(steps.indexOf(QString(step::classicBootloader)) <
+                steps.indexOf(QString(step::firmware)));
+
+        QCOMPARE(runFlow(*r, FlowKind::Update, InstallPath::None), QString());
+        QVERIFY(r->oldAtDfu);
+        QVERIFY(!QFileInfo::exists(old));
+        const QString own = r->volume + "/" + kOwnFolder;
+        QCOMPARE(readBytes(own + "/a.txt"), QByteArray("a2"));
+        for (auto it = mine.cbegin(); it != mine.cend(); ++it)
+            QCOMPARE(readBytes(own + "/" + it.key()), it.value());
+        QVERIFY(!ProgressStore(r->data).exists(r->serial));
     }
 
     void cutThenResume_data()

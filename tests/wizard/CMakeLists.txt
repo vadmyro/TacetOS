@@ -53,6 +53,12 @@ if(UNIX)
 endif()
 add_test(NAME tst_wizard_format COMMAND tst_wizard_format)
 
+# The step `download` of an update (update-channel.md section 6): local channels
+# and a fake HTTP server on 127.0.0.1, never the real network.
+qt_add_executable(tst_wizard_download tst_wizard_download.cpp testpackage.h testzip.h)
+target_link_libraries(tst_wizard_download PRIVATE tacet_wizard Qt6::Test)
+add_test(NAME tst_wizard_download COMMAND tst_wizard_download)
+
 qt_add_executable(tst_wizard_package tst_wizard_package.cpp testzip.h)
 target_link_libraries(tst_wizard_package PRIVATE tacet_wizard Qt6::Test)
 add_test(NAME tst_wizard_package COMMAND tst_wizard_package)

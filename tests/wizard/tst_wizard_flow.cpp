@@ -31,6 +31,8 @@ void TstWizardFlow::lists_data()
     const auto D = Family::Dfu;
     const auto I = FlowKind::Install;
     const auto U = FlowKind::Uninstall;
+    const auto N = FlowKind::Update;
+    const auto none = InstallPath::None;
     QTest::newRow("older, clean") << FlowShape{P, I, InstallPath::Clean, false}
                                   << "diagnose backup-full disk-mode format firmware bootloader "
                                      "verify finish";
@@ -72,6 +74,17 @@ void TstWizardFlow::lists_data()
     QTest::newRow("classic, uninstall")
         << FlowShape{D, U, InstallPath::None, false}
         << "diagnose backup-settings classic-remove remove-firmware verify finish";
+    // Update section 7: the firmware only (D61).
+    QTest::newRow("older, update") << FlowShape{P, N, none, false}
+                                   << "download diagnose backup-settings firmware verify finish";
+    QTest::newRow("classic, update") << FlowShape{D, N, none, false}
+                                     << "download diagnose backup-settings firmware verify finish";
+    QTest::newRow("classic, update, bootloader first")
+        << FlowShape{D, N, none, false, true}
+        << "download diagnose backup-settings classic-bootloader firmware verify finish";
+    QTest::newRow("older, update, bootloader first")
+        << FlowShape{P, N, none, false, true}
+        << "download diagnose backup-settings firmware verify finish";
 }
 
 void TstWizardFlow::lists()
@@ -89,13 +102,16 @@ void TstWizardFlow::refusedShapes()
     QVERIFY(stepsFor({Family::Dfu, FlowKind::Uninstall, InstallPath::Clean, false}).isEmpty());
     QVERIFY(stepsFor({Family::Partition, FlowKind::Install, InstallPath::Keep, true}).isEmpty());
     QVERIFY(stepsFor({Family::Dfu, FlowKind::Install, InstallPath::Keep, true}).isEmpty());
+    // An update has no path, and TacetOS is never on a Mac iPod.
+    QVERIFY(stepsFor({Family::Dfu, FlowKind::Update, InstallPath::Keep, false}).isEmpty());
+    QVERIFY(stepsFor({Family::Partition, FlowKind::Update, InstallPath::None, true}).isEmpty());
 }
 
 void TstWizardFlow::names()
 {
     for (const Family family : {Family::Partition, Family::Dfu})
         QCOMPARE(familyFromName(familyName(family)), family);
-    for (const FlowKind kind : {FlowKind::Install, FlowKind::Uninstall})
+    for (const FlowKind kind : {FlowKind::Install, FlowKind::Uninstall, FlowKind::Update})
         QCOMPARE(kindFromName(kindName(kind)), kind);
     for (const InstallPath path : {InstallPath::Clean, InstallPath::Keep})
         QCOMPARE(pathFromName(pathName(path)), path);
