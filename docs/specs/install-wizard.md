@@ -43,8 +43,9 @@ The home screen offers the wizard on the card of an iPod (`install-screens.md` s
 - **Install TacetOS** on an iPod whose firmware line is `apple`, or `unknown`.
 - **Uninstall** on an iPod whose firmware line is `tacetos` or `custom`, on an older iPod whose state read by the helper is `installed`, and always on an iPod Classic (`bootloader-classic.md` section 14.1: the uninstall is harmless when there is nothing to remove).
 - **Resume** when a progress file exists for the serial of the iPod (section 3).
+- **Update** on an iPod whose firmware line is `tacetos`, when the channel has a newer version (`update-channel.md` section 8).
 
-A flow needs, before its first step, four things that never change during the flow: the serial, the family, the flow (install or uninstall), and for an install the path and the package (section 7.1). They are chosen on the first screen and written in the progress file.
+A flow needs, before its first step, four things that never change during the flow: the serial, the family, the flow (install, update or uninstall), and for an install the path and the package (section 7.1). They are chosen on the first screen and written in the progress file. An update has no path, and its package is the one its first step downloads (`update-channel.md` section 6), written in the progress file by that step.
 
 An iPod with no serial is refused: the wizard does not start (`no-serial`). The serial names the progress file and the backup folder, and a flow that cannot find its iPod again after a cut must not run.
 
@@ -86,7 +87,7 @@ The names below are the names in the code, the progress file and the tests. Each
 | `verify` | Reads everything again and checks the result | 11 |
 | `finish` | Says how to start each firmware, and asks to eject | 11 |
 
-The list of a flow is a pure function of five inputs: the family, the flow, the path, whether the music volume is in Mac format (read in `diagnose` the first time, then kept in the progress file), and `bootloaderFirst`, which only an iPod Classic with "keep my music" reads (`firmware-branding.md` section 8.3: the old firmware folder is on the volume and the bootloader may not know the new one; read when the flow starts, then kept in the progress file). The lists:
+The list of a flow is a pure function of five inputs: the family, the flow, the path, whether the music volume is in Mac format (read in `diagnose` the first time, then kept in the progress file), and `bootloaderFirst`, which only an iPod Classic with "keep my music" or an update reads (`firmware-branding.md` section 8.3: the old firmware folder is on the volume and the bootloader may not know the new one; read when the flow starts, then kept in the progress file). The lists:
 
 **Install, older iPod, clean install:** `diagnose`, `backup-full`, `disk-mode`, `format` (or `convert` for a Mac iPod), `firmware`, `bootloader`, `verify`, `finish`.
 
@@ -97,6 +98,8 @@ The list of a flow is a pure function of five inputs: the family, the flow, the 
 **Install, iPod Classic, keep my music:** `diagnose`, `backup-keep`, `firmware`, `classic-bootloader`, `verify`, `finish`.
 
 **Install, iPod Classic, keep my music, `bootloaderFirst`:** `diagnose`, `backup-keep`, `classic-bootloader`, `firmware`, `verify`, `finish`.
+
+**Update:** the two lists of `update-channel.md` section 7, which start with the step `download` (section 6 there).
 
 **Uninstall, older iPod:** `diagnose`, `backup-settings`, `disk-mode`, `remove-bootloader`, `remove-firmware`, `verify`, `finish`.
 

@@ -192,7 +192,7 @@ Other keys (`Memory`, `Features`, `Voice format`...) are present in a real file 
 
 **A valid info file** has the `Target` key, and its value is the `bootloader_target` of a model of `models.toml`. A file without it, or with an unknown target, makes `firmware` say `unknown` but does not make the whole detection fail. The text of the file is never shown as is to the user.
 
-**A TacetOS line is needed.** The info file of a plain build of the firmware base has nothing that tells our firmware from another build of the same base, and `Version` is the version of the base. The firmware build of TacetOS must add one line that names the distribution and its own version, so that detection can say "TacetOS 0.3 installed" and not only "a firmware of version 4.0 is installed". The name of that key is decided with the firmware patches (v0.3 in the roadmap) and goes in the constants file. Until it exists, `firmware` can only be `present` (a valid info file) or `absent`.
+**A TacetOS line is needed.** The info file of a plain build of the firmware base has nothing that tells our firmware from another build of the same base, and `Version` is the version of the base. The firmware build of TacetOS must add one line that names the distribution and its own version, so that detection can say "TacetOS 0.3 installed" and not only "a firmware of version 4.0 is installed". The key is `TacetOS`, and its value is the version of the TacetOS build (`update-channel.md` section 5, D60). The name is in the constants file. A firmware patch adds the line. An info file without it is a build of the base, not of TacetOS.
 
 ### 7.4 State of the firmware as seen from the volume
 
@@ -401,7 +401,7 @@ The firmware line (section 7.6) is a separate line, whatever the state:
 
 | Situation | Message |
 |---|---|
-| `tacetos` | TacetOS 0.3 |
+| `tacetos` | TacetOS 0.3.0, or TacetOS 0.3.0 (development build) for a `-dev` version (`update-channel.md` section 5) |
 | `custom` | Custom firmware 4.0, or Custom firmware when the files say nothing |
 | `apple` | Apple firmware 1.1.6, or Apple firmware when the version is not known |
 | `unknown` | No line |

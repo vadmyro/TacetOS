@@ -52,6 +52,7 @@ The card of the home screen gets three buttons (wizard section 2.1). They are ad
 | A progress file exists for the serial | Resume | Resume |
 | Firmware line `apple` or `unknown`, no progress file | Install TacetOS; on a Classic also Uninstall (secondary, wizard section 2.1), except when the last install record of this iPod on this computer (wizard section 9.3) is an uninstall | Install TacetOS |
 | Firmware line `tacetos` or `custom`, no progress file | Uninstall | Uninstall |
+| Firmware line `tacetos`, the channel has a newer version, no progress file | Uninstall, Update (`update-channel.md` section 8) | Update |
 
 - The buttons are shown on `ready`, on `not-mounted` and on `attention` (the checks of section 3 then say what is missing), and are off while the card is `busy`. When they are shown, Show files and Open stay, as secondary buttons.
 - While a wizard window is open for the iPod, the card shows `busy` (the iPod is held, wizard section 2.4 rule 8) and a single button, "Show the wizard", which brings the window to the front.
