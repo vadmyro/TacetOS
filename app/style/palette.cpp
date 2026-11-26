@@ -74,6 +74,9 @@ QLabel[role="secondary"] {
 QLabel[role="danger"] {
     color: %7;
 }
+QLabel[role="accent"] {
+    color: %6;
+}
 QFrame[role="header"] {
     background: %1;
     border: none;
