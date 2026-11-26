@@ -258,7 +258,10 @@ QString firmwareMessage(const DetectedIpod &ipod)
         return line.version.isEmpty() ? tr("Custom firmware")
                                       : tr("Custom firmware %1").arg(line.version);
     case FirmwareKind::Tacetos:
-        return line.version.isEmpty() ? tr("TacetOS") : tr("TacetOS %1").arg(line.version);
+        if (line.version.isEmpty())
+            return tr("TacetOS");
+        return line.development ? tr("TacetOS %1 (development build)").arg(line.version)
+                                : tr("TacetOS %1").arg(line.version);
     case FirmwareKind::Unknown:
         break;
     }

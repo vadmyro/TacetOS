@@ -95,9 +95,26 @@ inline constexpr QLatin1String kFirmwareInfoFile("rockbox-info.txt");
 inline constexpr QLatin1String kBootLogoFile("boot-logo.bin");
 
 // Section 7.3: the key of the info file line that names the distribution and
-// its own version. Not named yet (v0.3, with the firmware patches): while it is
-// empty, no info file can be taken for a TacetOS one.
-inline constexpr QLatin1String kDistributionKey("");
+// its own version (D60). Firmware patch 0015 writes it, with the version of
+// firmware/version.sh.
+inline constexpr QLatin1String kDistributionKey("TacetOS");
+
+// docs/specs/update-channel.md section 10: the channel of the firmware updates.
+// The default address is the latest release of the repository, followed by a
+// file name; the variable replaces it outside the packaged builds (section 4).
+inline constexpr QLatin1String
+    kUpdateChannel("https://github.com/vadmyro/TacetOS/releases/latest/download/");
+inline constexpr QLatin1String kUpdateChannelVariable("TACETOS_UPDATE_CHANNEL");
+inline constexpr QLatin1String kUpdateIndexFile("tacetos-index.json");
+
+// Section 3 and 4 of update-channel.md: the largest index, how long a read may
+// get no byte, and how many redirects a read follows.
+inline constexpr qint64 kIndexMaxBytes = 64 * 1024;
+inline constexpr qint64 kChannelTimeoutMs = 15 * 1000;
+inline constexpr int kRedirectMax = 5;
+
+// Section 6 of update-channel.md: the free space kept on top of the download.
+inline constexpr qint64 kDownloadMarginBytes = 50 * 1000 * 1000;
 
 // docs/specs/install-wizard.md section 5.3: the playlist folder at the root of
 // the music volume, kept by the backup of "Keep my music".

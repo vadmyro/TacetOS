@@ -48,8 +48,12 @@ enum class RunningFirmware { Unknown, Apple, Other };
 struct FirmwareLine
 {
     FirmwareKind kind = FirmwareKind::Unknown;
-    // Empty when the evidence has no version.
+    // Empty when the evidence has no version. For `Tacetos`, the three numbers
+    // only (docs/specs/update-channel.md section 5): the commit is logged, never
+    // shown.
     QString version;
+    // `Tacetos` only: a `-dev` version, shown as a development build.
+    bool development = false;
 };
 
 struct DiskInfo

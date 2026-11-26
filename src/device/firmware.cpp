@@ -21,6 +21,21 @@ QString withoutDistributionName(const QString &value)
     return text;
 }
 
+// The TacetOS line as shown (update-channel.md section 5): `0.3.0-dev+g<commit>`
+// gives `0.3.0`, a development build. The commit is only for the log.
+void setTacetosVersion(const QString &value, FirmwareLine &line)
+{
+    QString text = withoutDistributionName(value);
+    const qsizetype commit = text.indexOf(QLatin1Char('+'));
+    if (commit >= 0)
+        text.truncate(commit);
+    if (text.endsWith(QLatin1String("-dev"))) {
+        text.chop(4);
+        line.development = true;
+    }
+    line.version = text;
+}
+
 } // namespace
 
 QString appleFirmwareVersion(const QMap<QString, QString> &appleFields)
@@ -57,7 +72,7 @@ FirmwareLine identifyFirmware(const FirmwareInfo &files, const QMap<QString, QSt
         line.version = appleFirmwareVersion(appleFields);
     } else if (filesCount && files.files == FirmwareFiles::Tacetos) {
         line.kind = FirmwareKind::Tacetos;
-        line.version = withoutDistributionName(files.version);
+        setTacetosVersion(files.version, line);
     } else if (filesCount && files.files == FirmwareFiles::Present) {
         line.kind = FirmwareKind::Custom;
         line.version = files.infoVersion.trimmed();
@@ -73,8 +88,12 @@ FirmwareLine identifyFirmware(const FirmwareInfo &files, const QMap<QString, QSt
         static const char *const names[] = {"unknown", "apple", "custom", "tacetos"};
         QString text =
             QStringLiteral("firmware: %1").arg(QLatin1String(names[static_cast<int>(line.kind)]));
-        if (!line.version.isEmpty())
-            text += QLatin1Char(' ') + line.version;
+        // The whole TacetOS version, commit included.
+        const QString version = line.kind == FirmwareKind::Tacetos
+                                    ? withoutDistributionName(files.version)
+                                    : line.version;
+        if (!version.isEmpty())
+            text += QLatin1Char(' ') + version;
         *log << text;
         if (files.otherModel && files.files != FirmwareFiles::Absent)
             *log << QStringLiteral("firmware: the files on the volume are for another model");
