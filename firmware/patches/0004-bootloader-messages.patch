@@ -15,8 +15,8 @@ index ed7287b5..af6d4843 100644
 -            printf("and enter Rockbox firmware");
 +            printf("and enter TacetOS firmware");
              break;
-     }
- 
+         case ERR_LBA28:
+             printf("Hold MENU+SELECT to reboot");
 @@ -686,7 +686,7 @@ void main(void)
  
      verbose = true;
