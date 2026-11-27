@@ -113,3 +113,13 @@ target_link_libraries(tst_bootlogodialog PRIVATE tacetos_ui Qt6::Test)
 
 add_test(NAME tst_bootlogodialog COMMAND tst_bootlogodialog)
 set_tests_properties(tst_bootlogodialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The Health window and the health part of the card, on the health fixtures and a temporary folder
+# as the iPod volume.
+qt_add_executable(tst_health tst_health.cpp)
+target_link_libraries(tst_health PRIVATE tacetos_ui Qt6::Test)
+target_compile_definitions(tst_health PRIVATE
+    TACETOS_HEALTH_FIXTURES="${PROJECT_SOURCE_DIR}/tests/fixtures/health")
+
+add_test(NAME tst_health COMMAND tst_health)
+set_tests_properties(tst_health PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
