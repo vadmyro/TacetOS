@@ -116,6 +116,22 @@ inline constexpr int kRedirectMax = 5;
 // Section 6 of update-channel.md: the free space kept on top of the download.
 inline constexpr qint64 kDownloadMarginBytes = 50 * 1000 * 1000;
 
+// docs/specs/health.md section 11: the two files the firmware writes in its
+// folder (patch 0016), the limits of the disk and battery verdicts, and the
+// folder of the history in the data folder of the app.
+inline constexpr QLatin1String kHealthFile("health.txt");
+inline constexpr QLatin1String kChargeFile("charge.txt");
+inline constexpr quint32 kReallocatedFailing = 100;
+inline constexpr quint32 kPendingFailing = 10;
+inline constexpr quint32 kUncorrectableFailing = 10;
+inline constexpr int kFullLevel = 95;
+inline constexpr int kMinDrop = 30;
+inline constexpr qint64 kMinRuntimeS = 60 * 60;
+inline constexpr int kMinEstimates = 6;
+inline constexpr double kWornRatio = 0.5;
+inline constexpr int kHistoryMax = 500;
+inline constexpr QLatin1String kHealthFolder("health");
+
 // docs/specs/install-wizard.md section 5.3: the playlist folder at the root of
 // the music volume, kept by the backup of "Keep my music".
 inline constexpr QLatin1String kPlaylistsFolder("Playlists");
