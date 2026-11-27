@@ -21,7 +21,18 @@ BASE_DEV_BRANCH=master
 # for each one is written in backports.md.
 BACKPORTS="
 94313491ab314634bdca8d727e95b37c983f6142
+68a5524a48fe08d930c193d843dcd5dcdd4e98a4
+9644bb5d9d441597eb28036eabae4c7c1fb9c414
+6340e79cda14d665fc0a64171fb27cc39ee92ffa
+b217a550598e2fc7fbb76924cb6758b18bfeff83
+ad6cc2f099bd8877a335b47bc150e14067adabfe
 "
+
+# Files where a conflict in a backport does not matter: the change to them is dropped
+# and the rest of the commit is kept (pick-backport.sh). Space separated. The list of
+# contributors only grows at its end, so a newer commit never fits the older list, and
+# nothing in TacetOS shows it.
+BACKPORT_LOOSE_FILES="docs/CREDITS"
 
 # Names inside the base sources that our scripts need.
 TOOLCHAIN_SCRIPT=tools/rockboxdev.sh
