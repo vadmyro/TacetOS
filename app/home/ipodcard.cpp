@@ -240,6 +240,14 @@ IpodCard::IpodCard(QWidget *parent) : QFrame(parent)
     update_->hide();
     text->addWidget(update_);
 
+    healthLine_ = new QLabel(this);
+    healthLine_->setObjectName(QStringLiteral("ipodHealth"));
+    healthLine_->setProperty("role", QStringLiteral("secondary"));
+    healthLine_->setFont(fontFor(TextStyle::Secondary));
+    healthLine_->setWordWrap(true);
+    healthLine_->hide();
+    text->addWidget(healthLine_);
+
     spaceBar_ = new QProgressBar(this);
     spaceBar_->setObjectName(QStringLiteral("spaceBar"));
     spaceBar_->setRange(0, 1000);
@@ -265,7 +273,7 @@ IpodCard::IpodCard(QWidget *parent) : QFrame(parent)
     auto *buttons = new QHBoxLayout;
     buttons->setSpacing(8);
     buttons->addStretch(1);
-    // Created in the order of the Tab key: Eject, Boot logo, then Open.
+    // Created in the order of the Tab key: Eject, Boot logo, Open, then Health.
     eject_ = new QPushButton(htr("Eject"), this);
     eject_->setObjectName(QStringLiteral("ejectButton"));
     eject_->setProperty("role", QStringLiteral("secondary"));
@@ -282,6 +290,13 @@ IpodCard::IpodCard(QWidget *parent) : QFrame(parent)
     open_->setProperty("role", QStringLiteral("primary"));
     open_->setFont(fontFor(TextStyle::Button));
     open_->setFocusPolicy(Qt::StrongFocus);
+    // Health section 9: always secondary, right after Show files.
+    health_ = new QPushButton(htr("Health"), this);
+    health_->setObjectName(QStringLiteral("healthButton"));
+    health_->setProperty("role", QStringLiteral("secondary"));
+    health_->setFont(fontFor(TextStyle::Button));
+    health_->setFocusPolicy(Qt::StrongFocus);
+    health_->hide();
     uninstall_ = new QPushButton(htr("Uninstall"), this);
     uninstall_->setObjectName(QStringLiteral("uninstallButton"));
     uninstall_->setProperty("role", QStringLiteral("secondary"));
@@ -295,6 +310,7 @@ IpodCard::IpodCard(QWidget *parent) : QFrame(parent)
     buttons->addWidget(eject_);
     buttons->addWidget(bootLogo_);
     buttons->addWidget(open_);
+    buttons->addWidget(health_);
     buttons->addWidget(uninstall_);
     buttons->addWidget(wizard_);
     content->addLayout(buttons);
@@ -307,6 +323,8 @@ IpodCard::IpodCard(QWidget *parent) : QFrame(parent)
     connect(open_, &QPushButton::clicked, this, [this] { emit actionRequested(openAction_); });
     connect(bootLogo_, &QPushButton::clicked, this,
             [this] { emit actionRequested(HomeAction::BootLogo); });
+    connect(health_, &QPushButton::clicked, this,
+            [this] { emit actionRequested(HomeAction::Health); });
 
     setEntry(ScreenEntry(), {});
 }
@@ -385,15 +403,19 @@ void IpodCard::setEntry(const ScreenEntry &entry, const QList<Model> &models, Ho
     open_->setText(buttons.openText.isEmpty() ? htr("Open") : buttons.openText);
     eject_->setEnabled(!busy);
     open_->setEnabled(!busy);
+    health_->setEnabled(!busy);
     wizardShown_ = !busy &&
                    (kind == ScreenKind::Ready || kind == ScreenKind::NotMounted ||
                     kind == ScreenKind::Attention) &&
                    entry.ipod.has_value();
     updatable_ = false;
+    healthAllowed_ = false;
     if (entry.ipod) {
         const FirmwareKind line = entry.ipod->firmwareLine.kind;
         firmwareIsOurs_ = line == FirmwareKind::Tacetos || line == FirmwareKind::Custom;
         updatable_ = kind == ScreenKind::Ready && line == FirmwareKind::Tacetos;
+        healthAllowed_ = line == FirmwareKind::Tacetos && buttons.openAction == HomeAction::Open &&
+                         (kind == ScreenKind::Ready || kind == ScreenKind::Busy);
         isClassic_ = false;
         for (const Model &m : models)
             if (m.id == entry.ipod->model && m.family == QLatin1String("classic"))
@@ -422,6 +444,14 @@ void IpodCard::setUpdate(const QString &version)
     updateButtonNames();
 }
 
+void IpodCard::setHealth(bool usable, const HealthLine &line)
+{
+    healthUsable_ = usable;
+    healthText_ = line;
+    updateWizardButtons();
+    updateButtonNames();
+}
+
 void IpodCard::setWizardState(bool hasProgress, bool windowOpen, bool uninstalled)
 {
     hasProgress_ = hasProgress;
@@ -439,9 +469,15 @@ void IpodCard::updateWizardButtons()
     const bool update = updatable_ && !updateVersion_.isEmpty() && !hasProgress_;
     update_->setText(htr("Update available: TacetOS %1").arg(updateVersion_));
     update_->setVisible(update && !windowOpen_);
+    // Health section 9: the line stays when a Resume is offered.
+    const bool health = healthAllowed_ && healthUsable_;
+    healthLine_->setText(healthText_.text);
+    setRole(healthLine_, healthText_.style == HealthLine::Style::Danger ? "danger" : "secondary");
+    healthLine_->setVisible(health && !healthText_.text.isEmpty());
     if (windowOpen_) {
         eject_->hide();
         bootLogo_->hide();
+        health_->hide();
         open_->hide();
         uninstall_->hide();
         wizard_->setText(htr("Show the wizard"));
@@ -454,6 +490,7 @@ void IpodCard::updateWizardButtons()
     eject_->setVisible(ejectShown_);
     bootLogo_->setVisible(bootLogoShown_);
     open_->setVisible(openShown_);
+    health_->setVisible(health && openShown_);
     wizard_->setVisible(wizardShown_);
     // Uninstall is secondary beside Install TacetOS on a Classic, and beside Update.
     uninstall_->setVisible(wizardShown_ && !hasProgress_ &&
@@ -492,6 +529,7 @@ void IpodCard::updateButtonNames()
     eject_->setAccessibleName(named(eject_->text()));
     open_->setAccessibleName(named(open_->text()));
     bootLogo_->setAccessibleName(named(bootLogo_->text()));
+    health_->setAccessibleName(named(health_->text()));
     uninstall_->setAccessibleName(named(uninstall_->text()));
     wizard_->setAccessibleName(named(wizard_->text()));
 }

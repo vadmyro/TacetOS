@@ -10,7 +10,7 @@ The font is Adwaita Sans (SIL Open Font License 1.1). The file is never stored i
 
 ## Home screen
 
-`home/` holds the home screen: `HomeScreen` (header, one `IpodCard` per iPod, empty state) and its card. They show the list they are given and send `actionRequested` and `refreshRequested`; the wiring to the device code is in the main window. `UpdateWatcher` reads the update channel for the cards of iPods under TacetOS (once per launch, then on each Refresh) and gives the main window the version to show. The look of the dots, banners and buttons comes from the roles in `style/palette.cpp`, never from a colour written in `home/`.
+`home/` holds the home screen: `HomeScreen` (header, one `IpodCard` per iPod, empty state) and its card. They show the list they are given and send `actionRequested` and `refreshRequested`; the wiring to the device code is in the main window. `UpdateWatcher` reads the update channel for the cards of iPods under TacetOS (once per launch, then on each Refresh) and gives the main window the version to show. `HealthWatcher` reads the health files of those iPods on `ready` and on Refresh, adds each reading to the history in the data folder, and gives the card its Health button and its alert line; `HealthWindow` shows one reading (docs/specs/health.md sections 8 and 9). The look of the dots, banners and buttons comes from the roles in `style/palette.cpp`, never from a colour written in `home/`.
 
 ## Wiring
 

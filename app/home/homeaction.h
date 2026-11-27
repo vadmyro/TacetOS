@@ -28,6 +28,8 @@ enum class HomeAction {
     UpdateWizard,
     // Boot screen section 8.1: opens the dialog of the boot logo.
     BootLogo,
+    // Health section 9: opens the Health window.
+    Health,
 };
 
 // Sets the "role" property that the style sheet looks at (style/palette.h) and

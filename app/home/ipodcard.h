@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "home/healthwindow.h"
 #include "home/homeaction.h"
 #include "messages.h"
 #include "screenstate.h"
@@ -41,13 +42,19 @@ public:
     // card shows it on `ready` with a `tacetos` firmware line, unless a progress file exists.
     void setUpdate(const QString &version);
 
+    // Health section 9: a usable health file was read, and the line for its most serious verdict
+    // (empty for none). The card shows them on `ready` with a `tacetos` firmware line.
+    void setHealth(bool usable, const HealthLine &line = {});
+
     QString portPath() const { return portPath_; }
     QPushButton *wizardButton() const { return wizard_; }
     QPushButton *uninstallButton() const { return uninstall_; }
     QPushButton *ejectButton() const { return eject_; }
     QPushButton *openButton() const { return open_; }
     QPushButton *bootLogoButton() const { return bootLogo_; }
+    QPushButton *healthButton() const { return health_; }
     QLabel *updateLabel() const { return update_; }
+    QLabel *healthLabel() const { return healthLine_; }
 
 signals:
     void actionRequested(tacetos::HomeAction action);
@@ -73,6 +80,7 @@ private:
     QLabel *state_;
     QLabel *firmware_;
     QLabel *update_;
+    QLabel *healthLine_;
     QProgressBar *spaceBar_;
     QProgressBar *busyBar_;
     QLabel *spaceLabel_;
@@ -81,6 +89,7 @@ private:
     QPushButton *eject_;
     QPushButton *open_;
     QPushButton *bootLogo_;
+    QPushButton *health_;
     QPushButton *uninstall_;
     QPushButton *wizard_;
     // What the state of the card lets the wizard offer.
@@ -97,6 +106,11 @@ private:
     bool openShown_ = false;
     // Boot screen section 8.1.
     bool bootLogoShown_ = false;
+    // Health section 9: `ready` (or busy from it) with a `tacetos` firmware line, and what was
+    // read.
+    bool healthAllowed_ = false;
+    bool healthUsable_ = false;
+    HealthLine healthText_;
     HomeAction wizardAction_ = HomeAction::InstallWizard;
 };
 

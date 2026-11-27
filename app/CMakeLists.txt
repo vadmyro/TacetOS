@@ -7,6 +7,10 @@ qt_add_library(tacetos_ui STATIC
     mainwindow.h
     home/bootlogodialog.cpp
     home/bootlogodialog.h
+    home/healthwatcher.cpp
+    home/healthwatcher.h
+    home/healthwindow.cpp
+    home/healthwindow.h
     home/homeaction.h
     home/homescreen.cpp
     home/homescreen.h
@@ -52,7 +56,7 @@ qt_add_library(tacetos_ui STATIC
 target_include_directories(tacetos_ui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(tacetos_ui PUBLIC TACETOS_VERSION="${PROJECT_VERSION}")
 target_link_libraries(tacetos_ui PUBLIC Qt6::Widgets Qt6::Svg tacet_device tacet_journal tacet_wizard
-    tacet_update tacet_bootlogo)
+    tacet_update tacet_bootlogo tacet_health)
 
 # The drawings of the models, read as :/models/<id>.svg (resources/models/README.md).
 qt_add_resources(tacetos_ui drawings

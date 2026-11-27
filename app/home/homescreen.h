@@ -47,6 +47,10 @@ public:
     // Update section 8: the version the channel has for the iPod of this port, empty for none.
     void setUpdate(const QString &port, const QString &version);
 
+    // Health section 9: whether a usable health file was read for this port, and the line of the
+    // card.
+    void setHealth(const QString &port, bool usable, const HealthLine &line = {});
+
 signals:
     void actionRequested(const QString &port, tacetos::HomeAction action);
     void refreshRequested();
@@ -76,6 +80,12 @@ private:
     };
     QHash<QString, WizardFlags> wizardState_;
     QHash<QString, QString> updates_;
+    struct HealthFlags
+    {
+        bool usable = false;
+        HealthLine line;
+    };
+    QHash<QString, HealthFlags> health_;
     bool detectionAvailable_ = true;
 };
 

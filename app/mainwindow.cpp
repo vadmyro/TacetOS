@@ -4,6 +4,8 @@
 #include "mainwindow.h"
 
 #include "home/bootlogodialog.h"
+#include "home/healthwatcher.h"
+#include "home/healthwindow.h"
 #include "home/homescreen.h"
 #include "home/updatewatcher.h"
 
@@ -107,6 +109,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), open_(openFolderI
     for (const QString &line : channel.log)
         journal_->add(journal::Level::Info, journal::Domain::App, QString(), line);
     attachUpdateChannel(channel.address);
+    attachHealth(wizard.dataDir);
     driver_->start();
 #else
     // Detection is not there yet on this system: a plain message, no error.
@@ -147,6 +150,21 @@ void MainWindow::attachUpdateChannel(const update::ChannelAddress &address)
     updates_ = std::make_unique<UpdateWatcher>(address, journal_.get());
     connect(updates_.get(), &UpdateWatcher::updateChanged, this,
             [this](const QString &port) { home_->setUpdate(port, updates_->updateFor(port)); });
+    showEntries();
+}
+
+void MainWindow::attachHealth(const QString &dataFolder)
+{
+    if (health_ || !model_)
+        return;
+    health_ = std::make_unique<HealthWatcher>(dataFolder, journal_.get());
+    connect(health_.get(), &HealthWatcher::healthChanged, this, [this](const QString &port) {
+        const std::optional<HealthState> state = health_->stateFor(port);
+        if (state)
+            home_->setHealth(port, state->usable(), cardHealthLine(*state));
+        else
+            home_->setHealth(port, false);
+    });
     showEntries();
 }
 
@@ -243,6 +261,8 @@ void MainWindow::wire(DeviceSource *source, const Clock *clock, DiskActions *act
         model_->refresh();
         if (updates_)
             updates_->refresh();
+        if (health_)
+            health_->refresh();
     });
     showEntries();
 }
@@ -255,6 +275,8 @@ void MainWindow::showEntries()
         showWizardState(entry.portPath);
     if (updates_)
         updates_->show(entries, models_);
+    if (health_)
+        health_->show(entries, models_);
 }
 
 void MainWindow::onAction(const QString &port, HomeAction action)
@@ -278,6 +300,9 @@ void MainWindow::onAction(const QString &port, HomeAction action)
         break;
     case HomeAction::BootLogo:
         openBootLogo(port);
+        break;
+    case HomeAction::Health:
+        openHealth(port);
         break;
     case HomeAction::InstallWizard:
     case HomeAction::UninstallWizard:
@@ -308,6 +333,19 @@ void MainWindow::openBootLogo(const QString &port)
         dialog->open();
         return;
     }
+}
+
+// Health section 8: a window of its own, with the name of the card.
+void MainWindow::openHealth(const QString &port)
+{
+    const auto entry = model_->entry(port);
+    const std::optional<HealthState> state = health_ ? health_->stateFor(port) : std::nullopt;
+    if (!entry || !entry->ipod || !state)
+        return;
+    const QString name = ipodName(*entry->ipod, models_);
+    auto *window = new HealthWindow(name.isEmpty() ? tr("iPod") : name, *state, this);
+    window->setAttribute(Qt::WA_DeleteOnClose);
+    window->show();
 }
 
 void MainWindow::startAndOpen(OperationKind kind, const QString &port)

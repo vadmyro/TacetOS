@@ -188,6 +188,8 @@ void HomeScreen::setEntries(const QList<ScreenEntry> &entries, const QList<Model
         const auto flags = wizardState_.value(entry.portPath);
         card->setWizardState(flags.hasProgress, flags.windowOpen, flags.uninstalled);
         card->setUpdate(updates_.value(entry.portPath));
+        const HealthFlags health = health_.value(entry.portPath);
+        card->setHealth(health.usable, health.line);
         card->setNameInButtons(entries.size() > 1);
         kept.append(card);
     }
@@ -232,6 +234,17 @@ void HomeScreen::setUpdate(const QString &port, const QString &version)
             card->setUpdate(version);
 }
 
+void HomeScreen::setHealth(const QString &port, bool usable, const HealthLine &line)
+{
+    if (!usable)
+        health_.remove(port);
+    else
+        health_.insert(port, {usable, line});
+    for (IpodCard *card : std::as_const(cards_))
+        if (card->portPath() == port)
+            card->setHealth(usable, line);
+}
+
 void HomeScreen::updateTabOrder()
 {
     // Section 9: Refresh, then each card from top to bottom, left to right.
@@ -239,7 +252,8 @@ void HomeScreen::updateTabOrder()
     for (IpodCard *card : std::as_const(cards_)) {
         setTabOrder(previous, card->ejectButton());
         setTabOrder(card->ejectButton(), card->openButton());
-        setTabOrder(card->openButton(), card->uninstallButton());
+        setTabOrder(card->openButton(), card->healthButton());
+        setTabOrder(card->healthButton(), card->uninstallButton());
         setTabOrder(card->uninstallButton(), card->wizardButton());
         previous = card->wizardButton();
     }

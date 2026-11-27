@@ -25,6 +25,7 @@ class QCloseEvent;
 
 namespace tacetos {
 
+class HealthWatcher;
 class HomeScreen;
 class UpdateWatcher;
 
@@ -73,6 +74,11 @@ public:
     // nothing is read.
     void attachUpdateChannel(const update::ChannelAddress &address);
     UpdateWatcher *updateWatcher() const { return updates_.get(); }
+    // Health section 3: the cards of `tacetos` iPods read their health files, and each reading
+    // goes to the history in `dataFolder` (not kept when it is empty). The real app calls this
+    // with its data folder; without it nothing is read.
+    void attachHealth(const QString &dataFolder);
+    HealthWatcher *healthWatcher() const { return health_.get(); }
     // Section 1.3: why the app cannot quit now, empty when it can.
     QString quitRefusal() const;
 
@@ -92,6 +98,7 @@ private:
     void onOperation(const device::Operation &operation);
     void showEntries();
     void openBootLogo(const QString &port);
+    void openHealth(const QString &port);
     void startAndOpen(device::OperationKind kind, const QString &port);
 
     HomeScreen *home_ = nullptr;
@@ -115,6 +122,7 @@ private:
     QHash<QString, quint64> openAfter_;
     // It holds a pointer to the journal.
     std::unique_ptr<UpdateWatcher> updates_;
+    std::unique_ptr<HealthWatcher> health_;
     // Last: it holds references to the tracker and the journal, and its windows go first.
     std::unique_ptr<WizardLauncher> launcher_;
 };
