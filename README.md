@@ -50,7 +50,7 @@
 | **v0.1** | Device detection and live state | ✅ 7/7 |
 | Test devices | Disk image test devices, privileged helper | ✅ 6/6 |
 | **v0.2** | Install and reset wizard | ✅ 12/12 |
-| **v0.3** | TacetOS firmware | ⏳ 9/12 |
+| **v0.3** | TacetOS firmware | ⏳ 10/12 |
 | **v0.4** | Music library and sync | ⏳ 0/12 |
 | **v0.5** | Settings, fonts, menus | ⏳ 0/8 |
 | **v0.6** | Themes | ⏳ 0/11 |
@@ -72,7 +72,7 @@
 - [ ] Real-device test: boot, logo, update from the app
 - [ ] Selected fixes from newer firmware development, one tested change at a time
 - [x] Technical folder name on the iPod Classic
-- [ ] Health page: disk and battery state, with a warning when they wear out
+- [x] Health page: disk and battery state, with a warning when they wear out
 
 Every task is listed in the [roadmap](docs/ROADMAP.md). News is posted on the [Discord server](https://discord.gg/XfXtZeUFYs).
 
