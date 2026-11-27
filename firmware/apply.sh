@@ -24,6 +24,9 @@ done
 # shellcheck source=base.lock
 source "$here/base.lock"
 
+# shellcheck source=pick-backport.sh
+source "$here/pick-backport.sh"
+
 # Commits made here only exist to carry the patches; they never leave the work tree.
 git_local() {
     git -C "$dest" -c user.name="TacetOS build" -c user.email="build@invalid" \
@@ -56,7 +59,7 @@ for commit in $BACKPORTS; do
     echo "== backport: $commit"
     # Depth 2 brings the parent, which the cherry-pick needs as its merge base.
     git_local fetch -q --depth 2 origin "$commit"
-    if ! git_local cherry-pick --allow-empty --keep-redundant-commits "$commit" >/dev/null; then
+    if ! pick_backport "$commit" >/dev/null; then
         echo "apply.sh: backport $commit does not apply on $BASE_TAG" >&2
         git_local cherry-pick --abort || true
         exit 1

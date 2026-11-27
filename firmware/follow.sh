@@ -40,6 +40,9 @@ git_local() {
         -c commit.gpgsign=false "$@"
 }
 
+# shellcheck source=pick-backport.sh
+source "$here/pick-backport.sh"
+
 # Always start from a fresh repository, but only replace one made by this script or by apply.sh.
 marker="$dest/.git/tacetos-apply"
 mkdir -p "$dest" "$(dirname "$report")"
@@ -79,7 +82,7 @@ for commit in $BACKPORTS; do
     short="${commit:0:12}"
     log="$work/backport.log"
     if git_local fetch -q --depth 2 origin "$commit" 2>"$log" \
-       && git_local cherry-pick --allow-empty --keep-redundant-commits "$commit" >"$log" 2>&1; then
+       && pick_backport "$commit" >"$log" 2>&1; then
         if git_local diff --quiet HEAD~1 HEAD; then
             echo "| \`$short\` | already in the newest commit, can leave the list |" >> "$rows_backports"
         else
