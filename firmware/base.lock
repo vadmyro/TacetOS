@@ -26,6 +26,8 @@ BACKPORTS="
 6340e79cda14d665fc0a64171fb27cc39ee92ffa
 b217a550598e2fc7fbb76924cb6758b18bfeff83
 ad6cc2f099bd8877a335b47bc150e14067adabfe
+bb605c91a46680263dc42311ce52c200b1afb8ce
+c307fd552501020423f23e63e0c80132f5149e45
 "
 
 # Files where a conflict in a backport does not matter: the change to them is dropped

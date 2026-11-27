@@ -213,7 +213,7 @@ index 00000000..61493237
 +    /* Read before the file is opened, so that the write itself stays short. */
 +    int smart_rc;
 +    memset(&smart_block, 0, sizeof(smart_block));
-+    smart_rc = ata_read_smart(&smart_block);
++    smart_rc = ata_read_smart(&smart_block, ATA_SMART_READ_DATA);
 +#endif
 +
 +    update_runtime();
