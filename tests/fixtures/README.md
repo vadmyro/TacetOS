@@ -52,3 +52,13 @@ python3 tests/fixtures/check_reference.py --device-tree device-tree.txt --left-i
 ```
 
 It prints the differing lines and exits with 1 when they do not match.
+
+**health/make_health_fixtures.py**
+
+Writes the health and charge files of the health tests (`docs/specs/health.md` section 10): a Classic with a clean disk, with reallocated sectors, with pending sectors over the limit, an older model with `smart: unsupported`, a flash disk, and two charge files at 100 % and 80 %. The identify and SMART blocks are built from the public layout of section 5.1 with their checksums, and every value in them is invented.
+
+```
+python3 tests/fixtures/health/make_health_fixtures.py tests/fixtures/health
+```
+
+The CTest `health_fixtures` runs it with `--check` and fails when the files in the tree differ from what it writes.

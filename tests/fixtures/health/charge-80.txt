@@ -1,0 +1,5 @@
+format: 1
+clock: 2026-11-26 09:12:40
+battery_level: 80
+battery_mv: 3990
+end: ok
