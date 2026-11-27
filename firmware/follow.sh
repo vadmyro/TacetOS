@@ -37,7 +37,7 @@ source "$here/base.lock"
 
 git_local() {
     git -C "$dest" -c user.name="TacetOS build" -c user.email="build@invalid" \
-        -c commit.gpgsign=false "$@"
+        -c commit.gpgsign=false -c gc.auto=0 -c maintenance.auto=false "$@"
 }
 
 # shellcheck source=pick-backport.sh

@@ -30,7 +30,7 @@ source "$here/pick-backport.sh"
 # Commits made here only exist to carry the patches; they never leave the work tree.
 git_local() {
     git -C "$dest" -c user.name="TacetOS build" -c user.email="build@invalid" \
-        -c commit.gpgsign=false "$@"
+        -c commit.gpgsign=false -c gc.auto=0 -c maintenance.auto=false "$@"
 }
 
 # Always start from a fresh repository, but only replace one this script made.
