@@ -1,0 +1,389 @@
+Subject: Health files for the app
+
+The firmware writes two small text files in its folder, for the Health window
+of the app. health.txt holds the battery, the charge state, the runtime
+counters, and on models with ATA storage the identify block and the SMART
+block of the disk, as hexadecimal digits. It is written when the computer is
+about to get the disk, after the settings are saved, and at a clean power off
+or restart, except on a hard disk with a flat battery, where nothing is
+written. charge.txt holds the battery level and voltage at the moment the
+charger was unplugged; an unplug seen while the computer holds the disk is
+kept in memory and written once the disk is back, and one seen in the early
+USB screen of the start-up is written once the settings are loaded. Both files
+are written whole and never read back. Nothing is shown on the iPod.
+
+diff --git a/apps/SOURCES b/apps/SOURCES
+index 01a43bb5..3f274840 100644
+--- a/apps/SOURCES
++++ b/apps/SOURCES
+@@ -41,6 +41,7 @@ menus/sound_menu.c
+ menus/time_menu.c
+ #endif
+ misc.c
++health.c
+ open_plugin.c
+ onplay.c
+ playlist.c
+diff --git a/apps/gui/usb_screen.c b/apps/gui/usb_screen.c
+index e16428e1..d77b6b93 100644
+--- a/apps/gui/usb_screen.c
++++ b/apps/gui/usb_screen.c
+@@ -38,6 +38,7 @@
+ #include "led.h"
+ #include "appevents.h"
+ #include "usb_screen.h"
++#include "health.h"
+ #include "skin_engine/skin_engine.h"
+ #include "playlist.h"
+ #include "misc.h"
+@@ -96,6 +97,8 @@ static int handle_usb_events(void)
+                 return 1;
+             case SYS_CHARGER_DISCONNECTED:
+                 reset_runtime();
++                /* The computer holds the disk: kept for later. */
++                health_charger_unplugged(false);
+                 break;
+             case SYS_TIMEOUT:
+                 break;
+diff --git a/apps/health.c b/apps/health.c
+new file mode 100644
+index 00000000..61493237
+--- /dev/null
++++ b/apps/health.c
+@@ -0,0 +1,223 @@
++/*
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ * Copyright (C) 2026 vadmyro
++ *
++ * The health files (health.h). Each file is put together in memory first, so
++ * that it is written with a single write and never goes over FILE_MAX. The
++ * blocks of the disk are written as they are: the app decodes them.
++ */
++#include <stdarg.h>
++#include <stdbool.h>
++#include <stdio.h>
++#include <string.h>
++#include "config.h"
++#include "system.h"
++#include "file.h"
++#include "power.h"
++#include "powermgmt.h"
++#include "settings.h"
++#include "timefuncs.h"
++#include "health.h"
++
++/* Only a real ATA driver gives the identify block and the SMART read. */
++#if (CONFIG_PLATFORM & PLATFORM_NATIVE) && (CONFIG_STORAGE & STORAGE_ATA)
++#define HEALTH_ATA
++#include "ata.h"
++#endif
++
++#define FILE_MAX 4096
++#define BLOCK_SIZE 512
++#define CLOCK_SIZE 20 /* "YYYY-MM-DD HH:MM:SS" and its end */
++
++static char text[FILE_MAX];
++static size_t text_len;
++static bool text_full;
++
++#if defined(HEALTH_ATA) && defined(HAVE_ATA_SMART)
++static struct ata_smart_values smart_block;
++#endif
++
++/* The unplug kept while the computer holds the disk. */
++static bool charge_pending;
++static char charge_clock[CLOCK_SIZE];
++static int charge_level;
++static int charge_mv;
++
++static void text_reset(void)
++{
++    text_len = 0;
++    text_full = false;
++}
++
++static void text_add(const char *format, ...)
++{
++    va_list ap;
++    int n;
++    size_t room = sizeof(text) - text_len;
++
++    if (text_full)
++        return;
++    va_start(ap, format);
++    n = vsnprintf(text + text_len, room, format, ap);
++    va_end(ap);
++    if (n < 0 || (size_t)n >= room)
++        text_full = true;
++    else
++        text_len += n;
++}
++
++#ifdef HEALTH_ATA
++static void text_add_block(const char *key, const void *block)
++{
++    static const char digits[] = "0123456789abcdef";
++    const unsigned char *bytes = block;
++    size_t needed = strlen(key) + 2 + BLOCK_SIZE * 2 + 1;
++
++    if (text_full || sizeof(text) - text_len <= needed)
++    {
++        text_full = true;
++        return;
++    }
++    text_add("%s: ", key);
++    for (int i = 0; i < BLOCK_SIZE; i++)
++    {
++        text[text_len++] = digits[bytes[i] >> 4];
++        text[text_len++] = digits[bytes[i] & 0x0f];
++    }
++    text_add("\n");
++}
++#endif
++
++/* Opened with truncation and written whole; a file cut on the way has no
++   "end: ok" line, and the app ignores it. */
++static void text_save(const char *path)
++{
++    int fd;
++
++    if (text_full)
++        return;
++    fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
++    if (fd < 0)
++        return;
++    write(fd, text, text_len);
++    close(fd);
++}
++
++static void read_clock(char *buf)
++{
++#if CONFIG_RTC
++    struct tm *tm = get_time();
++    if (tm != NULL && valid_time(tm))
++    {
++        snprintf(buf, CLOCK_SIZE, "%04d-%02d-%02d %02d:%02d:%02d",
++                 tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
++                 tm->tm_hour, tm->tm_min, tm->tm_sec);
++        return;
++    }
++#endif
++    strcpy(buf, "unset");
++}
++
++static void add_battery(const char *clock, int level, int mv)
++{
++    text_add("clock: %s\n", clock);
++    if (level < 0 || level > 100)
++        text_add("battery_level: unknown\n");
++    else
++        text_add("battery_level: %d\n", level);
++    text_add("battery_mv: %d\n", mv);
++}
++
++static const char *charging_text(void)
++{
++#if CONFIG_CHARGING >= CHARGING_MONITOR
++    if (charge_state == CHARGE_STATE_ERROR || charge_state == CHARGE_STATE_DISABLED)
++        return "error";
++    if (charge_state > DISCHARGING)
++        return "yes";
++#elif CONFIG_CHARGING
++    /* The hardware alone runs the charge: charging while the charger is in,
++       as the status bar shows it. */
++    if (charger_inserted())
++        return "yes";
++#endif
++    return "no";
++}
++
++static const char *disk_kind_text(void)
++{
++#if defined(HEALTH_ATA) && defined(HAVE_DISK_STORAGE)
++    if (!ata_disk_isssd())
++        return "hdd";
++#endif
++    return "flash";
++}
++
++void health_write(enum health_event event)
++{
++    char clock[CLOCK_SIZE];
++#if defined(HEALTH_ATA) && defined(HAVE_ATA_SMART)
++    /* Read before the file is opened, so that the write itself stays short. */
++    int smart_rc;
++    memset(&smart_block, 0, sizeof(smart_block));
++    smart_rc = ata_read_smart(&smart_block);
++#endif
++
++    update_runtime();
++    read_clock(clock);
++
++    text_reset();
++    text_add("format: 1\n");
++    text_add("event: %s\n", event == HEALTH_EVENT_USB ? "usb" : "shutdown");
++    add_battery(clock, battery_level(), battery_voltage());
++    text_add("charging: %s\n", charging_text());
++    text_add("runtime_s: %d\n", global_status.runtime);
++    text_add("top_runtime_s: %d\n", global_status.topruntime);
++    text_add("disk_kind: %s\n", disk_kind_text());
++#ifdef HEALTH_ATA
++    text_add_block("identify_data", ata_get_identify());
++#endif
++#if defined(HEALTH_ATA) && defined(HAVE_ATA_SMART)
++    if (smart_rc == 0)
++    {
++        text_add("smart: ok\n");
++        text_add_block("smart_data", &smart_block);
++    }
++    else
++        text_add("smart: error %d\n", smart_rc);
++#else
++    text_add("smart: unsupported\n");
++#endif
++    text_add("end: ok\n");
++    text_save(HEALTH_FILE);
++}
++
++void health_charger_unplugged(bool disk_available)
++{
++    read_clock(charge_clock);
++    charge_level = battery_level();
++    charge_mv = battery_voltage();
++    charge_pending = true;
++    if (disk_available)
++        health_charge_flush();
++}
++
++void health_charge_flush(void)
++{
++    if (!charge_pending)
++        return;
++    charge_pending = false;
++    text_reset();
++    text_add("format: 1\n");
++    add_battery(charge_clock, charge_level, charge_mv);
++    text_add("end: ok\n");
++    text_save(HEALTH_CHARGE_FILE);
++}
++
++void health_settings_loaded(void)
++{
++    if (!charge_pending)
++        return;
++    reset_runtime();
++    health_charge_flush();
++}
+diff --git a/apps/health.h b/apps/health.h
+new file mode 100644
+index 00000000..a2a10219
+--- /dev/null
++++ b/apps/health.h
+@@ -0,0 +1,39 @@
++/*
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ * Copyright (C) 2026 vadmyro
++ *
++ * The health files, read by the app: the state of the disk and the battery at
++ * one moment, and the battery level at the moment the charger was unplugged.
++ * Plain text, one "key: value" per line, always written whole, never read back.
++ */
++#ifndef HEALTH_H
++#define HEALTH_H
++
++#include <stdbool.h>
++
++#define HEALTH_FILE        FIRMWARE_DIR "/health.txt"
++#define HEALTH_CHARGE_FILE FIRMWARE_DIR "/charge.txt"
++
++enum health_event
++{
++    HEALTH_EVENT_USB,      /* the computer is about to get the disk */
++    HEALTH_EVENT_SHUTDOWN, /* clean power off or restart */
++};
++
++/* Writes the health file. Needs the disk; a write that fails is skipped. */
++void health_write(enum health_event event);
++
++/* The charger was just unplugged: reads the battery now. Writes the charge
++   file at once when the disk is ours, else keeps the values in memory for
++   health_charge_flush(). */
++void health_charger_unplugged(bool disk_available);
++
++/* Writes the charge file kept in memory, if there is one. */
++void health_charge_flush(void);
++
++/* At start-up, once the settings are loaded: an unplug seen before (in the
++   early USB screen) was undone by the saved runtime, so the runtime is reset
++   again and the charge file kept in memory is written. */
++void health_settings_loaded(void);
++
++#endif /* HEALTH_H */
+diff --git a/apps/main.c b/apps/main.c
+index 163ad830..a1914d66 100644
+--- a/apps/main.c
++++ b/apps/main.c
+@@ -59,6 +59,7 @@
+ #include "rolo.h"
+ #include "screens.h"
+ #include "usb_screen.h"
++#include "health.h"
+ #include "power.h"
+ #include "talk.h"
+ #include "plugin.h"
+@@ -657,6 +658,7 @@ static void init(void)
+     CHART(">settings_load");
+     settings_load();
+     CHART("<settings_load");
++    health_settings_loaded();
+ 
+ #if defined(BUTTON_REC) || \
+     (CONFIG_KEYPAD == GIGABEAT_PAD) || \
+diff --git a/apps/misc.c b/apps/misc.c
+index b824c5b2..118bcc7a 100644
+--- a/apps/misc.c
++++ b/apps/misc.c
+@@ -45,6 +45,7 @@
+ #include "timefuncs.h"
+ #include "screens.h"
+ #include "usb_screen.h"
++#include "health.h"
+ #include "talk.h"
+ #include "audio.h"
+ #include "settings.h"
+@@ -419,6 +420,8 @@ static bool clean_shutdown(enum shutdown_type sd_type,
+ #endif
+ 
+             system_flush();
++            /* The settings are saved and the disk still runs. */
++            health_write(HEALTH_EVENT_SHUTDOWN);
+ #ifdef HAVE_EEPROM_SETTINGS
+             if (firmware_settings.initialized)
+             {
+@@ -644,6 +647,9 @@ long default_event_handler_ex(long event, void (*callback)(void *), void *parame
+                 callback(parameter);
+             {
+                 system_flush();
++                /* The settings are saved: the last write before the
++                   computer gets the disk. */
++                health_write(HEALTH_EVENT_USB);
+ #ifdef BOOTFILE
+ #if !defined(USB_NONE) && !defined(USB_HANDLED_BY_OF)
+                 check_bootfile(false); /* gets initial size */
+@@ -656,6 +662,8 @@ long default_event_handler_ex(long event, void (*callback)(void *), void *parame
+ #endif
+ #endif
+                 system_restore();
++                /* The disk is back: an unplug seen meanwhile is written. */
++                health_charge_flush();
+             }
+             return SYS_USB_CONNECTED;
+ 
+@@ -680,6 +688,7 @@ long default_event_handler_ex(long event, void (*callback)(void *), void *parame
+         case SYS_CHARGER_DISCONNECTED:
+             car_adapter_mode_processing(false);
+             reset_runtime();
++            health_charger_unplugged(true);
+             return SYS_CHARGER_DISCONNECTED;
+ 
+         case SYS_CAR_ADAPTER_RESUME:
