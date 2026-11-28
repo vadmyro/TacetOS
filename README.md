@@ -50,7 +50,7 @@
 | **v0.1** | Device detection and live state | ✅ 7/7 |
 | Test devices | Disk image test devices, privileged helper | ✅ 6/6 |
 | **v0.2** | Install and reset wizard | ✅ 12/12 |
-| **v0.3** | TacetOS firmware | ⏳ 10/12 |
+| **v0.3** | TacetOS firmware | ✅ 12/12 |
 | **v0.4** | Music library and sync | ⏳ 0/12 |
 | **v0.5** | Settings, fonts, menus | ⏳ 0/8 |
 | **v0.6** | Themes | ⏳ 0/11 |
@@ -59,20 +59,20 @@
 | **v0.9** | Public beta: packages, one-command install, install guide | ⏳ 0/6 |
 | **v1.0** | Fixes from the beta | ⏳ 0/1 |
 
-### Now: TacetOS firmware
+### Now: Music library and sync
 
-- [x] TacetOS name in the firmware, applied at build time
-- [x] Lighter firmware: no test or developer plugins, games, emulators and visual demos kept
-- [x] TacetOS boot logo, replaceable from the app by your own image or a black screen, quiet bootloader
-- [x] Install progress on the iPod screen and in the app: logo and a progress bar
-- [x] CI builds for every model, plus simulators
-- [x] Update channel through GitHub Releases (public from the beta), settings and themes kept
-- [x] Weekly CI job to follow the base firmware
-- [x] Language screen on the iPod at first start, English first, ready for more languages
-- [ ] Real-device test: boot, logo, update from the app
-- [ ] Selected fixes from newer firmware development, one tested change at a time
-- [x] Technical folder name on the iPod Classic
-- [x] Health page: disk and battery state, with a warning when they wear out
+- [ ] Library scan, tags and a local cache
+- [ ] Sorting rules from the spec, with reference tests
+- [ ] Rules editable in the app: genres, languages, artists
+- [ ] Library view: cover art, list, tag editing, "to sort" queue
+- [ ] Drag-and-drop playlists, compatible `.m3u8`, smart playlists, playlist folders
+- [ ] One-click sync: differences, progress, mirror mode with a preview of what will be deleted
+- [ ] Automatic conversion of formats the iPod cannot play, optional space saving
+- [ ] Music database built on the computer
+- [ ] Playlist link to a "to find" list (no downloads, only links to legal sources)
+- [ ] Import folder and drag and drop: TacetOS tags, sorts and readies your own files, opens `.zip` albums, spots duplicates
+- [ ] iPod card: a faithful drawing of the model and its colour, a storage bar by type, a clear summary
+- [ ] Real-device test with a full library
 
 Every task is listed in the [roadmap](docs/ROADMAP.md). News is posted on the [Discord server](https://discord.gg/XfXtZeUFYs).
 
